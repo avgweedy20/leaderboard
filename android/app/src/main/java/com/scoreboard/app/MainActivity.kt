@@ -168,12 +168,12 @@ fun ScoreBoardMainScreen(
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
                 Snackbar(
+                    modifier = Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), ComponentCornerRadius),
                     snackbarData = data,
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     actionColor = CourtGreen,
-                    shape = ComponentCornerRadius,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    shape = ComponentCornerRadius
                 )
             }
         },
@@ -1960,7 +1960,7 @@ fun CsvImportDialog(
                                     Text(row.errorMessage ?: "Invalid", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
                                 }
                             }
-                            HorizontalDivider()
+                            Divider()
                         }
                     }
                 }

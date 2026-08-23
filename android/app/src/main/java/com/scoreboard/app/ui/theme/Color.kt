@@ -2,6 +2,8 @@ package com.scoreboard.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+val CourtGreen = Color(0xFF22C55E)
+
 // Light Theme Colors
 val BackgroundLight = Color(0xFFF8F9FF)
 val SurfaceLight = Color(0xFFFFFFFF)
