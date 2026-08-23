@@ -19,8 +19,12 @@ android {
             useSupportLibrary true
         }
 
-        // Inject API_BASE_URL from Gradle properties or default to local emulator loopback
-        def apiBaseUrl = project.findProperty("API_BASE_URL") ?: "http://10.0.2.2:5000/"
+        def supabaseUrl = project.findProperty("SUPABASE_URL") ?: System.getenv("SUPABASE_URL") ?: ""
+        def supabaseAnonKey = project.findProperty("SUPABASE_ANON_KEY") ?: System.getenv("SUPABASE_ANON_KEY") ?: ""
+        def apiBaseUrl = project.findProperty("API_BASE_URL") ?: System.getenv("API_BASE_URL") ?: "http://10.0.2.2:5000/"
+
+        buildConfigField "String", "SUPABASE_URL", "\"${supabaseUrl}\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey}\""
         buildConfigField "String", "API_BASE_URL", "\"${apiBaseUrl}\""
     }
 
