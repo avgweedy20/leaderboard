@@ -8,23 +8,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF3B82F6),
-    secondary = Color(0xFF64748B),
-    background = Color(0xFF0F172A),
-    surface = Color(0xFF1E293B),
+    primary = CourtGreen,
     onPrimary = Color.White,
-    onBackground = Color(0xFFF8FAFC),
-    onSurface = Color(0xFFF8FAFC)
+    secondary = SecondaryDark,
+    background = SurfaceDark,
+    surface = SurfaceContainerDark,
+    onBackground = OnSurfaceDark,
+    onSurface = OnSurfaceDark,
+    outline = BorderDark,
+    error = ErrorLight,
+    errorContainer = ErrorContainerLight
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF2563EB),
-    secondary = Color(0xFF475569),
-    background = Color(0xFFF8FAFC),
-    surface = Color.White,
-    onPrimary = Color.White,
-    onBackground = Color(0xFF0F172A),
-    onSurface = Color(0xFF0F172A)
+    primary = CourtGreen,
+    onPrimary = OnPrimaryLight,
+    secondary = SecondaryLight,
+    background = SurfaceLight,
+    surface = SurfaceContainerLowestLight,
+    onBackground = OnSurfaceLight,
+    onSurface = OnSurfaceLight,
+    outline = BorderLight,
+    error = ErrorLight,
+    errorContainer = ErrorContainerLight
 )
 
 @Composable
@@ -36,6 +42,8 @@ fun ScoreBoardTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = AppTypography,
+        shapes = AppShapes,
         content = content
     )
 }
