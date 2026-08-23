@@ -11,8 +11,27 @@ let parsedCsvValidRows = [];
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkAuthUI();
+    checkDbHealth();
     loadInitialData();
 });
+
+async function checkDbHealth() {
+    const badge = document.getElementById('dbModeBadge');
+    if (!badge) return;
+    try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (data.supabase_connected || data.mode === 'supabase') {
+            badge.textContent = 'Connected: Supabase Postgres DB';
+            badge.style.color = 'var(--success-color)';
+        } else {
+            badge.textContent = 'Development: In-Memory Mock DB';
+            badge.style.color = 'var(--warning-color)';
+        }
+    } catch (e) {
+        badge.textContent = 'Offline';
+    }
+}
 
 // THEME SYSTEM
 function initTheme() {

@@ -70,6 +70,12 @@ data class VersionInfo(
     val mandatory: Boolean
 )
 
+data class HealthInfo(
+    val status: String,
+    @SerializedName("supabase_connected") val supabaseConnected: Boolean,
+    val mode: String
+)
+
 data class LoginResponse(
     @SerializedName("access_token") val accessToken: String
 )

@@ -6,6 +6,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 
 interface ApiService {
+    @GET("api/health")
+    suspend fun getHealth(): HealthInfo
+
     @GET("api/sports")
     suspend fun getSports(): List<Sport>
 

@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.scoreboard.app.models.BracketItem
+import com.scoreboard.app.models.HealthInfo
 import com.scoreboard.app.models.LeaderboardItem
 import com.scoreboard.app.models.MatchItem
 import com.scoreboard.app.models.VersionInfo
@@ -42,6 +43,7 @@ fun ScoreBoardMainScreen() {
     var leaderboardList by remember { mutableStateOf<List<LeaderboardItem>>(emptyList()) }
     var matchesList by remember { mutableStateOf<List<MatchItem>>(emptyList()) }
     var bracketsList by remember { mutableStateOf<List<BracketItem>>(emptyList()) }
+    var healthInfo by remember { mutableStateOf<HealthInfo?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var versionInfo by remember { mutableStateOf<VersionInfo?>(null) }
     var showOtaDialog by remember { mutableStateOf(false) }
@@ -54,6 +56,7 @@ fun ScoreBoardMainScreen() {
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
+                healthInfo = RetrofitClient.instance.getHealth()
                 leaderboardList = RetrofitClient.instance.getLeaderboard()
                 matchesList = RetrofitClient.instance.getMatches()
                 bracketsList = RetrofitClient.instance.getBrackets()
@@ -78,7 +81,17 @@ fun ScoreBoardMainScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ScoreBoard Live", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text("ScoreBoard Live", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        val modeText = if (healthInfo?.supabaseConnected == true || healthInfo?.mode == "supabase") {
+                            "Connected: Supabase Postgres DB"
+                        } else {
+                            "Development: In-Memory Mock DB"
+                        }
+                        Text(modeText, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -133,6 +146,7 @@ fun ScoreBoardMainScreen() {
                         password = loginPassword,
                         onPasswordChange = { loginPassword = it },
                         error = loginError,
+                        healthInfo = healthInfo,
                         matches = matchesList,
                         onLogin = {
                             coroutineScope.launch {
@@ -281,6 +295,7 @@ fun AdminScreen(
     password: String,
     onPasswordChange: (String) -> Unit,
     error: String?,
+    healthInfo: HealthInfo?,
     matches: List<MatchItem>,
     onLogin: () -> Unit,
     onLogout: () -> Unit
@@ -336,13 +351,20 @@ fun AdminScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Admin Authenticated", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val dbStatus = if (healthInfo?.supabaseConnected == true || healthInfo?.mode == "supabase") {
+                        "Database: Connected to Supabase Postgres DB"
+                    } else {
+                        "Database: Using Development In-Memory Mock DB"
+                    }
+                    Text(dbStatus, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Admin Write Access Enabled", fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("You have active write permissions to update matches and scores.")
-                    Spacer(modifier = Modifier.height(16.dp))
                     Text("Matches to Score (${matches.size}):", fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     matches.forEach { m ->
-                        Text("• ${m.roundInfo ?: "Match"} (${m.level}) - ${m.status}", fontSize = 14.sp)
+                        Text("• ${m.roundInfo ?: "Match"} (${m.level}) - ${m.status}", fontSize = 13.sp)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
