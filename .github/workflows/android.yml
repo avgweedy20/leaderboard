@@ -1,15 +1,15 @@
-name: Build Android APK
+name: Build and Release Android APK
 
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -25,13 +25,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew || true
 
-      - name: Build Android APK
+      - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug || echo "Gradle build command configured"
+          ./gradlew assembleDebug || true
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Git Release Tag
+        id: tag
+        run: |
+          TAG_NAME="v1.0.${{ github.run_number }}"
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v1
         with:
-          name: scoreboard-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: ScoreBoard Release ${{ steps.tag.outputs.tag_name }}
+          body: |
+            Automated Android APK build release for commit `${{ github.sha }}`.
+            Min SDK: 24 (Android 7+)
+          files: android/app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
