@@ -6,6 +6,7 @@ let teamsData = [];
 let playersData = [];
 let matchesData = [];
 let parsedCsvValidRows = [];
+let selectedSportId = '';
 
 // DOM Loaded Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthUI();
     checkDbHealth();
     loadInitialData();
+    setupDragAndDrop();
 });
 
 async function checkDbHealth() {
@@ -23,13 +25,17 @@ async function checkDbHealth() {
         const data = await res.json();
         if (data.supabase_connected || data.mode === 'supabase') {
             badge.textContent = 'Connected: Supabase Postgres DB';
-            badge.style.color = 'var(--success-color)';
+            badge.className = 'status-pill status-final';
+            badge.style.color = 'var(--primary-container)';
         } else {
             badge.textContent = 'Development: In-Memory Mock DB';
-            badge.style.color = 'var(--warning-color)';
+            badge.className = 'status-pill status-live';
         }
     } catch (e) {
         badge.textContent = 'Offline';
+        badge.className = 'status-pill';
+        badge.style.backgroundColor = 'var(--error)';
+        badge.style.color = '#ffffff';
     }
 }
 
@@ -50,25 +56,33 @@ function toggleTheme() {
 
 function updateThemeUI(theme) {
     const themeText = document.getElementById('themeText');
+    const themeIcon = document.getElementById('themeIcon');
     if (themeText) {
         themeText.textContent = theme === 'dark' ? 'Dark Mode' : 'Light Mode';
+    }
+    if (themeIcon) {
+        const iconHref = theme === 'dark' ? '#icon-moon' : '#icon-sun';
+        themeIcon.innerHTML = `<use href="${iconHref}"></use>`;
     }
 }
 
 // AUTH SYSTEM
 function checkAuthUI() {
     const authBtnText = document.getElementById('authBtnText');
+    const authIcon = document.getElementById('authIcon');
     const adminTabBtn = document.getElementById('adminTabBtn');
     const addMatchBtn = document.getElementById('addMatchBtn');
     const generateBracketBtn = document.getElementById('generateBracketBtn');
 
     if (currentToken) {
-        if (authBtnText) authBtnText.textContent = 'Admin Sign Out';
-        if (adminTabBtn) adminTabBtn.style.display = 'block';
+        if (authBtnText) authBtnText.textContent = 'Sign Out';
+        if (authIcon) authIcon.innerHTML = `<use href="#icon-logout"></use>`;
+        if (adminTabBtn) adminTabBtn.style.display = 'inline-flex';
         if (addMatchBtn) addMatchBtn.style.display = 'inline-flex';
         if (generateBracketBtn) generateBracketBtn.style.display = 'inline-flex';
     } else {
         if (authBtnText) authBtnText.textContent = 'Admin Login';
+        if (authIcon) authIcon.innerHTML = `<use href="#icon-login"></use>`;
         if (adminTabBtn) adminTabBtn.style.display = 'none';
         if (addMatchBtn) addMatchBtn.style.display = 'none';
         if (generateBracketBtn) generateBracketBtn.style.display = 'none';
@@ -81,6 +95,7 @@ function openLoginModal() {
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
         checkAuthUI();
+        loadCurrentTabData();
     } else {
         openModal('loginModal');
     }
@@ -106,7 +121,7 @@ async function handleLogin(e) {
             checkAuthUI();
             loadCurrentTabData();
         } else {
-            alert(data.error || 'Login failed');
+            alert(data.error || 'Login failed - invalid credentials');
         }
     } catch (err) {
         alert('Network error during login');
@@ -147,6 +162,7 @@ async function fetchSports() {
         const res = await fetch('/api/sports');
         sportsData = await res.json();
         populateSportDropdowns();
+        renderSportFilterChips();
     } catch (e) {
         console.error('Error fetching sports', e);
     }
@@ -159,6 +175,40 @@ async function fetchTeamsListSilently() {
     } catch (e) {
         console.error('Error fetching teams list', e);
     }
+}
+
+function getSportIconId(sportType) {
+    if (!sportType) return 'icon-stopwatch';
+    const type = sportType.toLowerCase();
+    if (type.includes('cricket')) return 'icon-cricket';
+    if (type.includes('football') || type.includes('soccer')) return 'icon-football';
+    if (type.includes('basketball')) return 'icon-basketball';
+    return 'icon-stopwatch';
+}
+
+function renderSportFilterChips() {
+    const chipGroup = document.getElementById('sportChipGroup');
+    if (!chipGroup) return;
+
+    let html = `<button type="button" class="chip ${selectedSportId === '' ? 'active' : ''}" onclick="selectSportChip('')">ALL SPORTS</button>`;
+    sportsData.forEach(s => {
+        const iconId = getSportIconId(s.type);
+        const isActive = selectedSportId === s.id ? 'active' : '';
+        html += `
+            <button type="button" class="chip ${isActive}" onclick="selectSportChip('${s.id}')">
+                <svg class="icon" style="width:14px; height:14px; vertical-align: middle; margin-right:4px;"><use href="#${iconId}"></use></svg>
+                ${s.name.toUpperCase()}
+            </button>
+        `;
+    });
+    chipGroup.innerHTML = html;
+}
+
+function selectSportChip(sportId) {
+    selectedSportId = sportId;
+    document.getElementById('filterSport').value = sportId;
+    renderSportFilterChips();
+    loadCurrentTabData();
 }
 
 function populateSportDropdowns() {
@@ -190,11 +240,11 @@ function loadCurrentTabData() {
 
 // 1. LEADERBOARD
 async function loadLeaderboard() {
-    const sportId = document.getElementById('filterSport').value;
+    const sportId = selectedSportId;
     const level = document.getElementById('filterLevel').value;
     const container = document.getElementById('leaderboardContainer');
 
-    container.innerHTML = `<p style="padding: 1.5rem; color: var(--text-secondary);">Loading leaderboard...</p>`;
+    container.innerHTML = `<p style="padding: 24px; color: var(--text-secondary);">Loading leaderboard...</p>`;
 
     try {
         const res = await fetch(`/api/leaderboard?sport_id=${sportId}&level=${level}`);
@@ -203,9 +253,9 @@ async function loadLeaderboard() {
         if (!data || data.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>
+                    <svg class="icon"><use href="#icon-empty"></use></svg>
                     <h3>No Tournament Results Yet</h3>
-                    <p>There are no completed matches for the selected filters.</p>
+                    <p style="font-size: 14px;">There are no completed matches for the selected filters.</p>
                 </div>
             `;
             return;
@@ -231,18 +281,25 @@ async function loadLeaderboard() {
 
         data.forEach((row, idx) => {
             const rank = idx + 1;
-            const rankClass = rank <= 3 ? `rank-${rank}` : '';
+            const rankClass = rank === 1 ? 'rank-1' : '';
+            const iconId = getSportIconId(row.sport_type);
+
             html += `
                 <tr>
                     <td><span class="rank-badge ${rankClass}">${rank}</span></td>
                     <td><strong>${row.team_name}</strong></td>
-                    <td>${row.sport_name}</td>
-                    <td><span class="level-tag">${row.level}</span></td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 6px;">
+                            <svg class="icon" style="width: 16px; height: 16px;"><use href="#${iconId}"></use></svg>
+                            ${row.sport_name}
+                        </span>
+                    </td>
+                    <td><span class="chip" style="font-size: 11px; padding: 2px 6px;">${row.level}</span></td>
                     <td>${row.played}</td>
                     <td>${row.wins}</td>
                     <td>${row.draws}</td>
                     <td>${row.losses}</td>
-                    <td><strong>${row.points} pts</strong></td>
+                    <td><strong>${row.points} PTS</strong></td>
                 </tr>
             `;
         });
@@ -250,13 +307,13 @@ async function loadLeaderboard() {
         html += `</tbody></table>`;
         container.innerHTML = html;
     } catch (err) {
-        container.innerHTML = `<p style="padding: 1rem; color: var(--danger-color);">Failed to load leaderboard data.</p>`;
+        container.innerHTML = `<p style="padding: 16px; color: var(--error);">Failed to load leaderboard data.</p>`;
     }
 }
 
 // 2. MATCHES
 async function loadMatches() {
-    const sportId = document.getElementById('filterSport').value;
+    const sportId = selectedSportId;
     const level = document.getElementById('filterLevel').value;
     const container = document.getElementById('matchesContainer');
 
@@ -267,9 +324,9 @@ async function loadMatches() {
         if (!matchesData || matchesData.length === 0) {
             container.innerHTML = `
                 <div class="empty-state" style="grid-column: 1 / -1;">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <svg class="icon"><use href="#icon-calendar"></use></svg>
                     <h3>No Scheduled Matches</h3>
-                    <p>No tournament matches match the criteria.</p>
+                    <p style="font-size: 14px;">No tournament matches match the selected criteria.</p>
                 </div>
             `;
             return;
@@ -281,25 +338,32 @@ async function loadMatches() {
         let html = '';
         matchesData.forEach(m => {
             const isCompleted = m.status === 'completed';
-            const winnerBadge = isCompleted ? (m.is_draw ? '<span style="color:var(--warning-color)">Draw</span>' : `<span style="color:var(--success-color)">Completed</span>`) : `<span style="color:var(--text-secondary)">${m.status.toUpperCase()}</span>`;
+            const statusPill = isCompleted
+                ? `<span class="status-pill status-final">FINAL</span>`
+                : (m.status === 'live' ? `<span class="status-pill status-live">LIVE</span>` : `<span class="status-pill status-final">SCHEDULED</span>`);
 
             const teamAName = teamsMap[m.team_a_id] || 'Team A';
             const teamBName = teamsMap[m.team_b_id] || 'Team B';
 
             html += `
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span class="level-tag">${m.level}</span>
-                        ${winnerBadge}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="chip" style="font-size: 11px; padding: 2px 6px;">${m.level}</span>
+                        ${statusPill}
                     </div>
-                    <h4>${m.round_info || 'Match'}</h4>
-                    <p style="margin: 0.5rem 0; font-size: 1.1rem; font-weight: 600;">
+                    <h4 style="margin-bottom: 8px;">${m.round_info || 'Regular Match'}</h4>
+                    <p class="body-text" style="font-weight: 600; margin-bottom: 12px;">
                         ${teamAName} vs ${teamBName}
                     </p>
-                    ${m.score_summary ? `<p style="color:var(--accent-color); font-weight:700;">Score: ${m.score_summary}</p>` : ''}
+                    ${m.score_summary ? `
+                        <div style="background-color: var(--surface-container-low); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 12px;">
+                            <span class="mono-label" style="font-size: 12px; color: var(--text-secondary);">SCORE SUMMARY</span>
+                            <div class="headline-md tabular-nums" style="color: var(--primary-container); margin-top: 2px;">${m.score_summary}</div>
+                        </div>
+                    ` : ''}
 
                     ${currentToken ? `
-                        <button class="btn btn-primary" style="margin-top: 1rem; width: 100%; justify-content: center;" onclick="openScoringModal('${m.id}')">
+                        <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="openScoringModal('${m.id}')">
                             ${isCompleted ? 'Edit Score' : 'Score Match'}
                         </button>
                     ` : ''}
@@ -308,13 +372,13 @@ async function loadMatches() {
         });
         container.innerHTML = html;
     } catch (err) {
-        container.innerHTML = `<p style="color: var(--danger-color);">Failed to load matches.</p>`;
+        container.innerHTML = `<p style="color: var(--error);">Failed to load matches.</p>`;
     }
 }
 
 // 3. TIE SHEET / BRACKETS
 async function loadBrackets() {
-    const sportId = document.getElementById('filterSport').value;
+    const sportId = selectedSportId;
     const level = document.getElementById('filterLevel').value;
     const container = document.getElementById('bracketsContainer');
 
@@ -325,49 +389,63 @@ async function loadBrackets() {
         if (!brackets || brackets.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <svg class="icon"><use href="#icon-tree"></use></svg>
                     <h3>No Brackets Generated Yet</h3>
-                    <p>Click "Generate Bracket" above as Admin to create tournament matchups.</p>
+                    <p style="font-size: 14px;">Click "Generate Bracket" above as Admin to create tournament matchups.</p>
                 </div>
             `;
             return;
         }
 
-        let html = '<div class="card-grid">';
+        let html = '<div style="display: flex; flex-direction: column; gap: 24px;">';
         brackets.forEach(b => {
             const struct = b.structure_json || {};
             const rounds = struct.rounds || [];
 
             html += `
-                <div class="card" style="grid-column: span 2;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                        <h3>${b.type === 'single_elimination' ? 'Single Elimination Bracket' : 'Round Robin Bracket'}</h3>
-                        <span class="level-tag">${b.level}</span>
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3>${b.type === 'single_elimination' ? 'Single Elimination Bracket' : 'Round Robin Tournament'}</h3>
+                        <span class="chip" style="font-size: 11px; padding: 2px 6px;">${b.level}</span>
                     </div>
+                    <div class="bracket-container">
             `;
 
             rounds.forEach(r => {
-                html += `<div style="margin-top: 0.75rem;"><strong>${r.round_name || 'Round'}</strong></div><div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">`;
+                html += `<div class="bracket-round"><span class="mono-label" style="margin-bottom: 8px;">${r.round_name || 'Round'}</span>`;
                 if (r.pairs) {
                     r.pairs.forEach(p => {
-                        html += `<div style="background: var(--bg-elevated); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">${p.team_a_name} vs ${p.team_b_name}</div>`;
+                        html += `
+                            <div class="bracket-match">
+                                <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px;">
+                                    <span>${p.team_a_name}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 4px;">
+                                    <span>${p.team_b_name}</span>
+                                </div>
+                            </div>
+                        `;
                     });
                 } else if (r.matches_count) {
-                    html += `<div style="background: var(--bg-elevated); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">${r.matches_count} Round Robin Matchups Scheduled</div>`;
+                    html += `
+                        <div class="bracket-match">
+                            <span class="body-text">${r.matches_count} Round Robin Matchups</span>
+                        </div>
+                    `;
                 }
                 html += `</div>`;
             });
 
-            html += `</div>`;
+            html += `</div></div>`;
         });
         html += '</div>';
         container.innerHTML = html;
     } catch (err) {
-        container.innerHTML = `<p style="color: var(--danger-color);">Failed to load brackets.</p>`;
+        container.innerHTML = `<p style="color: var(--error);">Failed to load brackets.</p>`;
     }
 }
 
-// 4. ADMIN DASHBOARD & CRUD
+// 4. ADMIN DASHBOARD & LISTS
 async function loadAdminLists() {
     await fetchTeamsList();
     await fetchPlayersList();
@@ -381,7 +459,7 @@ async function fetchTeamsList() {
 
         let html = `<table><thead><tr><th>Team Name</th><th>Level</th></tr></thead><tbody>`;
         teamsData.forEach(t => {
-            html += `<tr><td>${t.name}</td><td><span class="level-tag">${t.level}</span></td></tr>`;
+            html += `<tr><td><strong>${t.name}</strong></td><td><span class="chip" style="font-size: 11px; padding: 2px 6px;">${t.level}</span></td></tr>`;
         });
         html += `</tbody></table>`;
         listContainer.innerHTML = html;
@@ -399,7 +477,7 @@ async function fetchPlayersList() {
 
         let html = `<table><thead><tr><th>Player Name</th><th>Grade</th><th>Level</th></tr></thead><tbody>`;
         playersData.forEach(p => {
-            html += `<tr><td>${p.name}</td><td>${p.grade || '-'}</td><td><span class="level-tag">${p.level}</span></td></tr>`;
+            html += `<tr><td><strong>${p.name}</strong></td><td>${p.grade || '-'}</td><td><span class="chip" style="font-size: 11px; padding: 2px 6px;">${p.level}</span></td></tr>`;
         });
         html += `</tbody></table>`;
         listContainer.innerHTML = html;
@@ -440,7 +518,7 @@ async function handleCreateSport(e) {
         if (res.ok) {
             closeModal('createSportModal');
             await fetchSports();
-            alert('Sport created successfully!');
+            alert('Sport registered successfully!');
         } else {
             const err = await res.json();
             alert(err.error || 'Failed to create sport');
@@ -507,7 +585,43 @@ async function handleCreatePlayer(e) {
     }
 }
 
-// CSV IMPORT TOOL
+// CSV IMPORT TOOL & DRAG-AND-DROP
+function setupDragAndDrop() {
+    const dropZone = document.getElementById('dropZone');
+    if (!dropZone) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.style.borderColor = 'var(--primary-container)';
+            dropZone.style.backgroundColor = 'var(--surface-container)';
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.style.borderColor = 'var(--border-color)';
+            dropZone.style.backgroundColor = 'var(--surface-container-low)';
+        }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files && files.length > 0) {
+            const fileInput = document.getElementById('csvFileInput');
+            fileInput.files = files;
+            handleCsvPreview();
+        }
+    });
+}
+
 function openCsvImportModal() {
     document.getElementById('csvPreviewContainer').style.display = 'none';
     document.getElementById('commitCsvBtn').style.display = 'none';
@@ -546,33 +660,33 @@ function renderCsvPreviewTable(data) {
     const tbody = document.querySelector('#csvPreviewTable tbody');
     const commitBtn = document.getElementById('commitCsvBtn');
 
-    header.textContent = `CSV Preview: ${data.valid_count} Valid Rows, ${data.error_count} Rows with Errors`;
+    header.textContent = `CSV Preview: ${data.valid_count} Valid Rows, ${data.error_count} Errors`;
     tbody.innerHTML = '';
 
     data.valid_rows.forEach(r => {
         tbody.innerHTML += `
             <tr>
                 <td>${r.row_num}</td>
-                <td>${r.player_name}</td>
+                <td><strong>${r.player_name}</strong></td>
                 <td>${r.team_name}</td>
                 <td>${r.sport_name}</td>
                 <td>${r.grade}</td>
-                <td><span class="level-tag">${r.level}</span></td>
-                <td><span style="color:var(--success-color); font-weight:bold;">Valid</span></td>
+                <td><span class="chip" style="font-size: 11px; padding: 2px 6px;">${r.level}</span></td>
+                <td><span style="color:var(--primary-container); font-weight:bold;">VALID</span></td>
             </tr>
         `;
     });
 
     data.errors.forEach(e => {
         tbody.innerHTML += `
-            <tr style="background-color: rgba(220, 38, 38, 0.1);">
+            <tr style="background-color: var(--error-container);">
                 <td>${e.row}</td>
                 <td>${e.data.player_name || '-'}</td>
                 <td>${e.data.team_name || '-'}</td>
                 <td>${e.data.sport_name || '-'}</td>
                 <td>${e.data.grade || '-'}</td>
                 <td>${e.data.level}</td>
-                <td><span style="color:var(--danger-color); font-weight:bold;">${e.errors.join(', ')}</span></td>
+                <td><span style="color:var(--error); font-weight:bold;">${e.errors.join(', ')}</span></td>
             </tr>
         `;
     });
@@ -661,6 +775,7 @@ async function handleCreateMatch(e) {
     }
 }
 
+// SPORT-SPECIFIC SCORING MODALS & LIVE PREVIEWS
 function openScoringModal(matchId) {
     const match = matchesData.find(m => m.id === matchId);
     if (!match) return;
@@ -669,83 +784,131 @@ function openScoringModal(matchId) {
     const container = document.getElementById('scoringFormContainer');
     document.getElementById('scoringModalTitle').textContent = `Score Match (${sport.type.toUpperCase()})`;
 
+    const teamAName = (teamsData.find(t => t.id === match.team_a_id) || {}).name || 'Team A';
+    const teamBName = (teamsData.find(t => t.id === match.team_b_id) || {}).name || 'Team B';
+
     if (sport.type === 'cricket') {
         container.innerHTML = `
             <form onsubmit="submitCricketScore(event, '${matchId}')">
-                <div style="margin-bottom: 1rem;">
-                    <h4>Innings 1</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
-                        <input type="number" id="cricket_r1" placeholder="Runs" required>
-                        <input type="number" id="cricket_w1" placeholder="Wickets" required>
-                        <input type="number" step="0.1" id="cricket_o1" placeholder="Overs" value="20.0">
+                <div style="background-color: var(--surface-container-low); padding: 16px; border-radius: 4px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 16px;">
+                    <span class="mono-label">LIVE SCOREBOARD PREVIEW</span>
+                    <div id="cricketLivePreview" class="display-score" style="color: var(--primary-container); margin-top: 8px;">0/0 vs 0/0</div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <h4 class="mono-label">${teamAName} (Innings 1)</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px;">
+                        <div class="form-group"><label>Runs</label><input type="number" id="cricket_r1" value="0" oninput="updateCricketLivePreview()" required></div>
+                        <div class="form-group"><label>Wickets</label><input type="number" id="cricket_w1" value="0" oninput="updateCricketLivePreview()" required></div>
+                        <div class="form-group"><label>Overs</label><input type="number" step="0.1" id="cricket_o1" value="20.0" required></div>
                     </div>
                 </div>
-                <div style="margin-bottom: 1.5rem;">
-                    <h4>Innings 2</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
-                        <input type="number" id="cricket_r2" placeholder="Runs" required>
-                        <input type="number" id="cricket_w2" placeholder="Wickets" required>
-                        <input type="number" step="0.1" id="cricket_o2" placeholder="Overs" value="20.0">
+
+                <div style="margin-bottom: 24px;">
+                    <h4 class="mono-label">${teamBName} (Innings 2)</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px;">
+                        <div class="form-group"><label>Runs</label><input type="number" id="cricket_r2" value="0" oninput="updateCricketLivePreview()" required></div>
+                        <div class="form-group"><label>Wickets</label><input type="number" id="cricket_w2" value="0" oninput="updateCricketLivePreview()" required></div>
+                        <div class="form-group"><label>Overs</label><input type="number" step="0.1" id="cricket_o2" value="20.0" required></div>
                     </div>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                    <button type="button" class="btn" onclick="closeModal('scoringModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Score</button>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('scoringModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Final Score</button>
                 </div>
             </form>
         `;
+        updateCricketLivePreview();
     } else if (sport.type === 'football') {
         container.innerHTML = `
             <form onsubmit="submitFootballScore(event, '${matchId}')">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background-color: var(--surface-container-low); padding: 16px; border-radius: 4px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 16px;">
+                    <span class="mono-label">RUNNING SCOREBOARD</span>
+                    <div id="fbLivePreview" class="display-score" style="color: var(--primary-container); margin-top: 8px;">0 - 0</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div class="form-group">
-                        <label>Team A Goals</label>
-                        <input type="number" id="fb_goals_a" value="0" required>
+                        <label>${teamAName} Goals</label>
+                        <input type="number" id="fb_goals_a" value="0" oninput="updateFootballLivePreview()" required>
                     </div>
                     <div class="form-group">
-                        <label>Team B Goals</label>
-                        <input type="number" id="fb_goals_b" value="0" required>
+                        <label>${teamBName} Goals</label>
+                        <input type="number" id="fb_goals_b" value="0" oninput="updateFootballLivePreview()" required>
                     </div>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                    <button type="button" class="btn" onclick="closeModal('scoringModal')">Cancel</button>
+
+                <div style="margin-bottom: 16px;">
+                    <span class="mono-label">CARD EVENTS (Square Markers)</span>
+                    <div style="display: flex; gap: 12px; margin-top: 8px;">
+                        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px;">
+                            <span class="card-event-marker card-event-yellow"></span> Yellow Card
+                        </span>
+                        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px;">
+                            <span class="card-event-marker card-event-red"></span> Red Card
+                        </span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('scoringModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Score</button>
                 </div>
             </form>
         `;
+        updateFootballLivePreview();
     } else if (sport.type === 'basketball') {
         container.innerHTML = `
             <form onsubmit="submitBasketballScore(event, '${matchId}')">
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Enter per-quarter scores:</p>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem;">
-                    <input type="number" id="bk_q1_a" placeholder="Q1 Team A" value="0">
-                    <input type="number" id="bk_q1_b" placeholder="Q1 Team B" value="0">
-                    <input type="number" id="bk_q2_a" placeholder="Q2 Team A" value="0">
-                    <input type="number" id="bk_q2_b" placeholder="Q2 Team B" value="0">
-                    <input type="number" id="bk_q3_a" placeholder="Q3 Team A" value="0">
-                    <input type="number" id="bk_q3_b" placeholder="Q3 Team B" value="0">
-                    <input type="number" id="bk_q4_a" placeholder="Q4 Team A" value="0">
-                    <input type="number" id="bk_q4_b" placeholder="Q4 Team B" value="0">
+                <div style="background-color: var(--surface-container-low); padding: 16px; border-radius: 4px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 16px;">
+                    <span class="mono-label">RUNNING TOTAL SCORE</span>
+                    <div id="bkLivePreview" class="display-score" style="color: var(--primary-container); margin-top: 8px;">0 - 0</div>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                    <button type="button" class="btn" onclick="closeModal('scoringModal')">Cancel</button>
+
+                <div style="margin-bottom: 16px;">
+                    <span class="mono-label">QUARTER SCORES (${teamAName} vs ${teamBName})</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+                        <input type="number" id="bk_q1_a" placeholder="Q1 ${teamAName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q1_b" placeholder="Q1 ${teamBName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q2_a" placeholder="Q2 ${teamAName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q2_b" placeholder="Q2 ${teamBName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q3_a" placeholder="Q3 ${teamAName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q3_b" placeholder="Q3 ${teamBName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q4_a" placeholder="Q4 ${teamAName}" value="0" oninput="updateBasketballLivePreview()">
+                        <input type="number" id="bk_q4_b" placeholder="Q4 ${teamBName}" value="0" oninput="updateBasketballLivePreview()">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+                    <div class="form-group"><label class="mono-label">FOULS (${teamAName})</label><input type="number" value="0"></div>
+                    <div class="form-group"><label class="mono-label">FOULS (${teamBName})</label><input type="number" value="0"></div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('scoringModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Score</button>
                 </div>
             </form>
         `;
+        updateBasketballLivePreview();
     } else {
         container.innerHTML = `
             <form onsubmit="submitGenericScore(event, '${matchId}')">
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label>Team A Score / Time</label>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label>${teamAName} Score / Time</label>
                     <input type="number" step="0.01" id="gen_score_a" placeholder="e.g. 10.52" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label>Team B Score / Time</label>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label>${teamBName} Score / Time</label>
                     <input type="number" step="0.01" id="gen_score_b" placeholder="e.g. 11.20" required>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                    <button type="button" class="btn" onclick="closeModal('scoringModal')">Cancel</button>
+                <div class="form-group" style="margin-bottom: 24px;">
+                    <label>Notes / Official Remarks</label>
+                    <input type="text" id="gen_notes" placeholder="Optional notes">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('scoringModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Score</button>
                 </div>
             </form>
@@ -753,6 +916,38 @@ function openScoringModal(matchId) {
     }
 
     openModal('scoringModal');
+}
+
+function updateCricketLivePreview() {
+    const r1 = document.getElementById('cricket_r1')?.value || 0;
+    const w1 = document.getElementById('cricket_w1')?.value || 0;
+    const r2 = document.getElementById('cricket_r2')?.value || 0;
+    const w2 = document.getElementById('cricket_w2')?.value || 0;
+    const target = document.getElementById('cricketLivePreview');
+    if (target) target.textContent = `${r1}/${w1} vs ${r2}/${w2}`;
+}
+
+function updateFootballLivePreview() {
+    const gA = document.getElementById('fb_goals_a')?.value || 0;
+    const gB = document.getElementById('fb_goals_b')?.value || 0;
+    const target = document.getElementById('fbLivePreview');
+    if (target) target.textContent = `${gA} - ${gB}`;
+}
+
+function updateBasketballLivePreview() {
+    const q1a = parseInt(document.getElementById('bk_q1_a')?.value || 0);
+    const q1b = parseInt(document.getElementById('bk_q1_b')?.value || 0);
+    const q2a = parseInt(document.getElementById('bk_q2_a')?.value || 0);
+    const q2b = parseInt(document.getElementById('bk_q2_b')?.value || 0);
+    const q3a = parseInt(document.getElementById('bk_q3_a')?.value || 0);
+    const q3b = parseInt(document.getElementById('bk_q3_b')?.value || 0);
+    const q4a = parseInt(document.getElementById('bk_q4_a')?.value || 0);
+    const q4b = parseInt(document.getElementById('bk_q4_b')?.value || 0);
+
+    const totA = q1a + q2a + q3a + q4a;
+    const totB = q1b + q2b + q3b + q4b;
+    const target = document.getElementById('bkLivePreview');
+    if (target) target.textContent = `${totA} - ${totB}`;
 }
 
 async function submitCricketScore(e, matchId) {
@@ -804,8 +999,8 @@ async function submitGenericScore(e, matchId) {
     const match = matchesData.find(m => m.id === matchId);
     const payload = {
         results: [
-            { team_id: match.team_a_id, score: parseFloat(document.getElementById('gen_score_a').value) },
-            { team_id: match.team_b_id, score: parseFloat(document.getElementById('gen_score_b').value) }
+            { team_id: match.team_a_id, score: parseFloat(document.getElementById('gen_score_a').value), notes: document.getElementById('gen_notes').value },
+            { team_id: match.team_b_id, score: parseFloat(document.getElementById('gen_score_b').value), notes: document.getElementById('gen_notes').value }
         ]
     };
     await sendScoreUpdate(`/api/matches/${matchId}/score/generic`, payload);
