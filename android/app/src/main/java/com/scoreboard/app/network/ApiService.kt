@@ -23,8 +23,7 @@ interface SupabaseRestService {
 
     @GET("rest/v1/teams")
     suspend fun getTeams(
-        @Query("select") select: String = "*,sports(name)",
-        @Query("sport_id") sportId: String? = null,
+        @Query("select") select: String = "*,team_sports(sport_id)",
         @Query("level") level: String? = null
     ): List<Team>
 
@@ -34,9 +33,19 @@ interface SupabaseRestService {
         @Body team: Map<String, @JvmSuppressWildcards Any>
     ): List<Team>
 
+    @POST("rest/v1/team_sports")
+    suspend fun createTeamSportsBulk(
+        @Body teamSportsList: List<Map<String, @JvmSuppressWildcards Any>>
+    )
+
+    @DELETE("rest/v1/team_sports")
+    suspend fun deleteTeamSports(
+        @Query("team_id") teamIdFilter: String
+    )
+
     @GET("rest/v1/players")
     suspend fun getPlayers(
-        @Query("select") select: String = "*,teams(name)",
+        @Query("select") select: String = "*",
         @Query("team_id") teamId: String? = null,
         @Query("level") level: String? = null
     ): List<Player>
@@ -45,6 +54,12 @@ interface SupabaseRestService {
     suspend fun createPlayer(
         @Header("Prefer") prefer: String = "return=representation",
         @Body player: Map<String, @JvmSuppressWildcards Any>
+    ): List<Player>
+
+    @POST("rest/v1/players")
+    suspend fun createPlayersBulk(
+        @Header("Prefer") prefer: String = "return=representation",
+        @Body playersList: List<Map<String, @JvmSuppressWildcards Any>>
     ): List<Player>
 
     @GET("rest/v1/matches")
@@ -161,20 +176,49 @@ object SupabaseRepository {
         return res.first()
     }
 
-    suspend fun getTeams(sportId: String? = null, level: String? = null): List<Team> {
-        val sFilter = if (!sportId.isNullOrEmpty()) "eq.$sportId" else null
+    suspend fun getTeams(level: String? = null): List<Team> {
         val lFilter = if (!level.isNullOrEmpty() && level != "ALL") "eq.$level" else null
-        return service.getTeams(sportId = sFilter, level = lFilter)
+        return service.getTeams(level = lFilter)
     }
 
-    suspend fun createTeam(name: String, sportId: String, level: String): Team {
-        val payload = mapOf<String, Any>(
+    suspend fun createTeam(name: String, sportIds: List<String>, level: String): Team {
+        val firstSportId = sportIds.firstOrNull()
+        val payload = mutableMapOf<String, Any>(
             "name" to name,
-            "sport_id" to sportId,
             "level" to level
         )
+        if (firstSportId != null) {
+            payload["sport_id"] = firstSportId
+        }
         val res = service.createTeam(team = payload)
-        return res.first()
+        val createdTeam = res.first()
+
+        if (sportIds.isNotEmpty()) {
+            val list = sportIds.map { sportId ->
+                mapOf<String, Any>(
+                    "team_id" to createdTeam.id,
+                    "sport_id" to sportId
+                )
+            }
+            service.createTeamSportsBulk(list)
+        }
+        return createdTeam
+    }
+
+    suspend fun updateTeamSports(teamId: String, sportIds: List<String>) {
+        try {
+            service.deleteTeamSports(teamIdFilter = "eq.$teamId")
+        } catch (_: Exception) {}
+
+        if (sportIds.isNotEmpty()) {
+            val list = sportIds.map { sportId ->
+                mapOf<String, Any>(
+                    "team_id" to teamId,
+                    "sport_id" to sportId
+                )
+            }
+            service.createTeamSportsBulk(list)
+        }
     }
 
     suspend fun getPlayers(teamId: String? = null, level: String? = null): List<Player> {
@@ -192,6 +236,11 @@ object SupabaseRepository {
         )
         val res = service.createPlayer(player = payload)
         return res.first()
+    }
+
+    suspend fun createPlayersBulk(playersList: List<Map<String, Any>>): List<Player> {
+        if (playersList.isEmpty()) return emptyList()
+        return service.createPlayersBulk(playersList = playersList)
     }
 
     suspend fun getMatches(sportId: String? = null, level: String? = null): List<MatchItem> {
@@ -242,7 +291,8 @@ object SupabaseRepository {
     }
 
     suspend fun createBracket(sportId: String, level: String, type: String): BracketItem {
-        val teams = getTeams(sportId = sportId, level = level)
+        val allTeams = getTeams(level = level)
+        val teams = allTeams.filter { it.sportIds.contains(sportId) }
         val rounds = mutableListOf<Map<String, Any>>()
         val generatedMatches = mutableListOf<MatchItem>()
 

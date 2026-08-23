@@ -13,12 +13,26 @@ data class Sport(
     @SerializedName("is_lower_score_better") val isLowerScoreBetter: Boolean
 )
 
+data class TeamSportNested(
+    @SerializedName("sport_id") val sportId: String
+)
+
 data class Team(
     val id: String,
     val name: String,
-    @SerializedName("sport_id") val sportId: String,
-    val level: String
+    @SerializedName("sport_id") val sportId: String?, // Backwards compatibility / single sport column if exists
+    val level: String,
+    @SerializedName("team_sports") val teamSports: List<TeamSportNested>? = emptyList()
 )
+
+val Team.sportIds: List<String>
+    get() {
+        val nested = teamSports?.map { it.sportId } ?: emptyList()
+        if (nested.isEmpty() && sportId != null) {
+            return listOf(sportId)
+        }
+        return nested
+    }
 
 data class Player(
     val id: String,

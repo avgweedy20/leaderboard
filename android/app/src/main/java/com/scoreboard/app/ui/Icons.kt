@@ -20,7 +20,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -52,7 +52,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -86,7 +86,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -115,7 +115,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -141,7 +141,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -168,7 +168,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -197,7 +197,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -236,7 +236,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -261,7 +261,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -291,7 +291,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -313,7 +313,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -340,7 +340,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -362,7 +362,7 @@ object ScoreBoardIcons {
             viewportHeight = 24f
         ).apply {
             path(
-                stroke = SolidColor(Color.Unspecified),
+                stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Square,
                 strokeLineJoin = StrokeJoin.Miter
@@ -379,6 +379,145 @@ object ScoreBoardIcons {
                 moveTo(1f, 14f)
                 lineTo(5.64f, 18.36f)
                 arcTo(9f, 9f, 0f, false, false, 20.49f, 15f)
+            }
+        }.build()
+    }
+
+    val Settings: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Settings",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                // Gear wheel representation
+                moveTo(12f, 15f)
+                arcTo(3f, 3f, 0f, true, false, 12f, 9f)
+                arcTo(3f, 3f, 0f, true, false, 12f, 15f)
+                close()
+                moveTo(19.4f, 15f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 20f, 16.5f)
+                lineTo(20f, 17f)
+                arcTo(1f, 1f, 0f, false, true, 19f, 18f)
+                lineTo(17.5f, 18f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 16f, 19.4f)
+                lineTo(15.5f, 20f)
+                arcTo(1f, 1f, 0f, false, true, 14.5f, 21f)
+                lineTo(13.5f, 21f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 12f, 20.4f)
+                lineTo(10.5f, 20f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 9f, 19.4f)
+                lineTo(8.5f, 18f)
+                arcTo(1f, 1f, 0f, false, true, 7.5f, 17f)
+                lineTo(6f, 17f)
+                arcTo(1f, 1f, 0f, false, true, 5f, 16f)
+                lineTo(5f, 14.5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 4.6f, 13f)
+                lineTo(4f, 12.5f)
+                arcTo(1f, 1f, 0f, false, true, 3f, 11.5f)
+                lineTo(3f, 10.5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 3.6f, 9f)
+                lineTo(4f, 8.5f)
+                arcTo(1f, 1f, 0f, false, true, 5f, 7.5f)
+                lineTo(5f, 6f)
+                arcTo(1f, 1f, 0f, false, true, 6f, 5f)
+                lineTo(7.5f, 5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 9f, 4.6f)
+                lineTo(9.5f, 4f)
+                arcTo(1f, 1f, 0f, false, true, 10.5f, 3f)
+                lineTo(11.5f, 3f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 13f, 3.6f)
+                lineTo(13.5f, 4f)
+                arcTo(1f, 1f, 0f, false, true, 14.5f, 5f)
+                lineTo(16f, 5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 17.5f, 4.6f)
+                lineTo(18f, 4f)
+                arcTo(1f, 1f, 0f, false, true, 19f, 5f)
+                lineTo(19f, 6.5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 19.4f, 8f)
+                lineTo(20f, 8.5f)
+                arcTo(1f, 1f, 0f, false, true, 21f, 9.5f)
+                lineTo(21f, 10.5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 20.4f, 12f)
+                lineTo(20f, 12.5f)
+                arcTo(1.65f, 1.65f, 0f, false, false, 19.4f, 14f)
+                close()
+            }
+        }.build()
+    }
+
+    val Edit: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Edit",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(11f, 4f)
+                lineTo(20f, 4f)
+                moveTo(18.5f, 2.5f)
+                arcTo(2.12f, 2.12f, 0f, true, true, 21.5f, 5.5f)
+                lineTo(12f, 15f)
+                lineTo(8f, 16f)
+                lineTo(9f, 12f)
+                close()
+            }
+        }.build()
+    }
+
+    val Close: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Close",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(18f, 6f)
+                lineTo(6f, 18f)
+                moveTo(6f, 6f)
+                lineTo(18f, 18f)
+            }
+        }.build()
+    }
+
+    val Check: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Check",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(20f, 6f)
+                lineTo(9f, 17f)
+                lineTo(4f, 12f)
             }
         }.build()
     }
