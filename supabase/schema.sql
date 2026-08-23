@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.matches (
     round_info TEXT, -- e.g. "Quarter-Final", "Round 1", "Final"
     winner_team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
     is_draw BOOLEAN DEFAULT FALSE,
+    score_summary TEXT,
     scheduled_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -185,7 +186,6 @@ LEFT JOIN match_stats ms ON t.id = ms.team_id
 GROUP BY t.id, t.name, t.sport_id, s.name, s.type, t.level, s.point_win, s.point_draw, s.point_loss;
 
 -- ROW LEVEL SECURITY (RLS) POLICIES
--- Enable RLS on all tables
 ALTER TABLE public.sports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
@@ -197,7 +197,7 @@ ALTER TABLE public.basketball_quarters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.generic_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tournament_brackets ENABLE ROW LEVEL SECURITY;
 
--- Public Read Policies (Allow anyone / anon users to read)
+-- Public Read Policies
 CREATE POLICY "Public Read Sports" ON public.sports FOR SELECT USING (true);
 CREATE POLICY "Public Read Teams" ON public.teams FOR SELECT USING (true);
 CREATE POLICY "Public Read Players" ON public.players FOR SELECT USING (true);
@@ -209,7 +209,7 @@ CREATE POLICY "Public Read Basketball Quarters" ON public.basketball_quarters FO
 CREATE POLICY "Public Read Generic Results" ON public.generic_results FOR SELECT USING (true);
 CREATE POLICY "Public Read Brackets" ON public.tournament_brackets FOR SELECT USING (true);
 
--- Admin Write Policies (Allow authenticated users / service_role to insert, update, delete)
+-- Admin Write Policies
 CREATE POLICY "Admin Write Sports" ON public.sports FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Teams" ON public.teams FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Players" ON public.players FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');

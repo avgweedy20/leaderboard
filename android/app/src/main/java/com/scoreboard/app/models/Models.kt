@@ -5,7 +5,7 @@ import com.google.gson.annotations.SerializedName
 data class Sport(
     val id: String,
     val name: String,
-    val type: String, // cricket, football, basketball, generic
+    val type: String,
     val level: String?,
     @SerializedName("point_win") val pointWin: Int,
     @SerializedName("point_draw") val pointDraw: Int,
@@ -52,6 +52,13 @@ data class LeaderboardItem(
     val draws: Int,
     val losses: Int,
     val points: Int
+)
+
+data class BracketItem(
+    val id: String,
+    @SerializedName("sport_id") val sportId: String,
+    val level: String,
+    val type: String
 )
 
 data class VersionInfo(

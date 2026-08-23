@@ -108,22 +108,22 @@ def req_admin_auth(f):
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            # If supabase_client is enabled, strictly check auth header
-            # For testing/demo fallback if header is 'Bearer mock-admin-token' or header present
-            if auth_header and "mock-admin-token" in auth_header:
-                return f(*args, **kwargs)
             return jsonify({"error": "Unauthorized admin access required"}), 401
 
         token = auth_header.split(" ")[1]
+
         if supabase_client:
             try:
                 user = supabase_client.auth.get_user(token)
                 if not user:
                     return jsonify({"error": "Invalid auth token"}), 401
             except Exception as e:
-                # Fallback for dev token if needed
-                if token != "mock-admin-token":
-                    return jsonify({"error": str(e)}), 401
+                return jsonify({"error": str(e)}), 401
+        else:
+            # Only allow mock-admin-token when Supabase is NOT attached
+            if token != "mock-admin-token":
+                return jsonify({"error": "Invalid dev auth token"}), 401
+
         return f(*args, **kwargs)
     return decorated
 
@@ -162,7 +162,6 @@ def auth_login():
         except Exception as e:
             return jsonify({"error": str(e)}), 400
     else:
-        # Mock login for testing/demo
         if email == "admin@scoreboard.com" and password == "admin123":
             return jsonify({
                 "access_token": "mock-admin-token",
@@ -396,9 +395,20 @@ def import_players_commit():
     created_teams = 0
     created_sports = 0
 
-    # Cache existing sports and teams
-    existing_sports = {s["name"].lower(): s for s in (get_sports().json or [])}
-    existing_teams = {f"{t['name'].lower()}_{t['sport_id']}": t for t in (get_teams().json or [])}
+    sports_list = []
+    teams_list = []
+
+    if supabase_client:
+        s_res = supabase_client.table("sports").select("*").execute()
+        sports_list = s_res.data
+        t_res = supabase_client.table("teams").select("*").execute()
+        teams_list = t_res.data
+    else:
+        sports_list = MOCK_DB["sports"]
+        teams_list = MOCK_DB["teams"]
+
+    existing_sports = {s["name"].lower(): s for s in sports_list}
+    existing_teams = {f"{t['name'].lower()}_{t['sport_id']}": t for t in teams_list}
 
     for r in rows:
         sport_name = r["sport_name"]
@@ -539,8 +549,6 @@ def create_match():
 @req_admin_auth
 def score_cricket(match_id):
     data = request.get_json() or {}
-    # Innings 1 data: team_id, runs, wickets, overs, extras
-    # Innings 2 data: team_id, runs, wickets, overs, extras
     innings1 = data.get("innings1", {})
     innings2 = data.get("innings2", {})
     status = data.get("status", "completed")
@@ -562,14 +570,13 @@ def score_cricket(match_id):
 
     if supabase_client:
         try:
-            # Update match winner & status
             supabase_client.table("matches").update({
                 "status": status,
                 "winner_team_id": winner_id,
-                "is_draw": is_draw
+                "is_draw": is_draw,
+                "score_summary": score_summary
             }).eq("id", match_id).execute()
 
-            # Insert/upsert innings
             if innings1.get("team_id"):
                 supabase_client.table("cricket_innings").upsert({
                     "match_id": match_id,
@@ -596,7 +603,6 @@ def score_cricket(match_id):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # Mock DB update
     for m in MOCK_DB["matches"]:
         if m["id"] == match_id:
             m["status"] = status
@@ -613,9 +619,8 @@ def score_football(match_id):
     data = request.get_json() or {}
     team_a_goals = data.get("team_a_goals", 0)
     team_b_goals = data.get("team_b_goals", 0)
-    events = data.get("events", []) # list of goals/cards
+    events = data.get("events", [])
 
-    # Find match
     match_item = None
     if supabase_client:
         res = supabase_client.table("matches").select("*").eq("id", match_id).execute()
@@ -650,7 +655,8 @@ def score_football(match_id):
             supabase_client.table("matches").update({
                 "status": "completed",
                 "winner_team_id": winner_id,
-                "is_draw": is_draw
+                "is_draw": is_draw,
+                "score_summary": score_summary
             }).eq("id", match_id).execute()
 
             if events:
@@ -679,7 +685,7 @@ def score_football(match_id):
 @req_admin_auth
 def score_basketball(match_id):
     data = request.get_json() or {}
-    quarters = data.get("quarters", []) # list of {quarter: 1, team_a_score: x, team_b_score: y}
+    quarters = data.get("quarters", [])
 
     total_a = sum(q.get("team_a_score", 0) for q in quarters)
     total_b = sum(q.get("team_b_score", 0) for q in quarters)
@@ -737,17 +743,16 @@ def score_basketball(match_id):
     return jsonify({"success": True, "score": score_summary, "winner_team_id": winner_id})
 
 
-# GENERIC SPORT SCORING (100m Dash, Tug of war, Chess, etc.)
+# GENERIC SPORT SCORING
 @app.route("/api/matches/<match_id>/score/generic", methods=["POST"])
 @req_admin_auth
 def score_generic(match_id):
     data = request.get_json() or {}
-    results = data.get("results", []) # list of {team_id, player_id, score, notes}
+    results = data.get("results", [])
 
     if not results:
         return jsonify({"error": "Results list required"}), 400
 
-    # Retrieve match & sport info to know if lower score is better
     match_item = None
     sport_item = None
 
@@ -768,18 +773,18 @@ def score_generic(match_id):
                     break
 
     is_lower_better = sport_item.get("is_lower_score_better", False) if sport_item else False
-
-    # Sort results to determine winner/ranks
     sorted_res = sorted(results, key=lambda x: float(x.get("score", 0)), reverse=not is_lower_better)
-
     winner_team_id = sorted_res[0].get("team_id") if sorted_res else None
+
+    score_summary = f"Top Score: {sorted_res[0].get('score')}" if sorted_res else ""
 
     if supabase_client:
         try:
             supabase_client.table("matches").update({
                 "status": "completed",
                 "winner_team_id": winner_team_id,
-                "is_draw": False
+                "is_draw": False,
+                "score_summary": score_summary
             }).eq("id", match_id).execute()
 
             for rank_idx, r in enumerate(sorted_res, start=1):
@@ -804,19 +809,43 @@ def score_generic(match_id):
     return jsonify({"success": True, "winner_team_id": winner_team_id, "rankings": sorted_res})
 
 
-# BRACKETS / TIE SHEET GENERATION
+# BRACKETS / TIE SHEET GENERATION & FETCHING
+@app.route("/api/brackets", methods=["GET"])
+def get_brackets():
+    sport_id = request.args.get("sport_id")
+    level = request.args.get("level")
+
+    if supabase_client:
+        try:
+            query = supabase_client.table("tournament_brackets").select("*, sports(name)")
+            if sport_id:
+                query = query.eq("sport_id", sport_id)
+            if level and level != "ALL":
+                query = query.eq("level", level)
+            res = query.execute()
+            return jsonify(res.data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    brackets = MOCK_DB["brackets"]
+    if sport_id:
+        brackets = [b for b in brackets if b.get("sport_id") == sport_id]
+    if level and level != "ALL":
+        brackets = [b for b in brackets if b.get("level") == level]
+    return jsonify(brackets)
+
+
 @app.route("/api/brackets/generate", methods=["POST"])
 @req_admin_auth
 def generate_bracket():
     data = request.get_json() or {}
     sport_id = data.get("sport_id")
     level = data.get("level", "HS")
-    bracket_type = data.get("type", "single_elimination") # single_elimination | round_robin
+    bracket_type = data.get("type", "single_elimination")
 
     if not sport_id:
         return jsonify({"error": "sport_id is required"}), 400
 
-    # Fetch teams for this sport & level
     teams = []
     if supabase_client:
         res = supabase_client.table("teams").select("*").eq("sport_id", sport_id).eq("level", level).execute()
@@ -831,16 +860,16 @@ def generate_bracket():
     rounds = []
 
     if bracket_type == "single_elimination":
-        # Pair teams
-        import math
         num_teams = len(teams)
         round_1_pairs = []
         for i in range(0, num_teams, 2):
             team_a = teams[i]
             team_b = teams[i+1] if (i+1) < num_teams else None
-            round_1_pairs.append({"team_a": team_a, "team_b": team_b})
+            round_1_pairs.append({
+                "team_a_name": team_a["name"],
+                "team_b_name": team_b["name"] if team_b else "BYE"
+            })
 
-            # Create match in DB
             m_rec = {
                 "id": str(uuid.uuid4()),
                 "sport_id": sport_id,
@@ -848,7 +877,7 @@ def generate_bracket():
                 "team_b_id": team_b["id"] if team_b else None,
                 "level": level,
                 "status": "scheduled" if team_b else "completed",
-                "winner_team_id": team_a["id"] if not team_b else None, # Bye
+                "winner_team_id": team_a["id"] if not team_b else None,
                 "round_info": "Round 1"
             }
             if supabase_client:
@@ -860,7 +889,6 @@ def generate_bracket():
         rounds.append({"round_name": "Round 1", "pairs": round_1_pairs})
 
     elif bracket_type == "round_robin":
-        # Round robin scheduling
         for i in range(len(teams)):
             for j in range(i + 1, len(teams)):
                 team_a = teams[i]
@@ -915,7 +943,6 @@ def get_leaderboard():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # In-memory leaderboard computing for mock mode
     all_sports = {s["id"]: s for s in MOCK_DB["sports"]}
     all_teams = MOCK_DB["teams"]
     all_matches = MOCK_DB["matches"]

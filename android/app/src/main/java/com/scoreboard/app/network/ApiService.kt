@@ -1,7 +1,6 @@
 package com.scoreboard.app.network
 
 import com.scoreboard.app.models.*
-import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
@@ -28,6 +27,12 @@ interface ApiService {
         @Query("level") level: String? = null
     ): List<MatchItem>
 
+    @GET("api/brackets")
+    suspend fun getBrackets(
+        @Query("sport_id") sportId: String? = null,
+        @Query("level") level: String? = null
+    ): List<BracketItem>
+
     @GET("api/leaderboard")
     suspend fun getLeaderboard(
         @Query("sport_id") sportId: String? = null,
@@ -42,13 +47,12 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.0.2.2:5000/" // Android Emulator Localhost loopback
+    var baseUrl: String = "http://10.0.2.2:5000/"
 
-    val instance: ApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    val instance: ApiService
+        get() = Retrofit.Builder()
+            .baseUrl(baseUrl)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
-    }
 }

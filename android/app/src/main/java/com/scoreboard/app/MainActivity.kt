@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.scoreboard.app.models.BracketItem
 import com.scoreboard.app.models.LeaderboardItem
+import com.scoreboard.app.models.MatchItem
 import com.scoreboard.app.models.VersionInfo
 import com.scoreboard.app.network.RetrofitClient
 import com.scoreboard.app.ui.theme.ScoreBoardTheme
@@ -36,25 +38,36 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ScoreBoardMainScreen() {
     val coroutineScope = rememberCoroutineScope()
+    var selectedTab by remember { mutableStateOf(0) }
     var leaderboardList by remember { mutableStateOf<List<LeaderboardItem>>(emptyList()) }
+    var matchesList by remember { mutableStateOf<List<MatchItem>>(emptyList()) }
+    var bracketsList by remember { mutableStateOf<List<BracketItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var versionInfo by remember { mutableStateOf<VersionInfo?>(null) }
     var showOtaDialog by remember { mutableStateOf(false) }
+
+    var adminToken by remember { mutableStateOf<String?>(null) }
+    var loginEmail by remember { mutableStateOf("admin@scoreboard.com") }
+    var loginPassword by remember { mutableStateOf("admin123") }
+    var loginError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         coroutineScope.launch {
             try {
                 leaderboardList = RetrofitClient.instance.getLeaderboard()
+                matchesList = RetrofitClient.instance.getMatches()
+                bracketsList = RetrofitClient.instance.getBrackets()
                 versionInfo = RetrofitClient.instance.getVersion()
                 if (versionInfo != null && versionInfo!!.versionCode > 1) {
                     showOtaDialog = true
                 }
             } catch (e: Exception) {
-                // Fallback mock data if server isn't reached
                 leaderboardList = listOf(
                     LeaderboardItem("t1", "Lions", "s1", "Cricket", "HS", 5, 4, 0, 1, 12),
-                    LeaderboardItem("t2", "Eagles", "s2", "Football", "HS", 5, 3, 1, 1, 10),
-                    LeaderboardItem("t3", "Tigers", "s1", "Cricket", "HS", 5, 2, 1, 2, 7)
+                    LeaderboardItem("t2", "Eagles", "s2", "Football", "HS", 5, 3, 1, 1, 10)
+                )
+                bracketsList = listOf(
+                    BracketItem("b1", "s1", "HS", "single_elimination")
                 )
             } finally {
                 isLoading = false
@@ -70,6 +83,34 @@ fun ScoreBoardMainScreen() {
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    label = { Text("Leaderboard") },
+                    icon = { Text("#") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    label = { Text("Matches") },
+                    icon = { Text("M") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    label = { Text("Brackets") },
+                    icon = { Text("B") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    label = { Text("Admin") },
+                    icon = { Text("A") }
+                )
+            }
         }
     ) { padding ->
         Box(
@@ -81,28 +122,34 @@ fun ScoreBoardMainScreen() {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Text(
-                            text = "Tournament Leaderboard",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-
-                    itemsIndexed(leaderboardList) { index, item ->
-                        LeaderboardCard(rank = index + 1, item = item)
-                    }
+                when (selectedTab) {
+                    0 -> LeaderboardScreen(leaderboardList)
+                    1 -> MatchesScreen(matchesList)
+                    2 -> BracketsScreen(bracketsList)
+                    3 -> AdminScreen(
+                        adminToken = adminToken,
+                        email = loginEmail,
+                        onEmailChange = { loginEmail = it },
+                        password = loginPassword,
+                        onPasswordChange = { loginPassword = it },
+                        error = loginError,
+                        matches = matchesList,
+                        onLogin = {
+                            coroutineScope.launch {
+                                try {
+                                    val res = RetrofitClient.instance.login(mapOf("email" to loginEmail, "password" to loginPassword))
+                                    adminToken = res.accessToken
+                                    loginError = null
+                                } catch (e: Exception) {
+                                    loginError = "Login failed: ${e.message}"
+                                }
+                            }
+                        },
+                        onLogout = { adminToken = null }
+                    )
                 }
             }
 
-            // OTA Dialog
             if (showOtaDialog && versionInfo != null) {
                 AlertDialog(
                     onDismissRequest = { showOtaDialog = false },
@@ -119,6 +166,189 @@ fun ScoreBoardMainScreen() {
                         }
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun LeaderboardScreen(list: List<LeaderboardItem>) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Live Leaderboard",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        itemsIndexed(list) { index, item ->
+            LeaderboardCard(rank = index + 1, item = item)
+        }
+    }
+}
+
+@Composable
+fun MatchesScreen(matches: List<MatchItem>) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Tournament Matches",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        if (matches.isEmpty()) {
+            item {
+                Text(
+                    text = "No scheduled matches found.",
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+            }
+        } else {
+            itemsIndexed(matches) { _, item ->
+                MatchCard(item = item)
+            }
+        }
+    }
+}
+
+@Composable
+fun BracketsScreen(brackets: List<BracketItem>) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Tie Sheet / Brackets",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        if (brackets.isEmpty()) {
+            item {
+                Text(
+                    text = "No brackets generated yet.",
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+            }
+        } else {
+            itemsIndexed(brackets) { _, item ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (item.type == "single_elimination") "Single Elimination Bracket" else "Round Robin Bracket",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "Level: ${item.level}", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminScreen(
+    adminToken: String?,
+    email: String,
+    onEmailChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    error: String?,
+    matches: List<MatchItem>,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Admin Management",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (adminToken == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Admin Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = onEmailChange,
+                        label = { Text("Email") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = onPasswordChange,
+                        label = { Text("Password") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
+                        Text("Sign In")
+                    }
+                }
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Admin Authenticated", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("You have active write permissions to update matches and scores.")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Matches to Score (${matches.size}):", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    matches.forEach { m ->
+                        Text("• ${m.roundInfo ?: "Match"} (${m.level}) - ${m.status}", fontSize = 14.sp)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                        Text("Sign Out")
+                    }
+                }
             }
         }
     }
@@ -173,6 +403,36 @@ fun LeaderboardCard(rank: Int, item: LeaderboardItem) {
                 fontSize = 18.sp,
                 color = MaterialTheme.colorScheme.primary
             )
+        }
+    }
+}
+
+@Composable
+fun MatchCard(item: MatchItem) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = item.level, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    text = item.status.uppercase(),
+                    color = if (item.status == "completed") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = item.roundInfo ?: "Match", fontWeight = FontWeight.Bold)
+            if (item.scoreSummary != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = "Score: ${item.scoreSummary}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

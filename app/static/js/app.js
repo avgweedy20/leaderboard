@@ -59,7 +59,6 @@ function checkAuthUI() {
 
 function openLoginModal() {
     if (currentToken) {
-        // Logout
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
         checkAuthUI();
@@ -120,6 +119,7 @@ function switchTab(tabId) {
 // DATA LOADING
 async function loadInitialData() {
     await fetchSports();
+    await fetchTeamsListSilently();
     loadCurrentTabData();
 }
 
@@ -130,6 +130,15 @@ async function fetchSports() {
         populateSportDropdowns();
     } catch (e) {
         console.error('Error fetching sports', e);
+    }
+}
+
+async function fetchTeamsListSilently() {
+    try {
+        const res = await fetch('/api/teams');
+        teamsData = await res.json();
+    } catch (e) {
+        console.error('Error fetching teams list', e);
     }
 }
 
@@ -156,6 +165,7 @@ function populateSportDropdowns() {
 function loadCurrentTabData() {
     if (activeTab === 'leaderboardTab') loadLeaderboard();
     else if (activeTab === 'matchesTab') loadMatches();
+    else if (activeTab === 'bracketsTab') loadBrackets();
     else if (activeTab === 'adminTab') loadAdminLists();
 }
 
@@ -246,10 +256,16 @@ async function loadMatches() {
             return;
         }
 
+        const teamsMap = {};
+        teamsData.forEach(t => teamsMap[t.id] = t.name);
+
         let html = '';
         matchesData.forEach(m => {
             const isCompleted = m.status === 'completed';
             const winnerBadge = isCompleted ? (m.is_draw ? '<span style="color:var(--warning-color)">Draw</span>' : `<span style="color:var(--success-color)">Completed</span>`) : `<span style="color:var(--text-secondary)">${m.status.toUpperCase()}</span>`;
+
+            const teamAName = teamsMap[m.team_a_id] || 'Team A';
+            const teamBName = teamsMap[m.team_b_id] || 'Team B';
 
             html += `
                 <div class="card">
@@ -259,7 +275,7 @@ async function loadMatches() {
                     </div>
                     <h4>${m.round_info || 'Match'}</h4>
                     <p style="margin: 0.5rem 0; font-size: 1.1rem; font-weight: 600;">
-                        ${m.team_a_id ? 'Team A' : 'TBD'} vs ${m.team_b_id ? 'Team B' : 'TBD'}
+                        ${teamAName} vs ${teamBName}
                     </p>
                     ${m.score_summary ? `<p style="color:var(--accent-color); font-weight:700;">Score: ${m.score_summary}</p>` : ''}
 
@@ -277,7 +293,62 @@ async function loadMatches() {
     }
 }
 
-// 3. ADMIN DASHBOARD & CRUD
+// 3. TIE SHEET / BRACKETS
+async function loadBrackets() {
+    const sportId = document.getElementById('filterSport').value;
+    const level = document.getElementById('filterLevel').value;
+    const container = document.getElementById('bracketsContainer');
+
+    try {
+        const res = await fetch(`/api/brackets?sport_id=${sportId}&level=${level}`);
+        const brackets = await res.json();
+
+        if (!brackets || brackets.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <h3>No Brackets Generated Yet</h3>
+                    <p>Click "Generate Bracket" above as Admin to create tournament matchups.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div class="card-grid">';
+        brackets.forEach(b => {
+            const struct = b.structure_json || {};
+            const rounds = struct.rounds || [];
+
+            html += `
+                <div class="card" style="grid-column: span 2;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h3>${b.type === 'single_elimination' ? 'Single Elimination Bracket' : 'Round Robin Bracket'}</h3>
+                        <span class="level-tag">${b.level}</span>
+                    </div>
+            `;
+
+            rounds.forEach(r => {
+                html += `<div style="margin-top: 0.75rem;"><strong>${r.round_name || 'Round'}</strong></div><div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">`;
+                if (r.pairs) {
+                    r.pairs.forEach(p => {
+                        html += `<div style="background: var(--bg-elevated); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">${p.team_a_name} vs ${p.team_b_name}</div>`;
+                    });
+                } else if (r.matches_count) {
+                    html += `<div style="background: var(--bg-elevated); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">${r.matches_count} Round Robin Matchups Scheduled</div>`;
+                }
+                html += `</div>`;
+            });
+
+            html += `</div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<p style="color: var(--danger-color);">Failed to load brackets.</p>`;
+    }
+}
+
+// 4. ADMIN DASHBOARD & CRUD
 async function loadAdminLists() {
     await fetchTeamsList();
     await fetchPlayersList();
@@ -459,7 +530,6 @@ function renderCsvPreviewTable(data) {
     header.textContent = `CSV Preview: ${data.valid_count} Valid Rows, ${data.error_count} Rows with Errors`;
     tbody.innerHTML = '';
 
-    // Valid Rows
     data.valid_rows.forEach(r => {
         tbody.innerHTML += `
             <tr>
@@ -474,7 +544,6 @@ function renderCsvPreviewTable(data) {
         `;
     });
 
-    // Error Rows
     data.errors.forEach(e => {
         tbody.innerHTML += `
             <tr style="background-color: rgba(220, 38, 38, 0.1);">
@@ -646,7 +715,6 @@ function openScoringModal(matchId) {
             </form>
         `;
     } else {
-        // Generic Scoring Template
         container.innerHTML = `
             <form onsubmit="submitGenericScore(event, '${matchId}')">
                 <div class="form-group" style="margin-bottom: 1rem;">
@@ -765,7 +833,7 @@ async function handleGenerateBracket(e) {
         if (res.ok) {
             closeModal('generateBracketModal');
             alert(`Generated tournament bracket with ${data.created_matches} scheduled matches!`);
-            switchTab('matchesTab');
+            switchTab('bracketsTab');
         } else {
             alert(data.error || 'Failed to generate bracket');
         }
