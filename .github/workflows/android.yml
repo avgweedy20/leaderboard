@@ -24,16 +24,28 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
-      - name: Build Android Debug APK with Injected Repository Secrets
+      - name: Decode Release Keystore
+        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Build Android Release and Debug APKs
         run: |
           cd android
-          ./gradlew assembleDebug \
+          ./gradlew assembleRelease assembleDebug \
             -PSUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -PSUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
-            -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://your-scoreboard-api.vercel.app/' }}"
+            -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://your-scoreboard-api.vercel.app/' }}" \
+            -PRELEASE_KEYSTORE_FILE="release.keystore" \
+            -PRELEASE_KEYSTORE_PASSWORD="${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+            -PRELEASE_KEY_ALIAS="${{ secrets.RELEASE_KEY_ALIAS || 'dss-sports' }}" \
+            -PRELEASE_KEY_PASSWORD="${{ secrets.RELEASE_KEY_PASSWORD }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
 
       - name: Create Git Release Tag
         id: tag
@@ -41,7 +53,7 @@ jobs:
           TAG_NAME="v1.0.${{ github.run_number }}"
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release and Upload APK
+      - name: Create GitHub Release and Upload APKs
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
@@ -49,6 +61,8 @@ jobs:
           body: |
             Automated Android APK build release for commit `${{ github.sha }}`.
             Min SDK: 24 (Android 7+)
-          files: android/app/build/outputs/apk/debug/*.apk
+          files: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
