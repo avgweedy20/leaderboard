@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest cache
+.pytest_cache/
+
+# Android build artifacts & Gradle caches
+.gradle/
+build/
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+*.apk
+*.aar
+*.log
+
+# Environments
+.env
+.venv
+env/
+venv/
