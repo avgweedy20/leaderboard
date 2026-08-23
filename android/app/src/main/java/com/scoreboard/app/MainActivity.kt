@@ -49,8 +49,8 @@ fun ScoreBoardMainScreen() {
     var showOtaDialog by remember { mutableStateOf(false) }
 
     var adminToken by remember { mutableStateOf<String?>(null) }
-    var loginEmail by remember { mutableStateOf("admin@scoreboard.com") }
-    var loginPassword by remember { mutableStateOf("admin123") }
+    var loginEmail by remember { mutableStateOf("") }
+    var loginPassword by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {

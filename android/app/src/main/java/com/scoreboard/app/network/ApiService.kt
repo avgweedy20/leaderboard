@@ -1,5 +1,6 @@
 package com.scoreboard.app.network
 
+import com.scoreboard.app.BuildConfig
 import com.scoreboard.app.models.*
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -50,7 +51,7 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    var baseUrl: String = "http://10.0.2.2:5000/"
+    var baseUrl: String = BuildConfig.API_BASE_URL
 
     val instance: ApiService
         get() = Retrofit.Builder()
