@@ -13,7 +13,8 @@ To maintain security while allowing Admin capabilities in both clients:
    - It is **NEVER** embedded into client-side Web JS or bundled into the compiled Android `.apk` binary (preventing reverse-engineering / APK decompilation leaks).
 
 2. **Admin Authentication in Web & Android:**
-   - Both the Web frontend and native Android client log in via the backend endpoint `/api/auth/login` using email and password (or Supabase Auth).
+   - Both the Web frontend and native Android client log in via the backend endpoint `/api/auth/login` using email and password.
+   - Default credentials are NOT auto-filled in forms.
    - Upon successful login, the backend issues an Auth JWT access token.
    - The Android app and Web app send this Bearer token in the `Authorization` header (`Authorization: Bearer <jwt_token>`) for write actions (scoring matches, creating sports, generating brackets, bulk CSV imports).
 
@@ -43,18 +44,24 @@ To maintain security while allowing Admin capabilities in both clients:
 
 ## 3. GitHub Repository Secrets for Automated Android APK Builds
 
-When building the Android APK via GitHub Actions workflow (`.github/workflows/android.yml`), you can inject the backend API URL dynamically without exposing it in repository files:
+To configure your GitHub Actions workflow to build the APK pointing to your production backend API without committing URLs or secrets to code:
 
 ### Step 1: Add GitHub Repository Secrets
 1. Go to your GitHub repository -> **Settings** -> **Secrets and variables** -> **Actions**.
-2. Click **New repository secret**.
-3. Add the following secrets:
-   - `API_BASE_URL`: Your hosted Flask backend URL (e.g. `https://your-scoreboard.vercel.app/`)
-   - `SUPABASE_URL`: Your Supabase URL
-   - `SUPABASE_ANON_KEY`: Your Supabase Anon Key
+2. Under **Repository secrets**, click **New repository secret**.
+3. Create secret **`API_BASE_URL`**:
+   - Value: `https://your-hosted-scoreboard.vercel.app/` (Must end with a trailing `/`)
+4. Create secret **`SUPABASE_URL`**:
+   - Value: `https://your-project.supabase.co`
+5. Create secret **`SUPABASE_ANON_KEY`**:
+   - Value: `your-anon-key`
 
-### Step 2: GitHub Actions Build Process
-The workflow in `.github/workflows/android.yml` automatically compiles the Android APK using Gradle and attaches the generated `app-debug.apk` to an automated **GitHub Release** on every commit.
+### Step 2: Secret Injection During APK Compilation
+The GitHub Actions workflow in `.github/workflows/android.yml` automatically passes the `API_BASE_URL` secret directly into Gradle during the build step:
+```bash
+./gradlew assembleDebug -PAPI_BASE_URL="${{ secrets.API_BASE_URL }}"
+```
+Gradle injects this into Android's `BuildConfig.API_BASE_URL`, allowing Retrofit to connect to your live backend server in the compiled APK.
 
 ---
 

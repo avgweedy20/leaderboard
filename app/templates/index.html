@@ -258,14 +258,14 @@
                 <h3>Admin Sign In</h3>
                 <button class="close-btn" onclick="closeModal('loginModal')">&times;</button>
             </div>
-            <form onsubmit="handleLogin(event)">
+            <form onsubmit="handleLogin(event)" autocomplete="off">
                 <div class="form-group" style="margin-bottom: 16px;">
                     <label>Email</label>
-                    <input type="email" id="loginEmail" required value="admin@scoreboard.com">
+                    <input type="email" id="loginEmail" required placeholder="admin@domain.com" autocomplete="off">
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
                     <label>Password</label>
-                    <input type="password" id="loginPassword" required value="admin123">
+                    <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="new-password">
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
