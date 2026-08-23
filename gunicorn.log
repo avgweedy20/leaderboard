@@ -1,0 +1,9 @@
+[2026-08-23 09:00:44 +0000] [35301] [INFO] Starting gunicorn 26.1.0
+[2026-08-23 09:00:45 +0000] [35301] [INFO] Listening at: http://127.0.0.1:5000 (35301)
+[2026-08-23 09:00:45 +0000] [35301] [INFO] Using worker: sync
+[2026-08-23 09:00:45 +0000] [35424] [INFO] Booting worker with pid: 35424
+[2026-08-23 09:00:45 +0000] [35301] [INFO] Control socket listening at /home/jules/.gunicorn/gunicorn.ctl
+[2026-08-23 09:02:01 +0000] [35301] [INFO] Handling signal: term
+[2026-08-23 09:02:01 +0000] [35424] [INFO] Worker exiting (pid: 35424)
+[2026-08-23 09:02:01 +0000] [35301] [INFO] Worker (pid:35424) was sent SIGTERM!
+[2026-08-23 09:02:01 +0000] [35301] [INFO] Shutting down: Master
