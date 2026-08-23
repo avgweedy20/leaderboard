@@ -1,10 +1,16 @@
 package com.scoreboard.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,12 +22,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.scoreboard.app.models.*
-import com.scoreboard.app.network.RetrofitClient
+import com.scoreboard.app.network.SupabaseRepository
 import com.scoreboard.app.ui.ScoreBoardIcons
 import com.scoreboard.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -29,6 +36,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             var darkThemePreference by remember { mutableStateOf<Boolean?>(null) }
             val isDark = darkThemePreference ?: isSystemInDarkTheme()
@@ -49,16 +57,15 @@ fun ScoreBoardMainScreen(
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf(0) }
     var sportsList by remember { mutableStateOf<List<Sport>>(emptyList()) }
     var leaderboardList by remember { mutableStateOf<List<LeaderboardItem>>(emptyList()) }
     var matchesList by remember { mutableStateOf<List<MatchItem>>(emptyList()) }
     var bracketsList by remember { mutableStateOf<List<BracketItem>>(emptyList()) }
-    var healthInfo by remember { mutableStateOf<HealthInfo?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var versionInfo by remember { mutableStateOf<VersionInfo?>(null) }
-    var showOtaDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var adminToken by remember { mutableStateOf<String?>(null) }
     var loginEmail by remember { mutableStateOf("") }
@@ -68,36 +75,36 @@ fun ScoreBoardMainScreen(
     var selectedSportId by remember { mutableStateOf("") }
     var selectedLevel by remember { mutableStateOf("ALL") }
 
+    fun triggerError(msg: String) {
+        errorMessage = msg
+        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+    }
+
     fun refreshData() {
+        isLoading = true
         coroutineScope.launch {
             try {
-                sportsList = RetrofitClient.instance.getSports()
-                leaderboardList = RetrofitClient.instance.getLeaderboard(
+                sportsList = SupabaseRepository.getSports()
+                leaderboardList = SupabaseRepository.getLeaderboard(
                     sportId = if (selectedSportId.isEmpty()) null else selectedSportId,
                     level = if (selectedLevel == "ALL") null else selectedLevel
                 )
-                matchesList = RetrofitClient.instance.getMatches(
+                matchesList = SupabaseRepository.getMatches(
                     sportId = if (selectedSportId.isEmpty()) null else selectedSportId,
                     level = if (selectedLevel == "ALL") null else selectedLevel
                 )
-                bracketsList = RetrofitClient.instance.getBrackets(
+                bracketsList = SupabaseRepository.getBrackets(
                     sportId = if (selectedSportId.isEmpty()) null else selectedSportId,
                     level = if (selectedLevel == "ALL") null else selectedLevel
                 )
+                errorMessage = null
             } catch (e: Exception) {
-                if (sportsList.isEmpty()) {
-                    sportsList = listOf(
-                        Sport("s1", "Cricket", "cricket", "ALL", 3, 1, 0, false),
-                        Sport("s2", "Football", "football", "ALL", 3, 1, 0, false),
-                        Sport("s3", "Basketball", "basketball", "ALL", 2, 0, 0, false)
-                    )
-                }
-                if (leaderboardList.isEmpty()) {
-                    leaderboardList = listOf(
-                        LeaderboardItem("t1", "Lions", "s1", "Cricket", "HS", 5, 4, 0, 1, 12),
-                        LeaderboardItem("t2", "Eagles", "s2", "Football", "HS", 5, 3, 1, 1, 10)
-                    )
-                }
+                val err = "Database Connection Error: Missing credentials or network failure"
+                sportsList = emptyList()
+                leaderboardList = emptyList()
+                matchesList = emptyList()
+                bracketsList = emptyList()
+                triggerError(err)
             } finally {
                 isLoading = false
             }
@@ -108,18 +115,9 @@ fun ScoreBoardMainScreen(
         refreshData()
     }
 
-    LaunchedEffect(Unit) {
-        try {
-            healthInfo = RetrofitClient.instance.getHealth()
-            versionInfo = RetrofitClient.instance.getVersion()
-            if (versionInfo != null && versionInfo!!.versionCode > 1) {
-                showOtaDialog = true
-            }
-        } catch (_: Exception) {}
-        refreshData()
-    }
-
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
                 title = {
@@ -133,10 +131,10 @@ fun ScoreBoardMainScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text("ScoreBoard Live", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            val modeText = if (healthInfo?.supabaseConnected == true || healthInfo?.mode == "supabase") {
+                            val modeText = if (SupabaseRepository.isConfigured) {
                                 "Connected: Supabase Postgres DB"
                             } else {
-                                "Development: In-Memory Mock DB"
+                                "Disconnected: Supabase Credentials Missing"
                             }
                             Text(modeText, style = MonoLabelStyle.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary))
                         }
@@ -188,81 +186,116 @@ fun ScoreBoardMainScreen(
             }
         }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = CourtGreen
-                )
-            } else {
-                when (selectedTab) {
-                    0 -> LeaderboardScreen(
-                        sports = sportsList,
-                        selectedSportId = selectedSportId,
-                        onSelectSport = { selectedSportId = it },
-                        selectedLevel = selectedLevel,
-                        onSelectLevel = { selectedLevel = it },
-                        list = leaderboardList
-                    )
-                    1 -> MatchesScreen(
-                        sports = sportsList,
-                        matches = matchesList,
-                        adminToken = adminToken,
-                        onRefresh = { refreshData() }
-                    )
-                    2 -> BracketsScreen(bracketsList = bracketsList)
-                    3 -> AdminScreen(
-                        adminToken = adminToken,
-                        email = loginEmail,
-                        onEmailChange = { loginEmail = it },
-                        password = loginPassword,
-                        onPasswordChange = { loginPassword = it },
-                        error = loginError,
-                        healthInfo = healthInfo,
-                        matches = matchesList,
-                        sports = sportsList,
-                        onLogin = {
-                            coroutineScope.launch {
-                                try {
-                                    val res = RetrofitClient.instance.login(mapOf("email" to loginEmail, "password" to loginPassword))
-                                    adminToken = res.accessToken
-                                    loginError = null
-                                } catch (e: Exception) {
-                                    loginError = "Login failed: ${e.message}"
-                                }
-                            }
-                        },
-                        onLogout = { adminToken = null },
-                        onRefreshData = { refreshData() }
-                    )
-                }
-            }
-
-            if (showOtaDialog && versionInfo != null) {
-                AlertDialog(
-                    onDismissRequest = { showOtaDialog = false },
-                    title = { Text("Update Available: v${versionInfo!!.versionName}", fontWeight = FontWeight.Bold) },
-                    text = { Text(versionInfo!!.releaseNotes) },
-                    confirmButton = {
-                        Button(
-                            onClick = { showOtaDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
-                        ) {
-                            Text("Download OTA")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showOtaDialog = false }) {
-                            Text("Later")
-                        }
+            errorMessage?.let { msg ->
+                ErrorBanner(
+                    message = msg,
+                    onCopy = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Error Message", msg)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Error message copied to clipboard", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = CourtGreen
+                    )
+                } else {
+                    when (selectedTab) {
+                        0 -> LeaderboardScreen(
+                            sports = sportsList,
+                            selectedSportId = selectedSportId,
+                            onSelectSport = { selectedSportId = it },
+                            selectedLevel = selectedLevel,
+                            onSelectLevel = { selectedLevel = it },
+                            list = leaderboardList
+                        )
+                        1 -> MatchesScreen(
+                            sports = sportsList,
+                            matches = matchesList,
+                            adminToken = adminToken,
+                            onRefresh = { refreshData() }
+                        )
+                        2 -> BracketsScreen(bracketsList = bracketsList)
+                        3 -> AdminScreen(
+                            adminToken = adminToken,
+                            email = loginEmail,
+                            onEmailChange = { loginEmail = it },
+                            password = loginPassword,
+                            onPasswordChange = { loginPassword = it },
+                            error = loginError,
+                            sports = sportsList,
+                            onLogin = {
+                                coroutineScope.launch {
+                                    try {
+                                        adminToken = SupabaseRepository.login(loginEmail, loginPassword)
+                                        loginError = null
+                                    } catch (e: Exception) {
+                                        loginError = "Login failed: ${e.message}"
+                                    }
+                                }
+                            },
+                            onLogout = { adminToken = null },
+                            onRefreshData = { refreshData() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ErrorBanner(
+    message: String,
+    onCopy: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = ComponentCornerRadius,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            .clickable { onCopy() }
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Tap to copy error text",
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                    fontSize = 10.sp
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = ScoreBoardIcons.Upload,
+                contentDescription = "Copy Error",
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }
@@ -280,7 +313,7 @@ fun LeaderboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -322,47 +355,84 @@ fun LeaderboardScreen(
             }
         }
 
-        if (list.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = ScoreBoardIcons.Trophy,
-                            contentDescription = "Empty Leaderboard",
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No Tournament Results Yet",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "There are no completed matches for the selected filters.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+        if (selectedSportId.isEmpty()) {
+            // Grouped per-sport view for ALL SPORTS
+            val grouped = list.groupBy { it.sportName }
+            if (grouped.isEmpty()) {
+                item {
+                    EmptyLeaderboardCard()
+                }
+            } else {
+                grouped.forEach { (sportName, items) ->
+                    item {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = ComponentCornerRadius,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = sportName.uppercase(),
+                                    style = MonoLabelStyle.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                    itemsIndexed(items) { index, item ->
+                        LeaderboardCard(rank = index + 1, item = item)
                     }
                 }
             }
         } else {
-            itemsIndexed(list) { index, item ->
-                LeaderboardCard(rank = index + 1, item = item)
+            if (list.isEmpty()) {
+                item {
+                    EmptyLeaderboardCard()
+                }
+            } else {
+                itemsIndexed(list) { index, item ->
+                    LeaderboardCard(rank = index + 1, item = item)
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun EmptyLeaderboardCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = ScoreBoardIcons.Trophy,
+                contentDescription = "Empty Leaderboard",
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No Tournament Results Yet",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "There are no completed matches for the selected filters.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.secondary
+            )
         }
     }
 }
@@ -432,12 +502,10 @@ fun MatchesScreen(
     adminToken: String?,
     onRefresh: () -> Unit
 ) {
-    var scoringMatchId by remember { mutableStateOf<String?>(null) }
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -489,39 +557,9 @@ fun MatchesScreen(
             itemsIndexed(matches) { _, item ->
                 MatchCard(
                     item = item,
-                    adminToken = adminToken,
-                    onScoreClick = { scoringMatchId = item.id }
+                    adminToken = adminToken
                 )
             }
-        }
-    }
-
-    if (scoringMatchId != null) {
-        val match = matches.find { it.id == scoringMatchId }
-        val sport = sports.find { it.id == match?.sportId }
-        val sportType = sport?.type ?: "generic"
-
-        when (sportType) {
-            "cricket" -> CricketScoringDialog(
-                match = match!!,
-                adminToken = adminToken,
-                onDismiss = { scoringMatchId = null; onRefresh() }
-            )
-            "football" -> FootballScoringDialog(
-                match = match!!,
-                adminToken = adminToken,
-                onDismiss = { scoringMatchId = null; onRefresh() }
-            )
-            "basketball" -> BasketballScoringDialog(
-                match = match!!,
-                adminToken = adminToken,
-                onDismiss = { scoringMatchId = null; onRefresh() }
-            )
-            else -> GenericScoringDialog(
-                match = match!!,
-                adminToken = adminToken,
-                onDismiss = { scoringMatchId = null; onRefresh() }
-            )
         }
     }
 }
@@ -529,8 +567,7 @@ fun MatchesScreen(
 @Composable
 fun MatchCard(
     item: MatchItem,
-    adminToken: String?,
-    onScoreClick: () -> Unit
+    adminToken: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -595,18 +632,6 @@ fun MatchCard(
                     }
                 }
             }
-
-            if (adminToken != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onScoreClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ComponentCornerRadius,
-                    colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
-                ) {
-                    Text(if (item.status == "completed") "Edit Score" else "Score Match")
-                }
-            }
         }
     }
 }
@@ -616,7 +641,7 @@ fun BracketsScreen(bracketsList: List<BracketItem>) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -711,20 +736,15 @@ fun AdminScreen(
     password: String,
     onPasswordChange: (String) -> Unit,
     error: String?,
-    healthInfo: HealthInfo?,
-    matches: List<MatchItem>,
     sports: List<Sport>,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onRefreshData: () -> Unit
 ) {
-    var showCsvImport by remember { mutableStateOf(false) }
-    var showAddSport by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         Text(
             text = "Admin Management Center",
@@ -766,7 +786,9 @@ fun AdminScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                     Button(
                         onClick = onLogin,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
                         shape = ComponentCornerRadius,
                         colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
                     ) {
@@ -789,326 +811,19 @@ fun AdminScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Admin Authenticated", fontWeight = FontWeight.Bold, color = CourtGreen)
+                            Text("Admin Authenticated via Supabase", fontWeight = FontWeight.Bold, color = CourtGreen)
                             Button(
                                 onClick = onLogout,
+                                modifier = Modifier.height(40.dp),
                                 shape = ComponentCornerRadius,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {
                                 Text("Sign Out")
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val dbStatus = if (healthInfo?.supabaseConnected == true || healthInfo?.mode == "supabase") {
-                            "Database: Connected to Supabase Postgres DB"
-                        } else {
-                            "Database: Using Development In-Memory Mock DB"
-                        }
-                        Text(dbStatus, style = MonoLabelStyle.copy(fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary))
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = { showAddSport = true },
-                        modifier = Modifier.weight(1f),
-                        shape = ComponentCornerRadius,
-                        colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
-                    ) {
-                        Icon(ScoreBoardIcons.Plus, contentDescription = "Add Sport", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Sport")
-                    }
-
-                    Button(
-                        onClick = { showCsvImport = true },
-                        modifier = Modifier.weight(1f),
-                        shape = ComponentCornerRadius,
-                        colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
-                    ) {
-                        Icon(ScoreBoardIcons.Upload, contentDescription = "CSV Import", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Import CSV")
                     }
                 }
             }
         }
     }
-
-    if (showCsvImport) {
-        CsvImportDialog(
-            adminToken = adminToken,
-            onDismiss = { showCsvImport = false; onRefreshData() }
-        )
-    }
-
-    if (showAddSport) {
-        AddSportDialog(
-            adminToken = adminToken,
-            onDismiss = { showAddSport = false; onRefreshData() }
-        )
-    }
-}
-
-// SCORING DIALOG COMPOSABLES FOR CRICKET, FOOTBALL, BASKETBALL, GENERIC
-@Composable
-fun CricketScoringDialog(
-    match: MatchItem,
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-    var r1 by remember { mutableStateOf("0") }
-    var w1 by remember { mutableStateOf("0") }
-    var o1 by remember { mutableStateOf("20.0") }
-    var r2 by remember { mutableStateOf("0") }
-    var w2 by remember { mutableStateOf("0") }
-    var o2 by remember { mutableStateOf("20.0") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Cricket Scoring", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("LIVE SCOREBOARD PREVIEW", style = MonoLabelStyle.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary))
-                        Text(
-                            text = "$r1/$w1 vs $r2/$w2",
-                            style = DisplayScoreStyle.copy(fontSize = 36.sp, color = CourtGreen)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Innings 1", style = MonoLabelStyle)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = r1, onValueChange = { r1 = it }, label = { Text("Runs") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = w1, onValueChange = { w1 = it }, label = { Text("Wickets") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = o1, onValueChange = { o1 = it }, label = { Text("Overs") }, modifier = Modifier.weight(1f))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Innings 2", style = MonoLabelStyle)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = r2, onValueChange = { r2 = it }, label = { Text("Runs") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = w2, onValueChange = { w2 = it }, label = { Text("Wickets") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = o2, onValueChange = { o2 = it }, label = { Text("Overs") }, modifier = Modifier.weight(1f))
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    coroutineScope.launch {
-                        try {
-                            onDismiss()
-                        } catch (_: Exception) {
-                            onDismiss()
-                        }
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)
-            ) {
-                Text("Save Score")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun FootballScoringDialog(
-    match: MatchItem,
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    var gA by remember { mutableStateOf("0") }
-    var gB by remember { mutableStateOf("0") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Football Scoring", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("RUNNING SCOREBOARD", style = MonoLabelStyle.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary))
-                        Text(
-                            text = "$gA - $gB",
-                            style = DisplayScoreStyle.copy(fontSize = 36.sp, color = CourtGreen)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = gA, onValueChange = { gA = it }, label = { Text("Team A Goals") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = gB, onValueChange = { gB = it }, label = { Text("Team B Goals") }, modifier = Modifier.weight(1f))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("CARD EVENTS (Square Markers)", style = MonoLabelStyle)
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(12.dp, 16.dp).background(AmberWarning))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Yellow Card", fontSize = 13.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(12.dp, 16.dp).background(ErrorLight))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Red Card", fontSize = 13.sp)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)) {
-                Text("Save Score")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun BasketballScoringDialog(
-    match: MatchItem,
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    var q1a by remember { mutableStateOf("0") }
-    var q1b by remember { mutableStateOf("0") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Basketball Scoring", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text("PER-QUARTER ENTRY & FOULS", style = MonoLabelStyle)
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = q1a, onValueChange = { q1a = it }, label = { Text("Q1 Team A") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = q1b, onValueChange = { q1b = it }, label = { Text("Q1 Team B") }, modifier = Modifier.weight(1f))
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)) {
-                Text("Save Score")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun GenericScoringDialog(
-    match: MatchItem,
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    var sA by remember { mutableStateOf("0") }
-    var sB by remember { mutableStateOf("0") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Generic Sport Scoring", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                OutlinedTextField(value = sA, onValueChange = { sA = it }, label = { Text("Team A Result") }, modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(value = sB, onValueChange = { sB = it }, label = { Text("Team B Result") }, modifier = Modifier.fillMaxWidth())
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)) {
-                Text("Save Score")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-fun CsvImportDialog(
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Bulk Player & Team CSV Import", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text("CSV columns: player_name, team_name, sport_name, grade, level", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(ScoreBoardIcons.Upload, contentDescription = "CSV File", modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Select CSV File to Import", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)) {
-                Text("Close")
-            }
-        }
-    )
-}
-
-@Composable
-fun AddSportDialog(
-    adminToken: String?,
-    onDismiss: () -> Unit
-) {
-    var sportName by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add New Sport", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = sportName,
-                    onValueChange = { sportName = it },
-                    label = { Text("Sport Name", style = MonoLabelStyle) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CourtGreen)) {
-                Text("Create Sport")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }

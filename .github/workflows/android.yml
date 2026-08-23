@@ -27,7 +27,10 @@ jobs:
       - name: Build Android Debug APK with Injected Repository Secrets
         run: |
           cd android
-          ./gradlew assembleDebug -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://your-scoreboard-api.vercel.app/' }}"
+          ./gradlew assembleDebug \
+            -PSUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            -PSUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://your-scoreboard-api.vercel.app/' }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
