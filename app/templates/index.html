@@ -256,15 +256,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Admin Sign In</h3>
-                <button class="close-btn" onclick="closeModal('loginModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('loginModal')">&times;</button>
             </div>
             <form onsubmit="handleLogin(event)" autocomplete="off">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Email</label>
+                    <label for="loginEmail">Email</label>
                     <input type="email" id="loginEmail" required placeholder="admin@domain.com" autocomplete="off">
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label>Password</label>
+                    <label for="loginPassword">Password</label>
                     <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="new-password">
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -280,15 +280,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Add New Sport</h3>
-                <button class="close-btn" onclick="closeModal('createSportModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createSportModal')">&times;</button>
             </div>
             <form onsubmit="handleCreateSport(event)">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Sport Name</label>
+                    <label for="sportName">Sport Name</label>
                     <input type="text" id="sportName" placeholder="e.g. Volleyball, 100m Dash" required>
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Type / Template</label>
+                    <label for="sportType">Type / Template</label>
                     <select id="sportType" required>
                         <option value="generic">Generic (Numeric Scores)</option>
                         <option value="cricket">Cricket (Innings & Overs)</option>
@@ -298,20 +298,20 @@
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
                     <div class="form-group">
-                        <label>Win Points</label>
+                        <label for="sportWinPoints">Win Points</label>
                         <input type="number" id="sportWinPoints" value="3" required>
                     </div>
                     <div class="form-group">
-                        <label>Draw Points</label>
+                        <label for="sportDrawPoints">Draw Points</label>
                         <input type="number" id="sportDrawPoints" value="1" required>
                     </div>
                     <div class="form-group">
-                        <label>Loss Points</label>
+                        <label for="sportLossPoints">Loss Points</label>
                         <input type="number" id="sportLossPoints" value="0" required>
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label style="display: flex; align-items: center; gap: 8px; text-transform: none; font-size: 14px;">
+                    <label for="sportLowerBetter" style="display: flex; align-items: center; gap: 8px; text-transform: none; font-size: 14px;">
                         <input type="checkbox" id="sportLowerBetter" style="height: auto;"> Lower score is better (e.g. race timing)
                     </label>
                 </div>
@@ -328,19 +328,19 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Add New Team</h3>
-                <button class="close-btn" onclick="closeModal('createTeamModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createTeamModal')">&times;</button>
             </div>
             <form onsubmit="handleCreateTeam(event)">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Team Name</label>
+                    <label for="teamName">Team Name</label>
                     <input type="text" id="teamName" required placeholder="e.g. Red Dragons">
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Sport</label>
+                    <label for="teamSportId">Sport</label>
                     <select id="teamSportId" required></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label>School Level</label>
+                    <label for="teamLevel">School Level</label>
                     <select id="teamLevel" required>
                         <option value="HS">High School (HS)</option>
                         <option value="MS">Middle School (MS)</option>
@@ -360,23 +360,23 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Add New Player</h3>
-                <button class="close-btn" onclick="closeModal('createPlayerModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createPlayerModal')">&times;</button>
             </div>
             <form onsubmit="handleCreatePlayer(event)">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Player Name</label>
+                    <label for="playerName">Player Name</label>
                     <input type="text" id="playerName" required placeholder="e.g. Alex Morgan">
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Team</label>
+                    <label for="playerTeamId">Team</label>
                     <select id="playerTeamId" required></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Grade Level / Class</label>
+                    <label for="playerGrade">Grade Level / Class</label>
                     <input type="text" id="playerGrade" placeholder="e.g. Grade 10">
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label>Category Level</label>
+                    <label for="playerLevel">Category Level</label>
                     <select id="playerLevel" required>
                         <option value="HS">High School (HS)</option>
                         <option value="MS">Middle School (MS)</option>
@@ -396,7 +396,7 @@
         <div class="modal-content" style="max-width: 750px;">
             <div class="modal-header">
                 <h3>Bulk Player & Team CSV Import</h3>
-                <button class="close-btn" onclick="closeModal('csvImportModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('csvImportModal')">&times;</button>
             </div>
             <div style="margin-bottom: 16px;">
                 <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">
@@ -445,15 +445,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Schedule New Match</h3>
-                <button class="close-btn" onclick="closeModal('createMatchModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createMatchModal')">&times;</button>
             </div>
             <form onsubmit="handleCreateMatch(event)">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Sport</label>
+                    <label for="matchSportId">Sport</label>
                     <select id="matchSportId" required onchange="populateMatchTeamSelectors()"></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Level</label>
+                    <label for="matchLevel">Level</label>
                     <select id="matchLevel" required onchange="populateMatchTeamSelectors()">
                         <option value="HS">High School (HS)</option>
                         <option value="MS">Middle School (MS)</option>
@@ -462,16 +462,16 @@
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                     <div class="form-group">
-                        <label>Team A</label>
+                        <label for="matchTeamAId">Team A</label>
                         <select id="matchTeamAId" required></select>
                     </div>
                     <div class="form-group">
-                        <label>Team B</label>
+                        <label for="matchTeamBId">Team B</label>
                         <select id="matchTeamBId" required></select>
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label>Round / Info</label>
+                    <label for="matchRoundInfo">Round / Info</label>
                     <input type="text" id="matchRoundInfo" placeholder="e.g. Round 1, Semi-Finals" value="Regular Match">
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -487,7 +487,7 @@
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h3 id="scoringModalTitle">Score Match</h3>
-                <button class="close-btn" onclick="closeModal('scoringModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('scoringModal')">&times;</button>
             </div>
             <div id="scoringFormContainer">
                 <!-- Dynamic Sport Template Form -->
@@ -500,15 +500,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Generate Tournament Bracket</h3>
-                <button class="close-btn" onclick="closeModal('generateBracketModal')">&times;</button>
+                <button class="close-btn" aria-label="Close modal" onclick="closeModal('generateBracketModal')">&times;</button>
             </div>
             <form onsubmit="handleGenerateBracket(event)">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Sport</label>
+                    <label for="bracketSportId">Sport</label>
                     <select id="bracketSportId" required></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label>Level</label>
+                    <label for="bracketLevel">Level</label>
                     <select id="bracketLevel" required>
                         <option value="HS">High School (HS)</option>
                         <option value="MS">Middle School (MS)</option>
@@ -516,7 +516,7 @@
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
-                    <label>Tournament Type</label>
+                    <label for="bracketType">Tournament Type</label>
                     <select id="bracketType" required>
                         <option value="single_elimination">Single Elimination</option>
                         <option value="round_robin">Round Robin</option>
