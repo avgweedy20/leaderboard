@@ -17,6 +17,12 @@ android/captures/
 *.aar
 *.log
 
+# Keystores & Signing Secrets
+*.jks
+*.keystore
+keystore.properties
+release.keystore
+
 # Environments
 .env
 .venv
