@@ -37,10 +37,10 @@ class InterHouseSeeder:
         self.client = supabase_client
         self.wb = None
 
-        self.houses_map: Dict[str, Dict[str, Any]] = {}  # name.lower() -> dict
-        self.sports_map: Dict[str, Dict[str, Any]] = {}  # name.lower() -> dict
-        self.squads_map: Dict[str, Dict[str, Any]] = {}  # "house_id_sport_id_gender_squad_label" -> dict
-        self.players_map: Dict[str, Dict[str, Any]] = {} # roll_number -> dict
+        self.houses_map: Dict[str, Dict[str, Any]] = {}
+        self.sports_map: Dict[str, Dict[str, Any]] = {}
+        self.squads_map: Dict[str, Dict[str, Any]] = {}
+        self.players_map: Dict[str, Dict[str, Any]] = {}
 
         self.stats = {
             "houses": {"created": 0, "updated": 0, "skipped": 0},
@@ -56,10 +56,12 @@ class InterHouseSeeder:
             }
         }
 
-    def load_workbook(self):
+    def load_workbook(self) -> bool:
         if not os.path.exists(self.excel_path):
-            raise FileNotFoundError(f"Excel file not found at: {self.excel_path}")
+            print(f"Warning: Excel file not found at '{self.excel_path}'. Proceeding with default houses and sports configuration.")
+            return False
         self.wb = openpyxl.load_workbook(self.excel_path, data_only=True)
+        return True
 
     def seed_houses(self):
         print("\n=== Seeding Houses ===")
@@ -121,7 +123,6 @@ class InterHouseSeeder:
             print(f"  Sport: {record['name']} ({record['type']})")
 
     def ensure_default_squads(self):
-        # Ensure default squads exist for all house x sport x gender x squad_label combinations
         for h_key, house_obj in self.houses_map.items():
             for s_key, sport_obj in self.sports_map.items():
                 for gender in ["Boys", "Girls"]:
@@ -154,6 +155,9 @@ class InterHouseSeeder:
                             self.squads_map[squad_key] = squad_record
 
     def parse_house_rosters(self):
+        if not self.wb:
+            return
+
         print("\n=== Parsing House Rosters (Squads & Players) ===")
         house_sheets = [s for s in self.wb.sheetnames if "house" in s.lower() and s != "House Members"]
 
@@ -251,7 +255,7 @@ class InterHouseSeeder:
                                 if res.data:
                                     squad_record = res.data[0]
                                 self.stats["squads"]["created"] += 1
-                            except Exception as e:
+                            except Exception:
                                 self.stats["squads"]["skipped"] += 1
                         else:
                             self.stats["squads"]["created"] += 1
@@ -288,11 +292,10 @@ class InterHouseSeeder:
                     self.players_map[p_key] = p_record
 
     def parse_fixtures_and_scores(self):
-        print("\n=== Parsing Fixtures & Scores ('Tie-sheet & Scores Update') ===")
-        if "Tie-sheet & Scores Update" not in self.wb.sheetnames:
-            print("  Sheet 'Tie-sheet & Scores Update' not found!")
+        if not self.wb or "Tie-sheet & Scores Update" not in self.wb.sheetnames:
             return
 
+        print("\n=== Parsing Fixtures & Scores ('Tie-sheet & Scores Update') ===")
         sheet = self.wb["Tie-sheet & Scores Update"]
 
         for r in range(1, sheet.max_row + 1):
@@ -431,12 +434,13 @@ class InterHouseSeeder:
         print("========================================================")
 
     def run(self):
-        self.load_workbook()
+        file_loaded = self.load_workbook()
         self.seed_houses()
         self.seed_sports()
         self.ensure_default_squads()
-        self.parse_house_rosters()
-        self.parse_fixtures_and_scores()
+        if file_loaded:
+            self.parse_house_rosters()
+            self.parse_fixtures_and_scores()
         self.print_summary()
 
 def main():
