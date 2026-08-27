@@ -98,7 +98,22 @@ MOCK_DB = {
     "brackets": [],
     "generic_results": [],
     "football_events": [],
-    "basketball_quarters": []
+    "basketball_quarters": [],
+    "seeder_logs": [
+        {
+            "id": "log-initial",
+            "created_at": "2025-01-01T00:00:00Z",
+            "houses_created": 4,
+            "sports_created": 3,
+            "squads_created": 4,
+            "players_created": 2,
+            "fixtures_created": 1,
+            "unplayed_fixtures": 0,
+            "unparseable_fixtures": 0,
+            "status": "success",
+            "details": "Initial seed complete"
+        }
+    ]
 }
 
 def req_admin_auth(f):
@@ -257,6 +272,79 @@ def get_teams():
         teams = [t for t in teams if t.get("gender") == gender]
     return jsonify(teams)
 
+@app.route("/api/teams", methods=["POST"])
+@req_admin_auth
+def create_team():
+    data = request.get_json() or {}
+    house_id = data.get("house_id")
+    sport_id = data.get("sport_id")
+    gender = data.get("gender", "Boys")
+    squad_label = data.get("squad_label", "A")
+    name = data.get("name")
+
+    if not house_id or not sport_id:
+        return jsonify({"error": "House and sport are required"}), 400
+
+    # Auto generate name if missing
+    if not name:
+        house_name = "House"
+        sport_name = "Sport"
+        for h in MOCK_DB["houses"]:
+            if h["id"] == house_id: house_name = h["name"]
+        for s in MOCK_DB["sports"]:
+            if s["id"] == sport_id: sport_name = s["name"]
+        name = f"{house_name} {gender} {sport_name} {squad_label}"
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "house_id": house_id,
+        "sport_id": sport_id,
+        "gender": gender,
+        "squad_label": squad_label,
+        "level": data.get("level", "HS")
+    }
+
+    if supabase_client:
+        try:
+            res = supabase_client.table("teams").insert(record).execute()
+            return jsonify(res.data[0]), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["teams"].append(record)
+    return jsonify(record), 201
+
+@app.route("/api/teams/<team_id>", methods=["PUT"])
+@req_admin_auth
+def update_team(team_id):
+    data = request.get_json() or {}
+    if supabase_client:
+        try:
+            res = supabase_client.table("teams").update(data).eq("id", team_id).execute()
+            return jsonify(res.data[0] if res.data else data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    for t in MOCK_DB["teams"]:
+        if t["id"] == team_id:
+            t.update(data)
+            return jsonify(t)
+    return jsonify({"error": "Team not found"}), 404
+
+@app.route("/api/teams/<team_id>", methods=["DELETE"])
+@req_admin_auth
+def delete_team(team_id):
+    if supabase_client:
+        try:
+            supabase_client.table("teams").delete().eq("id", team_id).execute()
+            return jsonify({"message": "Team deleted"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["teams"] = [t for t in MOCK_DB["teams"] if t["id"] != team_id]
+    return jsonify({"message": "Team deleted"})
+
 
 # PLAYERS ENDPOINTS
 @app.route("/api/players", methods=["GET"])
@@ -277,6 +365,109 @@ def get_players():
     if team_id:
         players = [p for p in players if p.get("team_id") == team_id]
     return jsonify(players)
+
+@app.route("/api/players", methods=["POST"])
+@req_admin_auth
+def create_player():
+    data = request.get_json() or {}
+    name = data.get("name")
+    team_id = data.get("team_id")
+    if not name or not team_id:
+        return jsonify({"error": "Player name and team_id required"}), 400
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "team_id": team_id,
+        "roll_number": data.get("roll_number"),
+        "grade": data.get("grade"),
+        "section": data.get("section"),
+        "gender": data.get("gender", "Boys"),
+        "level": data.get("level", "HS")
+    }
+
+    if supabase_client:
+        try:
+            res = supabase_client.table("players").insert(record).execute()
+            return jsonify(res.data[0]), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["players"].append(record)
+    return jsonify(record), 201
+
+@app.route("/api/players/<player_id>", methods=["PUT"])
+@req_admin_auth
+def update_player(player_id):
+    data = request.get_json() or {}
+    if supabase_client:
+        try:
+            res = supabase_client.table("players").update(data).eq("id", player_id).execute()
+            return jsonify(res.data[0] if res.data else data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    for p in MOCK_DB["players"]:
+        if p["id"] == player_id:
+            p.update(data)
+            return jsonify(p)
+    return jsonify({"error": "Player not found"}), 404
+
+@app.route("/api/players/<player_id>", methods=["DELETE"])
+@req_admin_auth
+def delete_player(player_id):
+    if supabase_client:
+        try:
+            supabase_client.table("players").delete().eq("id", player_id).execute()
+            return jsonify({"message": "Player deleted"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["players"] = [p for p in MOCK_DB["players"] if p["id"] != player_id]
+    return jsonify({"message": "Player deleted"})
+
+@app.route("/api/players/bulk", methods=["POST"])
+@req_admin_auth
+def bulk_upsert_players():
+    items = request.get_json() or []
+    if not isinstance(items, list):
+        return jsonify({"error": "Expected a list of player objects"}), 400
+
+    created_count = 0
+    updated_count = 0
+
+    if supabase_client:
+        try:
+            # Upsert using roll_number on conflict
+            res = supabase_client.table("players").upsert(items, on_conflict="roll_number").execute()
+            return jsonify({"message": f"Successfully processed {len(res.data or items)} players", "count": len(res.data or items)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    for item in items:
+        roll = item.get("roll_number")
+        existing = None
+        if roll:
+            existing = next((p for p in MOCK_DB["players"] if str(p.get("roll_number")) == str(roll)), None)
+
+        if existing:
+            existing.update(item)
+            updated_count += 1
+        else:
+            rec = {
+                "id": str(uuid.uuid4()),
+                "name": item.get("name"),
+                "team_id": item.get("team_id"),
+                "roll_number": roll,
+                "grade": item.get("grade"),
+                "section": item.get("section"),
+                "gender": item.get("gender", "Boys"),
+                "level": item.get("level", "HS")
+            }
+            MOCK_DB["players"].append(rec)
+            created_count += 1
+
+    return jsonify({"message": f"Bulk import complete: {created_count} created, {updated_count} updated", "created": created_count, "updated": updated_count})
 
 
 # MATCHES ENDPOINTS
@@ -308,6 +499,171 @@ def get_matches():
     if stage:
         matches = [m for m in matches if m.get("stage") == stage]
     return jsonify(matches)
+
+@app.route("/api/matches", methods=["POST"])
+@req_admin_auth
+def create_match():
+    data = request.get_json() or {}
+    sport_id = data.get("sport_id")
+    team_a_id = data.get("team_a_id")
+    team_b_id = data.get("team_b_id")
+    if not sport_id or not team_a_id or not team_b_id:
+        return jsonify({"error": "sport_id, team_a_id, and team_b_id are required"}), 400
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "sport_id": sport_id,
+        "team_a_id": team_a_id,
+        "team_b_id": team_b_id,
+        "gender": data.get("gender", "Boys"),
+        "stage": data.get("stage", "league"),
+        "level": data.get("level", "HS"),
+        "status": data.get("status", "scheduled"),
+        "round_info": data.get("round_info", "League Game"),
+        "winner_team_id": data.get("winner_team_id"),
+        "is_draw": data.get("is_draw", False),
+        "score_team_a": data.get("score_team_a", 0),
+        "score_team_b": data.get("score_team_b", 0),
+        "score_difference": data.get("score_difference", 0),
+        "score_summary": data.get("score_summary", "")
+    }
+
+    if supabase_client:
+        try:
+            res = supabase_client.table("matches").insert(record).execute()
+            return jsonify(res.data[0]), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["matches"].append(record)
+    return jsonify(record), 201
+
+@app.route("/api/matches/<match_id>", methods=["PUT"])
+@req_admin_auth
+def update_match(match_id):
+    data = request.get_json() or {}
+
+    # If scores are provided, compute match outcome fields
+    if "score_team_a" in data and "score_team_b" in data:
+        score_a = int(data["score_team_a"])
+        score_b = int(data["score_team_b"])
+        data["score_team_a"] = score_a
+        data["score_team_b"] = score_b
+        data["score_difference"] = abs(score_a - score_b)
+        data["score_summary"] = f"{score_a} - {score_b}"
+        data["status"] = "completed"
+
+        # Determine winner using existing team_a_id / team_b_id
+        team_a_id = data.get("team_a_id")
+        team_b_id = data.get("team_b_id")
+
+        if not team_a_id or not team_b_id:
+            # Look up existing match record to get team IDs
+            for m in MOCK_DB["matches"]:
+                if m["id"] == match_id:
+                    team_a_id = m.get("team_a_id")
+                    team_b_id = m.get("team_b_id")
+                    break
+
+        if score_a > score_b:
+            data["winner_team_id"] = team_a_id
+            data["is_draw"] = False
+        elif score_b > score_a:
+            data["winner_team_id"] = team_b_id
+            data["is_draw"] = False
+        else:
+            data["winner_team_id"] = None
+            data["is_draw"] = True
+
+    if supabase_client:
+        try:
+            res = supabase_client.table("matches").update(data).eq("id", match_id).execute()
+            return jsonify(res.data[0] if res.data else data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    for m in MOCK_DB["matches"]:
+        if m["id"] == match_id:
+            m.update(data)
+            return jsonify(m)
+    return jsonify({"error": "Match not found"}), 404
+
+@app.route("/api/matches/<match_id>", methods=["DELETE"])
+@req_admin_auth
+def delete_match(match_id):
+    if supabase_client:
+        try:
+            supabase_client.table("matches").delete().eq("id", match_id).execute()
+            return jsonify({"message": "Match deleted"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["matches"] = [m for m in MOCK_DB["matches"] if m["id"] != match_id]
+    return jsonify({"message": "Match deleted"})
+
+
+# SEEDER LOG ENDPOINTS
+@app.route("/api/admin/seeder-logs", methods=["GET"])
+def get_seeder_logs():
+    if supabase_client:
+        try:
+            res = supabase_client.table("seeder_logs").select("*").order("created_at", desc=True).limit(10).execute()
+            return jsonify(res.data)
+        except Exception as e:
+            # Fallback to mock log if table does not exist yet
+            pass
+    return jsonify(sorted(MOCK_DB.get("seeder_logs", []), key=lambda x: x.get("created_at", ""), reverse=True))
+
+@app.route("/api/admin/run-seeder", methods=["POST"])
+@req_admin_auth
+def run_seeder_endpoint():
+    try:
+        from seeder import InterHouseSeeder
+        import datetime
+
+        excel_path = "seed-data/interhouse_meet.xlsx"
+        seeder = InterHouseSeeder(excel_path, supabase_client)
+        seeder.run()
+
+        log_entry = {
+            "id": str(uuid.uuid4()),
+            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "houses_created": seeder.stats["houses"]["created"],
+            "sports_created": seeder.stats["sports"]["created"],
+            "squads_created": seeder.stats["squads"]["created"],
+            "players_created": seeder.stats["players"]["created"],
+            "fixtures_created": seeder.stats["fixtures"]["created"],
+            "unplayed_fixtures": seeder.stats["fixtures"]["unplayed"],
+            "unparseable_fixtures": seeder.stats["fixtures"]["unparseable"],
+            "status": "success",
+            "details": f"Processed {seeder.stats['players']['created']} players, {seeder.stats['fixtures']['created']} fixtures"
+        }
+
+        if supabase_client:
+            try:
+                supabase_client.table("seeder_logs").insert(log_entry).execute()
+            except Exception:
+                pass
+
+        MOCK_DB.setdefault("seeder_logs", []).append(log_entry)
+        return jsonify(log_entry), 200
+
+    except Exception as e:
+        error_entry = {
+            "id": str(uuid.uuid4()),
+            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "houses_created": 0,
+            "sports_created": 0,
+            "squads_created": 0,
+            "players_created": 0,
+            "fixtures_created": 0,
+            "unplayed_fixtures": 0,
+            "unparseable_fixtures": 0,
+            "status": "error",
+            "details": str(e)
+        }
+        MOCK_DB.setdefault("seeder_logs", []).append(error_entry)
+        return jsonify(error_entry), 500
 
 
 # OVERALL HOUSE STANDINGS API

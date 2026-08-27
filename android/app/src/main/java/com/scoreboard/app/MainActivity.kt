@@ -163,7 +163,7 @@ fun ScoreBoardMainScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text("DSS Inter-House Meet", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            val modeText = if (SupabaseRepository.isConfigured) "Connected: Supabase Postgres DB" else "Disconnected: Credentials Missing"
+                            val modeText = if (SupabaseRepository.isConfigured) "Connected: Postgres DB [DEBUG]" else "Disconnected: Credentials Missing"
                             Text(modeText, style = MonoLabelStyle.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary))
                         }
                     }

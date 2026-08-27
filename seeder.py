@@ -31,6 +31,28 @@ SPORT_CONFIG = [
     {"name": "Cricksal", "type": "generic", "level": "HS", "point_win": 3, "point_draw": 1, "point_loss": 0}
 ]
 
+# Squad count matrix: {sport: {house: {gender: count}}}
+SQUAD_COUNT_MATRIX = {
+    "Cricksal": {
+        "Karnali": {"Boys": 2, "Girls": 1},
+        "Koshi": {"Boys": 2, "Girls": 1},
+        "Mahakali": {"Boys": 1, "Girls": 1},
+        "Mechi": {"Boys": 2, "Girls": 1}
+    },
+    "Futsal": {
+        "Karnali": {"Boys": 2, "Girls": 2},
+        "Koshi": {"Boys": 2, "Girls": 1},
+        "Mahakali": {"Boys": 1, "Girls": 1},
+        "Mechi": {"Boys": 2, "Girls": 1}
+    },
+    "Basketball": {
+        "Karnali": {"Boys": 2, "Girls": 2},
+        "Koshi": {"Boys": 1, "Girls": 1},
+        "Mahakali": {"Boys": 1, "Girls": 1},
+        "Mechi": {"Boys": 1, "Girls": 1}
+    }
+}
+
 class InterHouseSeeder:
     def __init__(self, excel_path: str, supabase_client=None):
         self.excel_path = excel_path
@@ -124,12 +146,19 @@ class InterHouseSeeder:
 
     def ensure_default_squads(self):
         for h_key, house_obj in self.houses_map.items():
+            h_name = house_obj["name"]
             for s_key, sport_obj in self.sports_map.items():
+                s_name = sport_obj["name"]
                 for gender in ["Boys", "Girls"]:
-                    for squad_label in ["A", "B"]:
+                    count = SQUAD_COUNT_MATRIX.get(s_name, {}).get(h_name, {}).get(gender, 1)
+                    labels = ["A", "B"] if count == 2 else ["Single"]
+                    for squad_label in labels:
                         squad_key = f"{house_obj['id']}_{sport_obj['id']}_{gender}_{squad_label}"
                         if squad_key not in self.squads_map:
-                            squad_name = f"{house_obj['name']} {gender} {sport_obj['name']} {squad_label}"
+                            if squad_label == "Single":
+                                squad_name = f"{house_obj['name']}"
+                            else:
+                                squad_name = f"{house_obj['name']} {squad_label}"
                             squad_record = {
                                 "id": str(uuid.uuid4()),
                                 "name": squad_name,
@@ -298,16 +327,34 @@ class InterHouseSeeder:
         print("\n=== Parsing Fixtures & Scores ('Tie-sheet & Scores Update') ===")
         sheet = self.wb["Tie-sheet & Scores Update"]
 
+        current_sport_name = "Futsal"
+        current_gender = "Boys"
+
         for r in range(1, sheet.max_row + 1):
             row_vals = [sheet.cell(row=r, column=c).value for c in range(1, sheet.max_column + 1)]
-            row_str = " ".join([str(v) for v in row_vals if v is not None])
+            row_str = " ".join([str(v) for v in row_vals if v is not None]).strip()
+            if not row_str:
+                continue
 
-            if " vs " in row_str.lower() or " vs. " in row_str.lower():
+            row_lower = row_str.lower()
+
+            # Update active sport/gender context if header row contains sport/gender keywords
+            for s_key, s_obj in self.sports_map.items():
+                if s_key in row_lower:
+                    current_sport_name = s_obj["name"]
+                    break
+
+            if "girl" in row_lower and " vs " not in row_lower:
+                current_gender = "Girls"
+            elif "boy" in row_lower and " vs " not in row_lower:
+                current_gender = "Boys"
+
+            if " vs " in row_lower or " vs. " in row_lower:
                 team_a_str = ""
                 team_b_str = ""
                 score_str = ""
-                sport_name = "Futsal"
-                gender = "Boys"
+                sport_name = current_sport_name
+                gender = current_gender
 
                 for idx, val in enumerate(row_vals):
                     if val is None:
@@ -324,14 +371,6 @@ class InterHouseSeeder:
 
                 if not team_a_str or not team_b_str:
                     continue
-
-                for s_key, s_obj in self.sports_map.items():
-                    if s_key in row_str.lower():
-                        sport_name = s_obj["name"]
-                        break
-
-                if "girl" in row_str.lower():
-                    gender = "Girls"
 
                 sport_obj = self.sports_map.get(sport_name.lower(), list(self.sports_map.values())[0])
 
@@ -395,6 +434,7 @@ class InterHouseSeeder:
                     "score_summary": summary
                 }
 
+                self.stats["fixtures"].setdefault("created_list", []).append(match_record)
                 if self.client:
                     try:
                         self.client.table("matches").insert(match_record).execute()
@@ -407,14 +447,15 @@ class InterHouseSeeder:
     def resolve_squad(self, team_str: str, sport_id: str, gender: str) -> Optional[Dict[str, Any]]:
         for h_key, h_obj in self.houses_map.items():
             if h_key in team_str.lower():
-                squad_label = "B" if " b" in team_str.lower() or "(b)" in team_str.lower() else "A"
+                squad_label = "B" if (" b" in team_str.lower() or "(b)" in team_str.lower()) else ("A" if (" a" in team_str.lower() or "(a)" in team_str.lower()) else "Single")
                 squad_key = f"{h_obj['id']}_{sport_id}_{gender}_{squad_label}"
                 if squad_key in self.squads_map:
                     return self.squads_map[squad_key]
 
-                fallback_key = f"{h_obj['id']}_{sport_id}_{gender}_A"
-                if fallback_key in self.squads_map:
-                    return self.squads_map[fallback_key]
+                for label in ["Single", "A", "B"]:
+                    alt_key = f"{h_obj['id']}_{sport_id}_{gender}_{label}"
+                    if alt_key in self.squads_map:
+                        return self.squads_map[alt_key]
         return None
 
     def print_summary(self):
