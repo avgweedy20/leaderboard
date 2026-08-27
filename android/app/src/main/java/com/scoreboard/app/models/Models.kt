@@ -2,6 +2,13 @@ package com.scoreboard.app.models
 
 import com.google.gson.annotations.SerializedName
 
+data class House(
+    val id: String,
+    val name: String,
+    @SerializedName("color_hex") val colorHex: String,
+    @SerializedName("short_code") val shortCode: String
+)
+
 data class Sport(
     val id: String,
     val name: String,
@@ -13,33 +20,25 @@ data class Sport(
     @SerializedName("is_lower_score_better") val isLowerScoreBetter: Boolean
 )
 
-data class TeamSportNested(
-    @SerializedName("sport_id") val sportId: String
-)
-
 data class Team(
     val id: String,
     val name: String,
-    @SerializedName("sport_id") val sportId: String?, // Backwards compatibility / single sport column if exists
-    val level: String,
-    @SerializedName("team_sports") val teamSports: List<TeamSportNested>? = emptyList()
+    @SerializedName("house_id") val houseId: String?,
+    val gender: String?,
+    @SerializedName("squad_label") val squadLabel: String?,
+    @SerializedName("sport_id") val sportId: String?,
+    val level: String?
 )
-
-val Team.sportIds: List<String>
-    get() {
-        val nested = teamSports?.map { it.sportId } ?: emptyList()
-        if (nested.isEmpty() && sportId != null) {
-            return listOf(sportId)
-        }
-        return nested
-    }
 
 data class Player(
     val id: String,
     val name: String,
-    @SerializedName("team_id") val teamId: String,
+    @SerializedName("team_id") val teamId: String?,
+    @SerializedName("roll_number") val rollNumber: String?,
     val grade: String?,
-    val level: String
+    val section: String?,
+    val gender: String?,
+    val level: String?
 )
 
 data class MatchItem(
@@ -47,31 +46,60 @@ data class MatchItem(
     @SerializedName("sport_id") val sportId: String,
     @SerializedName("team_a_id") val teamAId: String?,
     @SerializedName("team_b_id") val teamBId: String?,
-    val level: String,
+    val gender: String?,
+    val stage: String?,
+    val level: String?,
     val status: String,
     @SerializedName("round_info") val roundInfo: String?,
     @SerializedName("winner_team_id") val winnerTeamId: String?,
     @SerializedName("is_draw") val isDraw: Boolean,
+    @SerializedName("score_team_a") val scoreTeamA: Int = 0,
+    @SerializedName("score_team_b") val scoreTeamB: Int = 0,
+    @SerializedName("score_difference") val scoreDifference: Int = 0,
     @SerializedName("score_summary") val scoreSummary: String?
 )
 
 data class LeaderboardItem(
     @SerializedName("team_id") val teamId: String,
     @SerializedName("team_name") val teamName: String,
+    @SerializedName("house_id") val houseId: String?,
+    @SerializedName("house_name") val houseName: String?,
+    @SerializedName("house_color") val houseColor: String?,
+    @SerializedName("house_short_code") val houseShortCode: String?,
+    val gender: String?,
+    @SerializedName("squad_label") val squadLabel: String?,
     @SerializedName("sport_id") val sportId: String,
     @SerializedName("sport_name") val sportName: String,
-    val level: String,
+    @SerializedName("sport_type") val sportType: String?,
+    val level: String?,
     val played: Int,
     val wins: Int,
     val draws: Int,
     val losses: Int,
-    val points: Int
+    @SerializedName("score_difference") val scoreDifference: Int = 0,
+    val points: Int,
+    val rank: Int = 1
+)
+
+data class HouseOverallStanding(
+    @SerializedName("house_id") val houseId: String,
+    @SerializedName("house_name") val houseName: String,
+    @SerializedName("color_hex") val colorHex: String,
+    @SerializedName("short_code") val shortCode: String,
+    @SerializedName("total_squads") val totalSquads: Int = 0,
+    @SerializedName("matches_played") val matchesPlayed: Int = 0,
+    @SerializedName("total_wins") val totalWins: Int = 0,
+    @SerializedName("total_draws") val totalDraws: Int = 0,
+    @SerializedName("total_losses") val totalLosses: Int = 0,
+    @SerializedName("total_score_difference") val totalScoreDifference: Int = 0,
+    @SerializedName("total_points") val totalPoints: Int = 0,
+    val rank: Int = 1
 )
 
 data class BracketItem(
     val id: String,
     @SerializedName("sport_id") val sportId: String,
-    val level: String,
+    val level: String?,
     val type: String
 )
 
