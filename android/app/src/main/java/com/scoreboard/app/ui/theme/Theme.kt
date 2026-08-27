@@ -1,43 +1,40 @@
 package com.scoreboard.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDark,
-    onPrimary = OnPrimaryDark,
-    secondary = SecondaryDark,
-    background = BackgroundDark,
-    surface = SurfaceDark,
-    onBackground = OnBackgroundDark,
-    onSurface = OnSurfaceDark,
-    onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineDark,
-    outlineVariant = OutlineVariantDark,
-    error = ErrorDark,
-    errorContainer = ErrorContainerDark,
-    tertiary = TertiaryDark,
-    tertiaryContainer = TertiaryContainerDark
+    primary = KoshiSkyBlue,
+    onPrimary = Color.White,
+    primaryContainer = KoshiSkyBlue,
+    onPrimaryContainer = Color.White,
+    secondary = TextSecondaryDark,
+    onSecondary = TextPrimaryDark,
+    background = DarkSurface,
+    onBackground = TextPrimaryDark,
+    surface = DarkSurfaceCard,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = DarkSurfaceContainer,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = DarkBorder
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryLight,
-    onPrimary = OnPrimaryLight,
-    secondary = SecondaryLight,
-    background = BackgroundLight,
-    surface = SurfaceLight,
-    onBackground = OnBackgroundLight,
-    onSurface = OnSurfaceLight,
-    onSurfaceVariant = OnSurfaceVariantLight,
-    outline = OutlineLight,
-    outlineVariant = OutlineVariantLight,
-    error = ErrorLight,
-    errorContainer = ErrorContainerLight,
-    tertiary = TertiaryLight,
-    tertiaryContainer = TertiaryContainerLight
+    primary = KoshiSkyBlue,
+    onPrimary = Color.White,
+    primaryContainer = KoshiSkyBlue,
+    onPrimaryContainer = Color.White,
+    secondary = TextSecondaryLight,
+    onSecondary = TextPrimaryLight,
+    background = LightSurface,
+    onBackground = TextPrimaryLight,
+    surface = LightSurfaceCard,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = LightSurfaceContainer,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = LightBorder
 )
 
 @Composable
@@ -50,7 +47,6 @@ fun ScoreBoardTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
-        shapes = AppShapes,
         content = content
     )
 }

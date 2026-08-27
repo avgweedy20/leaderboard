@@ -18,7 +18,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mock.supabase.co")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "mock-service-key")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "mock-anon-key")
 
-# Try initializing Supabase Python Client
 supabase_client = None
 if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE_ROLE_KEY:
     try:
@@ -27,24 +26,30 @@ if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE
     except Exception as e:
         print(f"Warning: Could not initialize Supabase client: {e}")
 
-# In-memory mock DB fallback for development/testing when Supabase is not attached
+# In-memory mock DB fallback for Inter-House Meet
 MOCK_DB = {
+    "houses": [
+        {"id": "h1", "name": "Karnali", "color_hex": "#10B981", "short_code": "KAR"},
+        {"id": "h2", "name": "Koshi", "color_hex": "#0EA5E9", "short_code": "KOS"},
+        {"id": "h3", "name": "Mahakali", "color_hex": "#8B5CF6", "short_code": "MAH"},
+        {"id": "h4", "name": "Mechi", "color_hex": "#F97316", "short_code": "MEC"}
+    ],
     "sports": [
         {
             "id": "11111111-1111-1111-1111-111111111111",
-            "name": "Cricket",
-            "type": "cricket",
-            "level": "ALL",
-            "point_win": 2,
+            "name": "Futsal",
+            "type": "football",
+            "level": "HS",
+            "point_win": 3,
             "point_draw": 1,
             "point_loss": 0,
             "is_lower_score_better": False
         },
         {
             "id": "22222222-2222-2222-2222-222222222222",
-            "name": "Football",
-            "type": "football",
-            "level": "ALL",
+            "name": "Basketball",
+            "type": "basketball",
+            "level": "HS",
             "point_win": 3,
             "point_draw": 1,
             "point_loss": 0,
@@ -52,53 +57,46 @@ MOCK_DB = {
         },
         {
             "id": "33333333-3333-3333-3333-333333333333",
-            "name": "Basketball",
-            "type": "basketball",
-            "level": "ALL",
-            "point_win": 2,
-            "point_draw": 0,
+            "name": "Cricksal",
+            "type": "generic",
+            "level": "HS",
+            "point_win": 3,
+            "point_draw": 1,
             "point_loss": 0,
             "is_lower_score_better": False
-        },
-        {
-            "id": "44444444-4444-4444-4444-444444444444",
-            "name": "100m Dash",
-            "type": "generic",
-            "level": "ALL",
-            "point_win": 10,
-            "point_draw": 5,
-            "point_loss": 1,
-            "is_lower_score_better": True
         }
     ],
     "teams": [
-        {"id": "t1", "name": "Lions", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
-        {"id": "t2", "name": "Tigers", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
-        {"id": "t3", "name": "Eagles", "sport_id": "22222222-2222-2222-2222-222222222222", "level": "HS"},
-        {"id": "t4", "name": "Hawks", "sport_id": "22222222-2222-2222-2222-222222222222", "level": "HS"}
+        {"id": "t1", "name": "Karnali Boys Futsal A", "house_id": "h1", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t2", "name": "Koshi Boys Futsal A", "house_id": "h2", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t3", "name": "Mahakali Boys Futsal A", "house_id": "h3", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t4", "name": "Mechi Boys Futsal A", "house_id": "h4", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"}
     ],
     "players": [
-        {"id": "p1", "name": "John Doe", "team_id": "t1", "grade": "11", "level": "HS"},
-        {"id": "p2", "name": "Jane Smith", "team_id": "t2", "grade": "12", "level": "HS"}
+        {"id": "p1", "name": "Aarav Sharma", "team_id": "t1", "roll_number": "101", "grade": "11", "section": "A", "gender": "Boys", "level": "HS"},
+        {"id": "p2", "name": "Bikram Thapa", "team_id": "t2", "roll_number": "102", "grade": "12", "section": "B", "gender": "Boys", "level": "HS"}
     ],
     "matches": [
         {
             "id": "m1",
-            "sport_id": "22222222-2222-2222-2222-222222222222",
-            "team_a_id": "t3",
-            "team_b_id": "t4",
+            "sport_id": "11111111-1111-1111-1111-111111111111",
+            "team_a_id": "t1",
+            "team_b_id": "t2",
+            "gender": "Boys",
+            "stage": "league",
             "level": "HS",
             "status": "completed",
-            "round_info": "Finals",
-            "winner_team_id": "t3",
+            "round_info": "League Game",
+            "winner_team_id": "t1",
             "is_draw": False,
-            "score_summary": "3 - 1"
+            "score_team_a": 6,
+            "score_team_b": 1,
+            "score_difference": 5,
+            "score_summary": "6 - 1"
         }
     ],
     "brackets": [],
     "generic_results": [],
-    "cricket_innings": [],
-    "cricket_overs": [],
     "football_events": [],
     "basketball_quarters": []
 }
@@ -120,7 +118,6 @@ def req_admin_auth(f):
             except Exception as e:
                 return jsonify({"error": str(e)}), 401
         else:
-            # Only allow mock-admin-token when Supabase is NOT attached
             if token != "mock-admin-token":
                 return jsonify({"error": "Invalid dev auth token"}), 401
 
@@ -170,6 +167,18 @@ def auth_login():
         return jsonify({"error": "Invalid email or password"}), 401
 
 
+# HOUSES ENDPOINTS
+@app.route("/api/houses", methods=["GET"])
+def get_houses():
+    if supabase_client:
+        try:
+            res = supabase_client.table("houses").select("*").order("name").execute()
+            return jsonify(res.data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return jsonify(MOCK_DB["houses"])
+
+
 # SPORTS ENDPOINTS
 @app.route("/api/sports", methods=["GET"])
 def get_sports():
@@ -187,7 +196,7 @@ def create_sport():
     data = request.get_json() or {}
     name = data.get("name")
     sport_type = data.get("type", "generic")
-    level = data.get("level", "ALL")
+    level = data.get("level", "HS")
     point_win = data.get("point_win", 3)
     point_draw = data.get("point_draw", 1)
     point_loss = data.get("point_loss", 0)
@@ -218,19 +227,22 @@ def create_sport():
     return jsonify(record), 201
 
 
-# TEAMS ENDPOINTS
+# TEAMS / SQUADS ENDPOINTS
 @app.route("/api/teams", methods=["GET"])
 def get_teams():
     sport_id = request.args.get("sport_id")
-    level = request.args.get("level")
+    house_id = request.args.get("house_id")
+    gender = request.args.get("gender")
 
     if supabase_client:
         try:
-            query = supabase_client.table("teams").select("*, sports(name)")
+            query = supabase_client.table("teams").select("*, houses(name, color_hex, short_code), sports(name)")
             if sport_id:
                 query = query.eq("sport_id", sport_id)
-            if level and level != "ALL":
-                query = query.eq("level", level)
+            if house_id:
+                query = query.eq("house_id", house_id)
+            if gender:
+                query = query.eq("gender", gender)
             res = query.execute()
             return jsonify(res.data)
         except Exception as e:
@@ -239,52 +251,23 @@ def get_teams():
     teams = MOCK_DB["teams"]
     if sport_id:
         teams = [t for t in teams if t.get("sport_id") == sport_id]
-    if level and level != "ALL":
-        teams = [t for t in teams if t.get("level") == level]
+    if house_id:
+        teams = [t for t in teams if t.get("house_id") == house_id]
+    if gender:
+        teams = [t for t in teams if t.get("gender") == gender]
     return jsonify(teams)
 
-@app.route("/api/teams", methods=["POST"])
-@req_admin_auth
-def create_team():
-    data = request.get_json() or {}
-    name = data.get("name")
-    sport_id = data.get("sport_id")
-    level = data.get("level", "HS")
 
-    if not name or not sport_id:
-        return jsonify({"error": "Team name and sport_id required"}), 400
-
-    record = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "sport_id": sport_id,
-        "level": level
-    }
-
-    if supabase_client:
-        try:
-            res = supabase_client.table("teams").insert(record).execute()
-            return jsonify(res.data[0]), 201
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["teams"].append(record)
-    return jsonify(record), 201
-
-
-# PLAYERS & CSV IMPORT
+# PLAYERS ENDPOINTS
 @app.route("/api/players", methods=["GET"])
 def get_players():
     team_id = request.args.get("team_id")
-    level = request.args.get("level")
 
     if supabase_client:
         try:
-            query = supabase_client.table("players").select("*, teams(name)")
+            query = supabase_client.table("players").select("*, teams(name, gender, squad_label, houses(name, color_hex))")
             if team_id:
                 query = query.eq("team_id", team_id)
-            if level and level != "ALL":
-                query = query.eq("level", level)
             res = query.execute()
             return jsonify(res.data)
         except Exception as e:
@@ -293,210 +276,26 @@ def get_players():
     players = MOCK_DB["players"]
     if team_id:
         players = [p for p in players if p.get("team_id") == team_id]
-    if level and level != "ALL":
-        players = [p for p in players if p.get("level") == level]
     return jsonify(players)
 
-@app.route("/api/players", methods=["POST"])
-@req_admin_auth
-def create_player():
-    data = request.get_json() or {}
-    name = data.get("name")
-    team_id = data.get("team_id")
-    grade = data.get("grade", "")
-    level = data.get("level", "HS")
 
-    if not name or not team_id:
-        return jsonify({"error": "Player name and team_id required"}), 400
-
-    record = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "team_id": team_id,
-        "grade": grade,
-        "level": level
-    }
-
-    if supabase_client:
-        try:
-            res = supabase_client.table("players").insert(record).execute()
-            return jsonify(res.data[0]), 201
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["players"].append(record)
-    return jsonify(record), 201
-
-
-@app.route("/api/players/import/preview", methods=["POST"])
-@req_admin_auth
-def import_players_preview():
-    if "file" not in request.files:
-        return jsonify({"error": "CSV file is required"}), 400
-
-    file = request.files["file"]
-    stream = io.StringIO(file.stream.read().decode("utf-8"), newline=None)
-    csv_reader = csv.DictReader(stream)
-
-    valid_rows = []
-    errors = []
-
-    for index, row in enumerate(csv_reader, start=1):
-        player_name = row.get("player_name", "").strip()
-        team_name = row.get("team_name", "").strip()
-        sport_name = row.get("sport_name", "").strip()
-        grade = row.get("grade", "").strip()
-        level = row.get("level", "HS").strip().upper()
-
-        if level not in ["ES", "MS", "HS"]:
-            level = "HS"
-
-        row_errors = []
-        if not player_name:
-            row_errors.append("Missing player_name")
-        if not team_name:
-            row_errors.append("Missing team_name")
-        if not sport_name:
-            row_errors.append("Missing sport_name")
-
-        parsed_row = {
-            "row_num": index,
-            "player_name": player_name,
-            "team_name": team_name,
-            "sport_name": sport_name,
-            "grade": grade,
-            "level": level
-        }
-
-        if row_errors:
-            errors.append({"row": index, "data": parsed_row, "errors": row_errors})
-        else:
-            valid_rows.append(parsed_row)
-
-    return jsonify({
-        "total": len(valid_rows) + len(errors),
-        "valid_count": len(valid_rows),
-        "error_count": len(errors),
-        "valid_rows": valid_rows,
-        "errors": errors
-    })
-
-
-@app.route("/api/players/import/commit", methods=["POST"])
-@req_admin_auth
-def import_players_commit():
-    data = request.get_json() or {}
-    rows = data.get("rows", [])
-
-    if not rows:
-        return jsonify({"error": "No rows provided for commit"}), 400
-
-    created_players = 0
-    created_teams = 0
-    created_sports = 0
-
-    sports_list = []
-    teams_list = []
-
-    if supabase_client:
-        s_res = supabase_client.table("sports").select("*").execute()
-        sports_list = s_res.data
-        t_res = supabase_client.table("teams").select("*").execute()
-        teams_list = t_res.data
-    else:
-        sports_list = MOCK_DB["sports"]
-        teams_list = MOCK_DB["teams"]
-
-    existing_sports = {s["name"].lower(): s for s in sports_list}
-    existing_teams = {f"{t['name'].lower()}_{t['sport_id']}": t for t in teams_list}
-
-    for r in rows:
-        sport_name = r["sport_name"]
-        team_name = r["team_name"]
-        player_name = r["player_name"]
-        grade = r.get("grade", "")
-        level = r.get("level", "HS")
-
-        # 1. Resolve or Create Sport
-        sport_key = sport_name.lower()
-        if sport_key in existing_sports:
-            sport_obj = existing_sports[sport_key]
-        else:
-            new_sport = {
-                "id": str(uuid.uuid4()),
-                "name": sport_name,
-                "type": "generic",
-                "level": level,
-                "point_win": 3,
-                "point_draw": 1,
-                "point_loss": 0,
-                "is_lower_score_better": False
-            }
-            if supabase_client:
-                res = supabase_client.table("sports").insert(new_sport).execute()
-                sport_obj = res.data[0]
-            else:
-                MOCK_DB["sports"].append(new_sport)
-                sport_obj = new_sport
-            existing_sports[sport_key] = sport_obj
-            created_sports += 1
-
-        # 2. Resolve or Create Team
-        team_key = f"{team_name.lower()}_{sport_obj['id']}"
-        if team_key in existing_teams:
-            team_obj = existing_teams[team_key]
-        else:
-            new_team = {
-                "id": str(uuid.uuid4()),
-                "name": team_name,
-                "sport_id": sport_obj["id"],
-                "level": level
-            }
-            if supabase_client:
-                res = supabase_client.table("teams").insert(new_team).execute()
-                team_obj = res.data[0]
-            else:
-                MOCK_DB["teams"].append(new_team)
-                team_obj = new_team
-            existing_teams[team_key] = team_obj
-            created_teams += 1
-
-        # 3. Create Player
-        new_player = {
-            "id": str(uuid.uuid4()),
-            "name": player_name,
-            "team_id": team_obj["id"],
-            "grade": grade,
-            "level": level
-        }
-        if supabase_client:
-            supabase_client.table("players").insert(new_player).execute()
-        else:
-            MOCK_DB["players"].append(new_player)
-        created_players += 1
-
-    return jsonify({
-        "success": True,
-        "players_created": created_players,
-        "teams_created": created_teams,
-        "sports_created": created_sports
-    })
-
-
-# MATCHES & SPORT-SPECIFIC SCORING
+# MATCHES ENDPOINTS
 @app.route("/api/matches", methods=["GET"])
 def get_matches():
     sport_id = request.args.get("sport_id")
-    level = request.args.get("level")
+    gender = request.args.get("gender")
+    stage = request.args.get("stage")
 
     if supabase_client:
         try:
             query = supabase_client.table("matches").select("*, sports(name, type)")
             if sport_id:
                 query = query.eq("sport_id", sport_id)
-            if level and level != "ALL":
-                query = query.eq("level", level)
-            res = query.execute()
+            if gender:
+                query = query.eq("gender", gender)
+            if stage:
+                query = query.eq("stage", stage)
+            res = query.order("created_at").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -504,505 +303,146 @@ def get_matches():
     matches = MOCK_DB["matches"]
     if sport_id:
         matches = [m for m in matches if m.get("sport_id") == sport_id]
-    if level and level != "ALL":
-        matches = [m for m in matches if m.get("level") == level]
+    if gender:
+        matches = [m for m in matches if m.get("gender") == gender]
+    if stage:
+        matches = [m for m in matches if m.get("stage") == stage]
     return jsonify(matches)
 
-@app.route("/api/matches", methods=["POST"])
-@req_admin_auth
-def create_match():
-    data = request.get_json() or {}
-    sport_id = data.get("sport_id")
-    team_a_id = data.get("team_a_id")
-    team_b_id = data.get("team_b_id")
-    level = data.get("level", "HS")
-    round_info = data.get("round_info", "Regular Match")
 
-    if not sport_id:
-        return jsonify({"error": "sport_id is required"}), 400
-
-    record = {
-        "id": str(uuid.uuid4()),
-        "sport_id": sport_id,
-        "team_a_id": team_a_id,
-        "team_b_id": team_b_id,
-        "level": level,
-        "status": "scheduled",
-        "round_info": round_info,
-        "winner_team_id": None,
-        "is_draw": False
-    }
-
+# OVERALL HOUSE STANDINGS API
+@app.route("/api/leaderboard/overall", methods=["GET"])
+def get_house_overall_standings():
     if supabase_client:
         try:
-            res = supabase_client.table("matches").insert(record).execute()
-            return jsonify(res.data[0]), 201
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["matches"].append(record)
-    return jsonify(record), 201
-
-
-# CRICKET SCORING
-@app.route("/api/matches/<match_id>/score/cricket", methods=["POST"])
-@req_admin_auth
-def score_cricket(match_id):
-    data = request.get_json() or {}
-    innings1 = data.get("innings1", {})
-    innings2 = data.get("innings2", {})
-    status = data.get("status", "completed")
-
-    runs1, wickets1 = innings1.get("runs", 0), innings1.get("wickets", 0)
-    runs2, wickets2 = innings2.get("runs", 0), innings2.get("wickets", 0)
-
-    winner_id = None
-    is_draw = False
-
-    if runs1 > runs2:
-        winner_id = innings1.get("team_id")
-    elif runs2 > runs1:
-        winner_id = innings2.get("team_id")
-    else:
-        is_draw = True
-
-    score_summary = f"Team 1: {runs1}/{wickets1} | Team 2: {runs2}/{wickets2}"
-
-    if supabase_client:
-        try:
-            supabase_client.table("matches").update({
-                "status": status,
-                "winner_team_id": winner_id,
-                "is_draw": is_draw,
-                "score_summary": score_summary
-            }).eq("id", match_id).execute()
-
-            if innings1.get("team_id"):
-                supabase_client.table("cricket_innings").upsert({
-                    "match_id": match_id,
-                    "team_id": innings1["team_id"],
-                    "innings_number": 1,
-                    "total_runs": runs1,
-                    "total_wickets": wickets1,
-                    "total_overs": innings1.get("overs", 20.0),
-                    "extras": innings1.get("extras", 0)
-                }).execute()
-
-            if innings2.get("team_id"):
-                supabase_client.table("cricket_innings").upsert({
-                    "match_id": match_id,
-                    "team_id": innings2["team_id"],
-                    "innings_number": 2,
-                    "total_runs": runs2,
-                    "total_wickets": wickets2,
-                    "total_overs": innings2.get("overs", 20.0),
-                    "extras": innings2.get("extras", 0)
-                }).execute()
-
-            return jsonify({"success": True, "winner_team_id": winner_id, "is_draw": is_draw})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    for m in MOCK_DB["matches"]:
-        if m["id"] == match_id:
-            m["status"] = status
-            m["winner_team_id"] = winner_id
-            m["is_draw"] = is_draw
-            m["score_summary"] = score_summary
-    return jsonify({"success": True, "winner_team_id": winner_id, "is_draw": is_draw})
-
-
-# FOOTBALL SCORING
-@app.route("/api/matches/<match_id>/score/football", methods=["POST"])
-@req_admin_auth
-def score_football(match_id):
-    data = request.get_json() or {}
-    team_a_goals = data.get("team_a_goals", 0)
-    team_b_goals = data.get("team_b_goals", 0)
-    events = data.get("events", [])
-
-    match_item = None
-    if supabase_client:
-        res = supabase_client.table("matches").select("*").eq("id", match_id).execute()
-        if res.data:
-            match_item = res.data[0]
-    else:
-        for m in MOCK_DB["matches"]:
-            if m["id"] == match_id:
-                match_item = m
-                break
-
-    if not match_item:
-        return jsonify({"error": "Match not found"}), 404
-
-    team_a_id = match_item["team_a_id"]
-    team_b_id = match_item["team_b_id"]
-
-    winner_id = None
-    is_draw = False
-
-    if team_a_goals > team_b_goals:
-        winner_id = team_a_id
-    elif team_b_goals > team_a_goals:
-        winner_id = team_b_id
-    else:
-        is_draw = True
-
-    score_summary = f"{team_a_goals} - {team_b_goals}"
-
-    if supabase_client:
-        try:
-            supabase_client.table("matches").update({
-                "status": "completed",
-                "winner_team_id": winner_id,
-                "is_draw": is_draw,
-                "score_summary": score_summary
-            }).eq("id", match_id).execute()
-
-            if events:
-                for ev in events:
-                    supabase_client.table("football_events").insert({
-                        "match_id": match_id,
-                        "team_id": ev.get("team_id"),
-                        "player_id": ev.get("player_id"),
-                        "event_type": ev.get("event_type", "goal"),
-                        "minute": ev.get("minute", 0)
-                    }).execute()
-
-            return jsonify({"success": True, "score": score_summary, "winner_team_id": winner_id})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    match_item["status"] = "completed"
-    match_item["winner_team_id"] = winner_id
-    match_item["is_draw"] = is_draw
-    match_item["score_summary"] = score_summary
-    return jsonify({"success": True, "score": score_summary, "winner_team_id": winner_id})
-
-
-# BASKETBALL SCORING
-@app.route("/api/matches/<match_id>/score/basketball", methods=["POST"])
-@req_admin_auth
-def score_basketball(match_id):
-    data = request.get_json() or {}
-    quarters = data.get("quarters", [])
-
-    total_a = sum(q.get("team_a_score", 0) for q in quarters)
-    total_b = sum(q.get("team_b_score", 0) for q in quarters)
-
-    match_item = None
-    if supabase_client:
-        res = supabase_client.table("matches").select("*").eq("id", match_id).execute()
-        if res.data:
-            match_item = res.data[0]
-    else:
-        for m in MOCK_DB["matches"]:
-            if m["id"] == match_id:
-                match_item = m
-                break
-
-    if not match_item:
-        return jsonify({"error": "Match not found"}), 404
-
-    winner_id = None
-    is_draw = False
-
-    if total_a > total_b:
-        winner_id = match_item["team_a_id"]
-    elif total_b > total_a:
-        winner_id = match_item["team_b_id"]
-    else:
-        is_draw = True
-
-    score_summary = f"{total_a} - {total_b}"
-
-    if supabase_client:
-        try:
-            supabase_client.table("matches").update({
-                "status": "completed",
-                "winner_team_id": winner_id,
-                "is_draw": is_draw
-            }).eq("id", match_id).execute()
-
-            for q in quarters:
-                supabase_client.table("basketball_quarters").upsert({
-                    "match_id": match_id,
-                    "quarter": q.get("quarter", 1),
-                    "team_a_score": q.get("team_a_score", 0),
-                    "team_b_score": q.get("team_b_score", 0)
-                }).execute()
-
-            return jsonify({"success": True, "score": score_summary, "winner_team_id": winner_id})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    match_item["status"] = "completed"
-    match_item["winner_team_id"] = winner_id
-    match_item["is_draw"] = is_draw
-    match_item["score_summary"] = score_summary
-    return jsonify({"success": True, "score": score_summary, "winner_team_id": winner_id})
-
-
-# GENERIC SPORT SCORING
-@app.route("/api/matches/<match_id>/score/generic", methods=["POST"])
-@req_admin_auth
-def score_generic(match_id):
-    data = request.get_json() or {}
-    results = data.get("results", [])
-
-    if not results:
-        return jsonify({"error": "Results list required"}), 400
-
-    match_item = None
-    sport_item = None
-
-    if supabase_client:
-        m_res = supabase_client.table("matches").select("*, sports(*)").eq("id", match_id).execute()
-        if m_res.data:
-            match_item = m_res.data[0]
-            sport_item = match_item.get("sports")
-    else:
-        for m in MOCK_DB["matches"]:
-            if m["id"] == match_id:
-                match_item = m
-                break
-        if match_item:
-            for s in MOCK_DB["sports"]:
-                if s["id"] == match_item["sport_id"]:
-                    sport_item = s
-                    break
-
-    is_lower_better = sport_item.get("is_lower_score_better", False) if sport_item else False
-    sorted_res = sorted(results, key=lambda x: float(x.get("score", 0)), reverse=not is_lower_better)
-    winner_team_id = sorted_res[0].get("team_id") if sorted_res else None
-
-    score_summary = f"Top Score: {sorted_res[0].get('score')}" if sorted_res else ""
-
-    if supabase_client:
-        try:
-            supabase_client.table("matches").update({
-                "status": "completed",
-                "winner_team_id": winner_team_id,
-                "is_draw": False,
-                "score_summary": score_summary
-            }).eq("id", match_id).execute()
-
-            for rank_idx, r in enumerate(sorted_res, start=1):
-                supabase_client.table("generic_results").insert({
-                    "match_id": match_id,
-                    "team_id": r.get("team_id"),
-                    "player_id": r.get("player_id"),
-                    "score": float(r.get("score", 0)),
-                    "notes": r.get("notes", ""),
-                    "rank": rank_idx
-                }).execute()
-
-            return jsonify({"success": True, "winner_team_id": winner_team_id, "rankings": sorted_res})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    if match_item:
-        match_item["status"] = "completed"
-        match_item["winner_team_id"] = winner_team_id
-        match_item["score_summary"] = f"Top Score: {sorted_res[0].get('score')}"
-
-    return jsonify({"success": True, "winner_team_id": winner_team_id, "rankings": sorted_res})
-
-
-# BRACKETS / TIE SHEET GENERATION & FETCHING
-@app.route("/api/brackets", methods=["GET"])
-def get_brackets():
-    sport_id = request.args.get("sport_id")
-    level = request.args.get("level")
-
-    if supabase_client:
-        try:
-            query = supabase_client.table("tournament_brackets").select("*, sports(name)")
-            if sport_id:
-                query = query.eq("sport_id", sport_id)
-            if level and level != "ALL":
-                query = query.eq("level", level)
-            res = query.execute()
+            res = supabase_client.table("house_overall_standings").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    brackets = MOCK_DB["brackets"]
-    if sport_id:
-        brackets = [b for b in brackets if b.get("sport_id") == sport_id]
-    if level and level != "ALL":
-        brackets = [b for b in brackets if b.get("level") == level]
-    return jsonify(brackets)
+    houses = MOCK_DB["houses"]
+    standings = []
+    for h in houses:
+        standings.append({
+            "house_id": h["id"],
+            "house_name": h["name"],
+            "color_hex": h["color_hex"],
+            "short_code": h["short_code"],
+            "total_squads": 4,
+            "matches_played": 1,
+            "total_wins": 1 if h["name"] == "Karnali" else 0,
+            "total_draws": 0,
+            "total_losses": 0 if h["name"] == "Karnali" else 1,
+            "total_score_difference": 5 if h["name"] == "Karnali" else -5,
+            "total_points": 3 if h["name"] == "Karnali" else 0,
+            "rank": 1 if h["name"] == "Karnali" else 2
+        })
+    standings.sort(key=lambda x: x["total_points"], reverse=True)
+    return jsonify(standings)
 
 
-@app.route("/api/brackets/generate", methods=["POST"])
-@req_admin_auth
-def generate_bracket():
-    data = request.get_json() or {}
-    sport_id = data.get("sport_id")
-    level = data.get("level", "HS")
-    bracket_type = data.get("type", "single_elimination")
-
-    if not sport_id:
-        return jsonify({"error": "sport_id is required"}), 400
-
-    teams = []
-    if supabase_client:
-        res = supabase_client.table("teams").select("*").eq("sport_id", sport_id).eq("level", level).execute()
-        teams = res.data
-    else:
-        teams = [t for t in MOCK_DB["teams"] if t.get("sport_id") == sport_id and t.get("level") == level]
-
-    if len(teams) < 2:
-        return jsonify({"error": "At least 2 teams are required to generate a bracket"}), 400
-
-    generated_matches = []
-    rounds = []
-
-    if bracket_type == "single_elimination":
-        num_teams = len(teams)
-        round_1_pairs = []
-        for i in range(0, num_teams, 2):
-            team_a = teams[i]
-            team_b = teams[i+1] if (i+1) < num_teams else None
-            round_1_pairs.append({
-                "team_a_name": team_a["name"],
-                "team_b_name": team_b["name"] if team_b else "BYE"
-            })
-
-            m_rec = {
-                "id": str(uuid.uuid4()),
-                "sport_id": sport_id,
-                "team_a_id": team_a["id"],
-                "team_b_id": team_b["id"] if team_b else None,
-                "level": level,
-                "status": "scheduled" if team_b else "completed",
-                "winner_team_id": team_a["id"] if not team_b else None,
-                "round_info": "Round 1"
-            }
-            if supabase_client:
-                supabase_client.table("matches").insert(m_rec).execute()
-            else:
-                MOCK_DB["matches"].append(m_rec)
-            generated_matches.append(m_rec)
-
-        rounds.append({"round_name": "Round 1", "pairs": round_1_pairs})
-
-    elif bracket_type == "round_robin":
-        for i in range(len(teams)):
-            for j in range(i + 1, len(teams)):
-                team_a = teams[i]
-                team_b = teams[j]
-                m_rec = {
-                    "id": str(uuid.uuid4()),
-                    "sport_id": sport_id,
-                    "team_a_id": team_a["id"],
-                    "team_b_id": team_b["id"],
-                    "level": level,
-                    "status": "scheduled",
-                    "round_info": f"Round Robin ({team_a['name']} vs {team_b['name']})"
-                }
-                if supabase_client:
-                    supabase_client.table("matches").insert(m_rec).execute()
-                else:
-                    MOCK_DB["matches"].append(m_rec)
-                generated_matches.append(m_rec)
-        rounds.append({"round_name": "Round Robin Matches", "matches_count": len(generated_matches)})
-
-    bracket_record = {
-        "id": str(uuid.uuid4()),
-        "sport_id": sport_id,
-        "level": level,
-        "type": bracket_type,
-        "structure_json": {"rounds": rounds, "matches": generated_matches}
-    }
-
-    if supabase_client:
-        supabase_client.table("tournament_brackets").insert(bracket_record).execute()
-    else:
-        MOCK_DB["brackets"].append(bracket_record)
-
-    return jsonify({"success": True, "bracket": bracket_record, "created_matches": len(generated_matches)})
-
-
-# LEADERBOARD QUERY API
+# PER-SPORT STANDINGS API
 @app.route("/api/leaderboard", methods=["GET"])
 def get_leaderboard():
     sport_id = request.args.get("sport_id")
-    level = request.args.get("level")
+    gender = request.args.get("gender")
 
     if supabase_client:
         try:
             query = supabase_client.table("leaderboard_view").select("*")
             if sport_id:
                 query = query.eq("sport_id", sport_id)
-            if level and level != "ALL":
-                query = query.eq("level", level)
-            res = query.order("points", desc=True).execute()
+            if gender:
+                query = query.eq("gender", gender)
+            res = query.execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    all_sports = {s["id"]: s for s in MOCK_DB["sports"]}
-    all_teams = MOCK_DB["teams"]
-    all_matches = MOCK_DB["matches"]
+    teams = MOCK_DB["teams"]
+    sports = {s["id"]: s for s in MOCK_DB["sports"]}
+    houses = {h["id"]: h for h in MOCK_DB["houses"]}
+    matches = MOCK_DB["matches"]
 
-    leaderboard = []
-
-    for t in all_teams:
-        if sport_id and t.get("sport_id") != sport_id:
+    results = []
+    for t in teams:
+        if sport_id and t["sport_id"] != sport_id:
             continue
-        if level and level != "ALL" and t.get("level") != level:
+        if gender and t.get("gender") != gender:
             continue
 
-        sport = all_sports.get(t["sport_id"], {"name": "Unknown", "type": "generic", "point_win": 3, "point_draw": 1, "point_loss": 0})
+        sport = sports.get(t["sport_id"], {"name": "Futsal", "type": "football"})
+        house = houses.get(t["house_id"], {"name": "Karnali", "color_hex": "#10B981", "short_code": "KAR"})
 
-        played = 0
-        wins = 0
-        draws = 0
-        losses = 0
-
-        for m in all_matches:
+        played, wins, draws, losses, pts, diff = 0, 0, 0, 0, 0, 0
+        for m in matches:
             if m.get("status") != "completed":
                 continue
-            if m.get("team_a_id") == t["id"] or m.get("team_b_id") == t["id"]:
+            if m["team_a_id"] == t["id"]:
                 played += 1
-                if m.get("is_draw"):
-                    draws += 1
-                elif m.get("winner_team_id") == t["id"]:
-                    wins += 1
-                else:
-                    losses += 1
+                if m.get("is_draw"): draws += 1
+                elif m.get("winner_team_id") == t["id"]: wins += 1; pts += 3
+                else: losses += 1
+                diff += (m.get("score_team_a", 0) - m.get("score_team_b", 0))
+            elif m["team_b_id"] == t["id"]:
+                played += 1
+                if m.get("is_draw"): draws += 1
+                elif m.get("winner_team_id") == t["id"]: wins += 1; pts += 3
+                else: losses += 1
+                diff += (m.get("score_team_b", 0) - m.get("score_team_a", 0))
 
-        points = (wins * sport.get("point_win", 3)) + (draws * sport.get("point_draw", 1)) + (losses * sport.get("point_loss", 0))
-
-        leaderboard.append({
+        results.append({
             "team_id": t["id"],
             "team_name": t["name"],
+            "house_id": t["house_id"],
+            "house_name": house["name"],
+            "house_color": house["color_hex"],
+            "house_short_code": house["short_code"],
+            "gender": t.get("gender", "Boys"),
+            "squad_label": t.get("squad_label", "A"),
             "sport_id": t["sport_id"],
-            "sport_name": sport.get("name"),
-            "sport_type": sport.get("type"),
-            "level": t.get("level", "HS"),
+            "sport_name": sport["name"],
+            "sport_type": sport["type"],
             "played": played,
             "wins": wins,
             "draws": draws,
             "losses": losses,
-            "points": points
+            "score_difference": diff,
+            "points": pts,
+            "rank": 1
         })
 
-    leaderboard.sort(key=lambda x: x["points"], reverse=True)
-    return jsonify(leaderboard)
+    results.sort(key=lambda x: (x["points"], x["score_difference"]), reverse=True)
+    for idx, r in enumerate(results, start=1):
+        r["rank"] = idx
+    return jsonify(results)
+
+
+# FINAL QUALIFIERS API
+@app.route("/api/leaderboard/qualifiers", methods=["GET"])
+def get_final_qualifiers():
+    if supabase_client:
+        try:
+            res = supabase_client.table("final_qualifiers_view").select("*").execute()
+            return jsonify(res.data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # In mock mode return top 2 squads per sport+gender
+    all_standings = json.loads(get_leaderboard().data)
+    qualifiers = [r for r in all_standings if r.get("rank", 99) <= 2]
+    return jsonify(qualifiers)
 
 
 # OTA UPDATE CHECK FOR ANDROID CLIENT
 @app.route("/api/version", methods=["GET"])
 def get_version_info():
     return jsonify({
-        "version_code": 2,
-        "version_name": "1.0.1",
+        "version_code": 3,
+        "version_name": "2.0.0",
         "min_sdk": 24,
         "apk_url": "https://github.com/scoreboard/scoreboard/releases/latest/download/scoreboard.apk",
-        "release_notes": "Improved live leaderboard syncing, sport scoring fixes, and UI bugfixes.",
+        "release_notes": "Inter-House Sports Meet overhaul: House Standings, Squads, and Stage views.",
         "mandatory": False
     })
 

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScoreBoard - Multi-Sport Leaderboard & Tournament System</title>
+    <title>DSS Sports - Inter-House Sports Meet</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -13,12 +13,6 @@
       <symbol id="icon-stopwatch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
         <circle cx="12" cy="13" r="8"/>
         <path d="M12 9v4l3 3M12 5V3M10 3h4M19 7l1-1"/>
-      </symbol>
-
-      <symbol id="icon-cricket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-        <path d="M5 19L19 5M15 5l4 4M4 20l1-1"/>
-        <circle cx="8" cy="8" r="2"/>
-        <path d="M14 18v3M17 18v3M20 18v3M13 18h8"/>
       </symbol>
 
       <symbol id="icon-football" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
@@ -42,10 +36,6 @@
         <path d="M16 2v4M8 2v4M3 9h18"/>
       </symbol>
 
-      <symbol id="icon-tree" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-        <path d="M3 5h6v4H3zM3 15h6v4H3zM15 10h6v4h-6zM9 7h3v10H9M12 12h3"/>
-      </symbol>
-
       <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
         <path d="M12 2L4 5v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V5l-8-3z"/>
       </symbol>
@@ -67,21 +57,9 @@
         <path d="M9 21H5V3h4M16 17l5-5-5-5M21 12H9"/>
       </symbol>
 
-      <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-        <path d="M21 15v4H3v-4M17 8l-5-5-5 5M12 3v12"/>
-      </symbol>
-
-      <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-        <path d="M12 5v14M5 12h14"/>
-      </symbol>
-
       <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
         <path d="M23 4v6h-6M1 20v-6h6"/>
         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-      </symbol>
-
-      <symbol id="icon-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/>
       </symbol>
 
       <symbol id="icon-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
@@ -93,16 +71,16 @@
     <!-- NAVBAR -->
     <header class="navbar">
         <div class="brand">
-            <svg class="icon"><use href="#icon-stopwatch"></use></svg>
-            <span>ScoreBoard</span>
-            <span id="dbModeBadge" class="status-pill status-final" style="margin-left: 8px;">
+            <svg class="icon"><use href="#icon-trophy"></use></svg>
+            <span>DSS Inter-House Sports Meet</span>
+            <span id="dbModeBadge" class="status-pill status-final" style="margin-left: 12px;">
                 Checking DB...
             </span>
         </div>
         <div class="nav-actions" style="display: flex; gap: 8px;">
             <button id="themeToggleBtn" class="btn btn-secondary" onclick="toggleTheme()" title="Toggle Theme">
-                <svg id="themeIcon" class="icon"><use href="#icon-sun"></use></svg>
-                <span id="themeText">Light Mode</span>
+                <svg id="themeIcon" class="icon"><use href="#icon-moon"></use></svg>
+                <span id="themeText">Dark Mode</span>
             </button>
 
             <button id="authBtn" class="btn btn-primary" onclick="openLoginModal()">
@@ -117,139 +95,97 @@
 
         <!-- TAB NAVIGATION -->
         <nav class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('leaderboardTab')">
-                <svg class="icon" style="width:16px; height:16px; margin-right:4px;"><use href="#icon-trophy"></use></svg>
-                Leaderboard
+            <button class="tab-btn active" onclick="switchTab('houseLeaderboardTab')">
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px;"><use href="#icon-trophy"></use></svg>
+                Overall House Standings
             </button>
-            <button class="tab-btn" onclick="switchTab('matchesTab')">
-                <svg class="icon" style="width:16px; height:16px; margin-right:4px;"><use href="#icon-calendar"></use></svg>
-                Matches
+            <button class="tab-btn" onclick="switchTab('sportStandingsTab')">
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px;"><use href="#icon-football"></use></svg>
+                Per-Sport Standings
             </button>
-            <button class="tab-btn" onclick="switchTab('bracketsTab')">
-                <svg class="icon" style="width:16px; height:16px; margin-right:4px;"><use href="#icon-tree"></use></svg>
-                Tie Sheet / Brackets
+            <button class="tab-btn" onclick="switchTab('fixturesTab')">
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px;"><use href="#icon-calendar"></use></svg>
+                Tie-Sheet & Fixtures
             </button>
             <button id="adminTabBtn" class="tab-btn" style="display: none;" onclick="switchTab('adminTab')">
-                <svg class="icon" style="width:16px; height:16px; margin-right:4px;"><use href="#icon-shield"></use></svg>
-                Admin Dashboard
+                <svg class="icon" style="width:16px; height:16px; margin-right:6px;"><use href="#icon-shield"></use></svg>
+                Admin Control
             </button>
         </nav>
 
-        <!-- FILTERS BAR -->
-        <section class="filters-bar">
-            <div class="form-group" style="flex: 1; min-width: 200px;">
-                <label for="filterSport">Sport Filter</label>
-                <div id="sportChipGroup" class="chip-group" style="margin-top: 4px;">
-                    <!-- Filter Chips rendered dynamically -->
+        <!-- TAB 1: OVERALL HOUSE STANDINGS (HERO VIEW) -->
+        <section id="houseLeaderboardTab" class="tab-content">
+            <div style="margin-bottom: 24px;">
+                <h1 class="headline-lg">Inter-House Championship Leaderboard</h1>
+                <p class="body-text" style="color: var(--text-secondary);">Overall house rankings summed across all sports (Futsal, Basketball, Cricksal) and squad categories.</p>
+            </div>
+
+            <!-- HERO HOUSE CARDS -->
+            <div id="houseHeroContainer" class="house-hero-grid">
+                <!-- Dynamic House Hero Cards -->
+            </div>
+
+            <!-- OVERALL HOUSE TABLE -->
+            <div id="houseTableContainer" class="table-responsive">
+                <!-- Dynamic House Standings Table -->
+            </div>
+        </section>
+
+        <!-- TAB 2: PER-SPORT STANDINGS -->
+        <section id="sportStandingsTab" class="tab-content" style="display: none;">
+            <!-- FILTERS BAR -->
+            <div class="filters-bar">
+                <div class="form-group" style="flex: 1;">
+                    <label>Select Sport</label>
+                    <div id="sportChipGroup" class="chip-group"></div>
                 </div>
-                <select id="filterSport" onchange="loadCurrentTabData()" style="display: none;">
-                    <option value="">All Sports</option>
-                </select>
-            </div>
-            <div class="form-group" style="width: 220px;">
-                <label for="filterLevel">School Level</label>
-                <select id="filterLevel" onchange="loadCurrentTabData()">
-                    <option value="ALL">All Levels (ES / MS / HS)</option>
-                    <option value="ES">Elementary School (ES)</option>
-                    <option value="MS">Middle School (MS)</option>
-                    <option value="HS">High School (HS)</option>
-                </select>
-            </div>
-            <button class="btn btn-secondary" onclick="loadCurrentTabData()" style="margin-top: 18px;">
-                <svg class="icon"><use href="#icon-refresh"></use></svg>
-                Refresh
-            </button>
-        </section>
-
-        <!-- TAB 1: LEADERBOARD -->
-        <section id="leaderboardTab" class="tab-content">
-            <div id="leaderboardContainer" class="table-responsive">
-                <!-- Dynamic Content -->
-            </div>
-        </section>
-
-        <!-- TAB 2: MATCHES -->
-        <section id="matchesTab" class="tab-content" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h2>Tournament Matches</h2>
-                <button id="addMatchBtn" class="btn btn-primary" style="display: none;" onclick="openCreateMatchModal()">
-                    <svg class="icon"><use href="#icon-plus"></use></svg>
-                    New Match
+                <div class="form-group" style="width: 180px;">
+                    <label>Gender Category</label>
+                    <select id="filterGender" onchange="loadCurrentTabData()">
+                        <option value="">All Genders</option>
+                        <option value="Boys">Boys</option>
+                        <option value="Girls">Girls</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" onclick="loadCurrentTabData()" style="margin-top: 18px;">
+                    <svg class="icon"><use href="#icon-refresh"></use></svg> Refresh
                 </button>
             </div>
-            <div id="matchesContainer" class="card-grid">
-                <!-- Dynamic Matches Grid -->
+
+            <div id="perSportStandingsContainer" class="table-responsive">
+                <!-- Dynamic Sport Standings Table -->
             </div>
         </section>
 
-        <!-- TAB 3: TIE SHEET / BRACKETS -->
-        <section id="bracketsTab" class="tab-content" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h2>Tournament Brackets</h2>
-                <button id="generateBracketBtn" class="btn btn-primary" style="display: none;" onclick="openGenerateBracketModal()">
-                    <svg class="icon"><use href="#icon-tree"></use></svg>
-                    Generate Bracket
-                </button>
+        <!-- TAB 3: FIXTURES & TIE-SHEET -->
+        <section id="fixturesTab" class="tab-content" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>League Fixtures & Match Scores</h2>
+                <span class="mono-label" style="color: var(--text-secondary);">Round-Robin Stage → Top 2 Advance to Final</span>
             </div>
-            <div id="bracketsContainer">
-                <!-- Dynamic Bracket Trees -->
+            <div id="fixturesContainer" class="card-grid">
+                <!-- Dynamic Fixtures -->
             </div>
         </section>
 
-        <!-- TAB 4: ADMIN DASHBOARD -->
+        <!-- TAB 4: ADMIN CONTROL -->
         <section id="adminTab" class="tab-content" style="display: none;">
-            <h2>Admin Management Center</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 24px;">Manage sports, teams, players, and perform bulk CSV imports.</p>
+            <h2>Admin Management & Seeding Center</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px;">Manage house squads, player rosters, and review data seeder logs.</p>
 
-            <div class="card-grid" style="margin-bottom: 32px;">
-                <!-- Card 1: Sports -->
-                <div class="card">
-                    <h3>Sports Configuration</h3>
-                    <p style="font-size: 14px; color: var(--text-secondary); margin: 8px 0 16px 0;">Add new sport templates with custom point rules.</p>
-                    <button class="btn btn-primary" onclick="openCreateSportModal()">
-                        <svg class="icon"><use href="#icon-plus"></use></svg>
-                        Add Sport
-                    </button>
-                </div>
-
-                <!-- Card 2: Teams & Players -->
-                <div class="card">
-                    <h3>Teams & Players</h3>
-                    <p style="font-size: 14px; color: var(--text-secondary); margin: 8px 0 16px 0;">Manually register teams or individual players.</p>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary" onclick="openCreateTeamModal()">Add Team</button>
-                        <button class="btn btn-secondary" onclick="openCreatePlayerModal()">Add Player</button>
-                    </div>
-                </div>
-
-                <!-- Card 3: Bulk CSV Import -->
-                <div class="card">
-                    <h3>Bulk CSV Import</h3>
-                    <p style="font-size: 14px; color: var(--text-secondary); margin: 8px 0 16px 0;">Import players and teams via CSV with row-level error validation.</p>
-                    <button class="btn btn-primary" onclick="openCsvImportModal()">
-                        <svg class="icon"><use href="#icon-upload"></use></svg>
-                        CSV Import Tool
-                    </button>
-                </div>
-            </div>
-
-            <!-- Teams & Players Table Preview -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                <div>
-                    <h3>Registered Teams</h3>
-                    <div id="adminTeamsList" class="table-responsive" style="margin-top: 8px;"></div>
+                <div class="card">
+                    <h3>House Squad Roster</h3>
+                    <div id="adminSquadsList" class="table-responsive" style="margin-top: 12px;"></div>
                 </div>
-                <div>
+                <div class="card">
                     <h3>Registered Players</h3>
-                    <div id="adminPlayersList" class="table-responsive" style="margin-top: 8px;"></div>
+                    <div id="adminPlayersList" class="table-responsive" style="margin-top: 12px;"></div>
                 </div>
             </div>
         </section>
 
     </main>
-
-
-    <!-- MODALS -->
 
     <!-- LOGIN MODAL -->
     <div id="loginModal" class="modal">
@@ -261,7 +197,7 @@
             <form onsubmit="handleLogin(event)" autocomplete="off">
                 <div class="form-group" style="margin-bottom: 16px;">
                     <label for="loginEmail">Email</label>
-                    <input type="email" id="loginEmail" required placeholder="admin@domain.com" autocomplete="off">
+                    <input type="email" id="loginEmail" required placeholder="admin@school.edu" autocomplete="off">
                 </div>
                 <div class="form-group" style="margin-bottom: 24px;">
                     <label for="loginPassword">Password</label>
@@ -270,261 +206,6 @@
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Sign In</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- CREATE SPORT MODAL -->
-    <div id="createSportModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add New Sport</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createSportModal')">&times;</button>
-            </div>
-            <form onsubmit="handleCreateSport(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="sportName">Sport Name</label>
-                    <input type="text" id="sportName" placeholder="e.g. Volleyball, 100m Dash" required>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="sportType">Type / Template</label>
-                    <select id="sportType" required>
-                        <option value="generic">Generic (Numeric Scores)</option>
-                        <option value="cricket">Cricket (Innings & Overs)</option>
-                        <option value="football">Football (Goals & Cards)</option>
-                        <option value="basketball">Basketball (Quarters)</option>
-                    </select>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
-                    <div class="form-group">
-                        <label for="sportWinPoints">Win Points</label>
-                        <input type="number" id="sportWinPoints" value="3" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="sportDrawPoints">Draw Points</label>
-                        <input type="number" id="sportDrawPoints" value="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="sportLossPoints">Loss Points</label>
-                        <input type="number" id="sportLossPoints" value="0" required>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label for="sportLowerBetter" style="display: flex; align-items: center; gap: 8px; text-transform: none; font-size: 14px;">
-                        <input type="checkbox" id="sportLowerBetter" style="height: auto;"> Lower score is better (e.g. race timing)
-                    </label>
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createSportModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Sport</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- CREATE TEAM MODAL -->
-    <div id="createTeamModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add New Team</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createTeamModal')">&times;</button>
-            </div>
-            <form onsubmit="handleCreateTeam(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="teamName">Team Name</label>
-                    <input type="text" id="teamName" required placeholder="e.g. Red Dragons">
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="teamSportId">Sport</label>
-                    <select id="teamSportId" required></select>
-                </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label for="teamLevel">School Level</label>
-                    <select id="teamLevel" required>
-                        <option value="HS">High School (HS)</option>
-                        <option value="MS">Middle School (MS)</option>
-                        <option value="ES">Elementary School (ES)</option>
-                    </select>
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createTeamModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Team</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- CREATE PLAYER MODAL -->
-    <div id="createPlayerModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add New Player</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createPlayerModal')">&times;</button>
-            </div>
-            <form onsubmit="handleCreatePlayer(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="playerName">Player Name</label>
-                    <input type="text" id="playerName" required placeholder="e.g. Alex Morgan">
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="playerTeamId">Team</label>
-                    <select id="playerTeamId" required></select>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="playerGrade">Grade Level / Class</label>
-                    <input type="text" id="playerGrade" placeholder="e.g. Grade 10">
-                </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label for="playerLevel">Category Level</label>
-                    <select id="playerLevel" required>
-                        <option value="HS">High School (HS)</option>
-                        <option value="MS">Middle School (MS)</option>
-                        <option value="ES">Elementary School (ES)</option>
-                    </select>
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createPlayerModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Player</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- CSV BULK IMPORT MODAL -->
-    <div id="csvImportModal" class="modal">
-        <div class="modal-content" style="max-width: 750px;">
-            <div class="modal-header">
-                <h3>Bulk Player & Team CSV Import</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('csvImportModal')">&times;</button>
-            </div>
-            <div style="margin-bottom: 16px;">
-                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">
-                    Expected CSV format columns: <code>player_name, team_name, sport_name, grade, level</code>
-                </p>
-                <div id="dropZone" style="border: 2px dashed var(--border-color); border-radius: 4px; padding: 24px; text-align: center; cursor: pointer; background-color: var(--surface-container-low);">
-                    <svg class="icon" style="width: 32px; height: 32px; margin-bottom: 8px; color: var(--text-secondary);"><use href="#icon-upload"></use></svg>
-                    <p style="margin-bottom: 8px; font-weight: 600;">Drag & drop CSV file here, or click to browse</p>
-                    <input type="file" id="csvFileInput" accept=".csv" onchange="handleCsvPreview()" style="display: none;">
-                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('csvFileInput').click()">Browse File</button>
-                </div>
-            </div>
-
-            <!-- CSV Preview Table Container -->
-            <div id="csvPreviewContainer" style="display: none; margin-bottom: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h4 id="csvStatsHeader" class="mono-label">Import Preview</h4>
-                </div>
-                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-                    <table id="csvPreviewTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Player</th>
-                                <th>Team</th>
-                                <th>Sport</th>
-                                <th>Grade</th>
-                                <th>Level</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('csvImportModal')">Cancel</button>
-                <button id="commitCsvBtn" type="button" class="btn btn-primary" style="display: none;" onclick="handleCsvCommit()">Commit Import</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MATCH CREATION MODAL -->
-    <div id="createMatchModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Schedule New Match</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('createMatchModal')">&times;</button>
-            </div>
-            <form onsubmit="handleCreateMatch(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="matchSportId">Sport</label>
-                    <select id="matchSportId" required onchange="populateMatchTeamSelectors()"></select>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="matchLevel">Level</label>
-                    <select id="matchLevel" required onchange="populateMatchTeamSelectors()">
-                        <option value="HS">High School (HS)</option>
-                        <option value="MS">Middle School (MS)</option>
-                        <option value="ES">Elementary School (ES)</option>
-                    </select>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-                    <div class="form-group">
-                        <label for="matchTeamAId">Team A</label>
-                        <select id="matchTeamAId" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="matchTeamBId">Team B</label>
-                        <select id="matchTeamBId" required></select>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label for="matchRoundInfo">Round / Info</label>
-                    <input type="text" id="matchRoundInfo" placeholder="e.g. Round 1, Semi-Finals" value="Regular Match">
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createMatchModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Schedule Match</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- SPORT SCORING MODAL -->
-    <div id="scoringModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 id="scoringModalTitle">Score Match</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('scoringModal')">&times;</button>
-            </div>
-            <div id="scoringFormContainer">
-                <!-- Dynamic Sport Template Form -->
-            </div>
-        </div>
-    </div>
-
-    <!-- GENERATE BRACKET MODAL -->
-    <div id="generateBracketModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Generate Tournament Bracket</h3>
-                <button class="close-btn" aria-label="Close modal" onclick="closeModal('generateBracketModal')">&times;</button>
-            </div>
-            <form onsubmit="handleGenerateBracket(event)">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="bracketSportId">Sport</label>
-                    <select id="bracketSportId" required></select>
-                </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label for="bracketLevel">Level</label>
-                    <select id="bracketLevel" required>
-                        <option value="HS">High School (HS)</option>
-                        <option value="MS">Middle School (MS)</option>
-                        <option value="ES">Elementary School (ES)</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label for="bracketType">Tournament Type</label>
-                    <select id="bracketType" required>
-                        <option value="single_elimination">Single Elimination</option>
-                        <option value="round_robin">Round Robin</option>
-                    </select>
-                </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('generateBracketModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Generate Bracket</button>
                 </div>
             </form>
         </div>
