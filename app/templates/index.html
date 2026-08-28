@@ -1,25 +1,30 @@
 {% extends "base.html" %}
 
-{% block title %}Overall House Standings - DSS Sports Inter-House Meet{% endblock %}
+{% block title %}Overall House Standings — DSS Sports Inter-House Meet{% endblock %}
+{% block meta_desc %}Live overall house championship standings across all sports for the DSS Inter-House Sports Meet 2083.{% endblock %}
 
 {% block content %}
-<section id="houseLeaderboardPage" class="space-y-6">
-    <div class="mb-6">
-        <h1 class="text-3xl font-extrabold tracking-tight text-white mb-2">Inter-House Championship Leaderboard</h1>
-        <p class="text-slate-400 text-sm">Overall house rankings summed across all sports (Futsal, Basketball, Cricksal) and squad categories.</p>
+<section>
+    <!-- Page header -->
+    <div style="margin-bottom:32px;">
+        <h1>Overall House Standings</h1>
+        <p style="margin-top:6px; font-size:14px;">
+            Cumulative points across Futsal, Basketball, and Cricksal — all squads, all genders.
+        </p>
     </div>
 
-    <!-- HERO HOUSE CARDS (WITH SKELETON INITIAL LOADING) -->
-    <div id="houseHeroContainer" class="house-hero-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Hero cards: 4 house cards, grid -->
+    <div id="houseHeroContainer" class="house-hero-grid" style="margin-bottom:32px;" aria-label="House standings cards">
+        <!-- Skeleton placeholders shown before data loads -->
         <div class="skeleton-hero-card"></div>
         <div class="skeleton-hero-card"></div>
         <div class="skeleton-hero-card"></div>
         <div class="skeleton-hero-card"></div>
     </div>
 
-    <!-- OVERALL HOUSE TABLE (WITH SKELETON INITIAL LOADING) -->
-    <div id="houseTableContainer" class="table-responsive bg-slate-900/80 backdrop-blur rounded-xl border border-slate-800 overflow-hidden shadow-xl">
-        <div class="p-4 space-y-3">
+    <!-- Overall standings table -->
+    <div id="houseTableContainer">
+        <div style="padding:16px; display:flex; flex-direction:column; gap:8px;">
             <div class="skeleton-table-row"></div>
             <div class="skeleton-table-row"></div>
             <div class="skeleton-table-row"></div>
@@ -31,8 +36,8 @@
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        loadHouseOverallStandingsPage();
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    loadHouseOverallStandings();
+});
 </script>
 {% endblock %}

@@ -1,30 +1,38 @@
 {% extends "base.html" %}
 
-{% block title %}Seeder Log - Admin Control - DSS Sports{% endblock %}
+{% block title %}Seeder Log — Admin Control — DSS Sports{% endblock %}
 
 {% block content %}
-<section id="adminSeederLogPage" class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+<section>
+    <!-- Page header -->
+    <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
-            <h1 class="text-3xl font-extrabold text-white mb-1">Seeder Execution Logs</h1>
-            <p class="text-slate-400 text-sm">Diagnostic history and record stats for automated seeder runs.</p>
+            <h1>Seeder Execution Logs</h1>
+            <p style="margin-top:6px; font-size:14px;">Diagnostic history and record stats for automated seeder runs.</p>
         </div>
-        <button id="runSeederBtn" onclick="triggerSeederRun()" class="btn flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition">
-            <svg class="icon w-4 h-4"><use href="#icon-play"></use></svg> Run Seeder Now
+        <button id="runSeederBtn" onclick="triggerSeederRun()" class="btn">
+            <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
+            Run Seeder Now
         </button>
     </div>
 
-    <!-- ADMIN SUB-NAV -->
-    <div class="flex gap-4 border-b border-slate-800 pb-3 text-sm font-bold">
-        <a href="/admin" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Overview</a>
-        <a href="/admin/squads" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Squads</a>
-        <a href="/admin/players" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Players</a>
-        <a href="/admin/seeder-log" class="px-3 py-1.5 rounded-lg bg-slate-800 text-emerald-400">Seeder Log</a>
+    <!-- Admin sub-nav -->
+    <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
+        <a href="/admin"         class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
+        <a href="/admin/squads"  class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
+        <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
+        <a href="/admin/seeder-log" class="tab-btn {% if active_admin_sub == 'seeder-log' %}active{% endif %}">Seeder Log</a>
     </div>
 
-    <div class="card bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl">
-        <div id="adminSeederLogsContainer">
-            <div class="p-3 space-y-2"><div class="skeleton-card"></div></div>
+    <div class="admin-section">
+        <div class="admin-section-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div class="dot-indicator" style="background-color:var(--text-tertiary);"></div>
+                <h3 style="margin:0;">Seeder Execution History</h3>
+            </div>
+        </div>
+        <div id="adminSeederLogsContainer" style="padding:16px;">
+            <div class="skeleton-card" style="height:80px;"></div>
         </div>
     </div>
 </section>
@@ -32,9 +40,9 @@
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-        await fetchSeederLogs();
-        renderAdminSeederLogs();
-    });
+document.addEventListener('DOMContentLoaded', async () => {
+    await fetchSeederLogs();
+    renderAdminSeederLogs();
+});
 </script>
 {% endblock %}

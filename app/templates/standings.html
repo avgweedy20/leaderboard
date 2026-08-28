@@ -1,35 +1,42 @@
 {% extends "base.html" %}
 
-{% block title %}Per-Sport Standings - DSS Sports Inter-House Meet{% endblock %}
+{% block title %}Per-Sport Standings — DSS Sports Inter-House Meet{% endblock %}
+{% block meta_desc %}Per-sport and per-gender squad standings, points, and score differences for the DSS Inter-House Sports Meet 2083.{% endblock %}
 
 {% block content %}
-<section id="sportStandingsPage" class="space-y-6">
-    <div class="mb-6">
-        <h1 class="text-3xl font-extrabold tracking-tight text-white mb-2">Per-Sport Leaderboards</h1>
-        <p class="text-slate-400 text-sm">Detailed standings, points, and score differences for individual sports and gender divisions.</p>
+<section>
+    <!-- Page header -->
+    <div style="margin-bottom:24px;">
+        <h1>Per-Sport Standings</h1>
+        <p style="margin-top:6px; font-size:14px;">
+            Squad-level standings by sport and gender division.
+        </p>
     </div>
 
-    <!-- FILTERS BAR -->
-    <div class="filters-bar bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex flex-wrap items-center gap-4">
-        <div class="form-group flex-1 min-w-[200px]">
-            <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Select Sport</label>
-            <div id="sportChipGroup" class="chip-group flex flex-wrap gap-2"></div>
+    <!-- Filters -->
+    <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:16px; margin-bottom:24px; padding:16px; background-color:var(--bg-surface); border:1px solid var(--border); border-radius:12px;">
+        <div style="flex:1; min-width:240px;">
+            <label>Sport</label>
+            <div id="sportChipGroup" class="chip-group" style="margin-top:4px;"></div>
         </div>
-        <div class="form-group w-48">
-            <label class="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Gender Category</label>
-            <select id="filterGender" onchange="loadPerSportStandingsPage()" class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        <div style="min-width:140px;">
+            <label for="filterGender">Gender</label>
+            <select id="filterGender" onchange="loadPerSportStandings()" style="width:100%; margin-top:4px;">
                 <option value="">All Genders</option>
                 <option value="Boys">Boys</option>
                 <option value="Girls">Girls</option>
             </select>
         </div>
-        <button class="btn btn-secondary self-end flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold rounded-lg text-slate-200 transition" onclick="loadPerSportStandingsPage()">
-            <svg class="icon w-4 h-4"><use href="#icon-refresh"></use></svg> Refresh
+        <button class="btn btn-secondary" onclick="loadPerSportStandings()" style="align-self:flex-end;">
+            <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
+            Refresh
         </button>
     </div>
 
-    <div id="perSportStandingsContainer" class="table-responsive bg-slate-900/80 backdrop-blur rounded-xl border border-slate-800 overflow-hidden shadow-xl">
-        <div class="p-4 space-y-3">
+    <!-- Standings table container -->
+    <div id="perSportStandingsContainer">
+        <div style="padding:16px; display:flex; flex-direction:column; gap:8px;">
+            <div class="skeleton-table-row"></div>
             <div class="skeleton-table-row"></div>
             <div class="skeleton-table-row"></div>
             <div class="skeleton-table-row"></div>
@@ -41,15 +48,15 @@
 
 {% block scripts %}
 <script>
-    const currentSportSlug = "{{ sport_slug }}";
-    document.addEventListener('DOMContentLoaded', async () => {
-        await fetchSports();
-        if (currentSportSlug) {
-            const found = sportsData.find(s => s.name.toLowerCase() === currentSportSlug.toLowerCase());
-            if (found) selectedSportId = found.id;
-        }
-        renderSportFilterChips();
-        loadPerSportStandingsPage();
-    });
+const currentSportSlug = "{{ sport_slug }}";
+document.addEventListener('DOMContentLoaded', async () => {
+    await fetchSports();
+    if (currentSportSlug) {
+        const found = sportsData.find(s => s.name.toLowerCase() === currentSportSlug.toLowerCase());
+        if (found) selectedSportId = found.id;
+    }
+    renderSportFilterChips();
+    loadPerSportStandings();
+});
 </script>
 {% endblock %}

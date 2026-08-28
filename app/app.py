@@ -1838,7 +1838,13 @@ def get_matches():
                 query = query.eq("gender", gender)
             if stage:
                 query = query.eq("stage", stage)
-            res = query.order("created_at").execute()
+            try:
+                res = query.order("created_at").execute()
+            except Exception:
+                try:
+                    res = query.order("id").execute()
+                except Exception:
+                    res = query.execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -1910,12 +1916,20 @@ def update_match(match_id):
         team_b_id = data.get("team_b_id")
 
         if not team_a_id or not team_b_id:
-            # Look up existing match record to get team IDs
-            for m in MOCK_DB["matches"]:
-                if m["id"] == match_id:
-                    team_a_id = m.get("team_a_id")
-                    team_b_id = m.get("team_b_id")
-                    break
+            if supabase_client:
+                try:
+                    match_res = supabase_client.table("matches").select("team_a_id, team_b_id").eq("id", match_id).single().execute()
+                    if match_res.data:
+                        team_a_id = team_a_id or match_res.data.get("team_a_id")
+                        team_b_id = team_b_id or match_res.data.get("team_b_id")
+                except Exception:
+                    pass
+            else:
+                for m in MOCK_DB["matches"]:
+                    if m["id"] == match_id:
+                        team_a_id = team_a_id or m.get("team_a_id")
+                        team_b_id = team_b_id or m.get("team_b_id")
+                        break
 
         if score_a > score_b:
             data["winner_team_id"] = team_a_id
