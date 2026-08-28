@@ -1,16 +1,15 @@
 {% extends "base.html" %}
 
 {% block title %}Overall House Standings — DSS Sports Inter-House Meet{% endblock %}
-{% block meta_desc %}Live overall house championship standings across all sports for the DSS Inter-House Sports Meet 2083.{% endblock %}
+{% block meta_desc %}Live overall house championship standings across all sports for the DSS Inter-House Sports Meet
+2083.{% endblock %}
 
 {% block content %}
 <section>
     <!-- Page header -->
     <div style="margin-bottom:32px;">
         <h1>Overall House Standings</h1>
-        <p style="margin-top:6px; font-size:14px;">
-            Cumulative points across Futsal, Basketball, and Cricksal — all squads, all genders.
-        </p>
+
     </div>
 
     <!-- Hero cards: 4 house cards, grid -->
@@ -36,8 +35,8 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    loadHouseOverallStandings();
-});
+    document.addEventListener('DOMContentLoaded', () => {
+        loadHouseOverallStandings();
+    });
 </script>
 {% endblock %}
