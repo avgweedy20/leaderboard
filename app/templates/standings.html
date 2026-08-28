@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Per-Sport Standings — DSS Sports Inter-House Meet{% endblock %}
-{% block meta_desc %}Per-sport and per-gender squad standings, points, and score differences for the DSS Inter-House Sports Meet 2083.{% endblock %}
+{% block title %}Per-Sport Standings{% endblock %}
+{% block meta_desc %}Per-sport and per-gender squad standings, points, and score differences for the DSS Inter-House
+Sports Meet 2083.{% endblock %}
 
 {% block content %}
 <section>
@@ -14,7 +15,8 @@
     </div>
 
     <!-- Filters -->
-    <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:16px; margin-bottom:24px; padding:16px; background-color:var(--bg-surface); border:1px solid var(--border); border-radius:12px;">
+    <div
+        style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:16px; margin-bottom:24px; padding:16px; background-color:var(--bg-surface); border:1px solid var(--border); border-radius:12px;">
         <div style="flex:1; min-width:240px;">
             <label>Sport</label>
             <div id="sportChipGroup" class="chip-group" style="margin-top:4px;"></div>
@@ -28,7 +30,9 @@
             </select>
         </div>
         <button class="btn btn-secondary" onclick="loadPerSportStandings()" style="align-self:flex-end;">
-            <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
+            <svg class="icon" width="14" height="14">
+                <use href="#icon-refresh" />
+            </svg>
             Refresh
         </button>
     </div>
@@ -108,15 +112,15 @@
 
 {% block scripts %}
 <script>
-const currentSportSlug = "{{ sport_slug }}";
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchSports();
-    if (currentSportSlug) {
-        const found = sportsData.find(s => s.name.toLowerCase() === currentSportSlug.toLowerCase());
-        if (found) selectedSportId = found.id;
-    }
-    renderSportFilterChips();
-    loadPerSportStandings();
-});
+    const currentSportSlug = "{{ sport_slug }}";
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchSports();
+        if (currentSportSlug) {
+            const found = sportsData.find(s => s.name.toLowerCase() === currentSportSlug.toLowerCase());
+            if (found) selectedSportId = found.id;
+        }
+        renderSportFilterChips();
+        loadPerSportStandings();
+    });
 </script>
 {% endblock %}

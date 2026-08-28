@@ -1,25 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}House Squads — Admin Control — DSS Sports{% endblock %}
+{% block title %}House Squads/ Teams{% endblock %}
 
 {% block content %}
 <section>
     <!-- Page header -->
-    <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
+    <div
+        style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
             <h1>House Squad Roster</h1>
             <p style="margin-top:6px; font-size:14px;">Manage house squads across sports and gender divisions.</p>
         </div>
         <button onclick="openSquadModal()" class="btn">
-            <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+            <svg class="icon" width="14" height="14">
+                <use href="#icon-plus" />
+            </svg>
             Add Squad
         </button>
     </div>
 
     <!-- Admin sub-nav -->
     <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
-        <a href="/admin"         class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
-        <a href="/admin/squads"  class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
+        <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
+        <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
         <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
     </div>
 
@@ -69,7 +72,8 @@
             <h3 id="squadModalTitle">Add House Squad</h3>
             <button class="modal-close" onclick="closeModal('squadModal')">&times;</button>
         </div>
-        <form onsubmit="handleSquadSubmit(event)" autocomplete="off" style="display:flex; flex-direction:column; gap:14px;">
+        <form onsubmit="handleSquadSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
             <input type="hidden" id="squadId">
             <div>
                 <label>House</label>
@@ -101,11 +105,11 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchHouses();
-    await fetchSports();
-    await fetchSquads();
-    renderAdminSquadsTable();
-});
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchHouses();
+        await fetchSports();
+        await fetchSquads();
+        renderAdminSquadsTable();
+    });
 </script>
 {% endblock %}

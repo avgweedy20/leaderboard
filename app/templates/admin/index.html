@@ -1,30 +1,39 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Control — DSS Sports Inter-House Meet{% endblock %}
+{% block title %}Admin Panel{% endblock %}
 
 {% block content %}
 <section>
     <!-- Page header -->
-    <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
+    <div
+        style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
             <h1>Admin Control</h1>
             <p style="margin-top:6px; font-size:14px;">Manage squads, players, and match scores.</p>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
             <button onclick="openCreateMatchModal()" class="btn">
-                <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+                <svg class="icon" width="14" height="14">
+                    <use href="#icon-plus" />
+                </svg>
                 New Match
             </button>
             <button onclick="openSquadModal()" class="btn btn-secondary">
-                <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+                <svg class="icon" width="14" height="14">
+                    <use href="#icon-plus" />
+                </svg>
                 Add Squad
             </button>
             <button onclick="openPlayerModal()" class="btn btn-secondary">
-                <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+                <svg class="icon" width="14" height="14">
+                    <use href="#icon-plus" />
+                </svg>
                 Add Player
             </button>
             <button onclick="openCsvModal()" class="btn btn-secondary">
-                <svg class="icon" width="14" height="14"><use href="#icon-upload"/></svg>
+                <svg class="icon" width="14" height="14">
+                    <use href="#icon-upload" />
+                </svg>
                 Import CSV
             </button>
         </div>
@@ -32,8 +41,8 @@
 
     <!-- Admin sub-nav -->
     <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
-        <a href="/admin"         class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
-        <a href="/admin/squads"  class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
+        <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
+        <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
         <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
     </div>
 
@@ -46,7 +55,8 @@
                     <div class="dot-indicator" style="background-color:var(--c-karnali);"></div>
                     <h3 style="margin:0;">House Squad Roster</h3>
                 </div>
-                <a href="/admin/squads" id="squadCountBadge" class="badge badge-stage" style="cursor:pointer;">0 Squads</a>
+                <a href="/admin/squads" id="squadCountBadge" class="badge badge-stage" style="cursor:pointer;">0
+                    Squads</a>
             </div>
             <div id="adminSquadsList">
                 <div class="skeleton-table sk" aria-hidden="true">
@@ -81,7 +91,8 @@
                     <div class="dot-indicator" style="background-color:var(--c-koshi);"></div>
                     <h3 style="margin:0;">Registered Players</h3>
                 </div>
-                <a href="/admin/players" id="playerCountBadge" class="badge badge-stage" style="cursor:pointer;">0 Players</a>
+                <a href="/admin/players" id="playerCountBadge" class="badge badge-stage" style="cursor:pointer;">0
+                    Players</a>
             </div>
             <div id="adminPlayersList">
                 <div class="skeleton-table sk" aria-hidden="true">
@@ -121,8 +132,11 @@
                 <div class="dot-indicator" style="background-color:var(--text-tertiary);"></div>
                 <h3 style="margin:0;">Fixture Score Management</h3>
             </div>
-            <button onclick="openCreateMatchModal()" class="btn btn-secondary" style="height:28px; font-size:11px; padding:0 10px;">
-                <svg class="icon" width="12" height="12"><use href="#icon-plus"/></svg>
+            <button onclick="openCreateMatchModal()" class="btn btn-secondary"
+                style="height:28px; font-size:11px; padding:0 10px;">
+                <svg class="icon" width="12" height="12">
+                    <use href="#icon-plus" />
+                </svg>
                 New Match
             </button>
         </div>
@@ -172,10 +186,12 @@
             <h3>Create New Match</h3>
             <button class="modal-close" onclick="closeModal('createMatchModal')">&times;</button>
         </div>
-        <form onsubmit="handleCreateMatchSubmit(event)" autocomplete="off" style="display:flex; flex-direction:column; gap:14px;">
+        <form onsubmit="handleCreateMatchSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
             <div>
                 <label>Sport</label>
-                <select id="newMatchSportId" required onchange="onNewMatchSportOrGenderChange()" style="width:100%;"></select>
+                <select id="newMatchSportId" required onchange="onNewMatchSportOrGenderChange()"
+                    style="width:100%;"></select>
             </div>
             <div>
                 <label>Gender Division</label>
@@ -219,7 +235,8 @@
             <h3 id="squadModalTitle">Add House Squad</h3>
             <button class="modal-close" onclick="closeModal('squadModal')">&times;</button>
         </div>
-        <form onsubmit="handleSquadSubmit(event)" autocomplete="off" style="display:flex; flex-direction:column; gap:14px;">
+        <form onsubmit="handleSquadSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
             <input type="hidden" id="squadId">
             <div>
                 <label>House</label>
@@ -255,7 +272,8 @@
             <h3 id="playerModalTitle">Add Player</h3>
             <button class="modal-close" onclick="closeModal('playerModal')">&times;</button>
         </div>
-        <form onsubmit="handlePlayerSubmit(event)" autocomplete="off" style="display:flex; flex-direction:column; gap:14px;">
+        <form onsubmit="handlePlayerSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
             <input type="hidden" id="playerId">
             <div>
                 <label>Player Full Name</label>
@@ -308,11 +326,15 @@
         <div style="display:flex; flex-direction:column; gap:16px; max-height:60vh; overflow-y:auto;">
             <!-- Drop area -->
             <div style="border:1px dashed var(--border); border-radius:12px; padding:32px; text-align:center; cursor:pointer;"
-                 onclick="document.getElementById('csvFileInput').click()">
-                <svg class="icon" width="32" height="32" style="color:var(--text-tertiary); margin:0 auto 10px;"><use href="#icon-upload"/></svg>
+                onclick="document.getElementById('csvFileInput').click()">
+                <svg class="icon" width="32" height="32" style="color:var(--text-tertiary); margin:0 auto 10px;">
+                    <use href="#icon-upload" />
+                </svg>
                 <p style="font-size:13px; font-weight:700; color:var(--text-primary);">Click to select CSV file</p>
-                <p style="font-size:11px; margin-top:4px; color:var(--text-tertiary);">Expected headers: Roll Number, Name, Grade, Section, Gender, Squad</p>
-                <input type="file" id="csvFileInput" accept=".csv" class="sr-only" onchange="handleCsvFileSelected(event)">
+                <p style="font-size:11px; margin-top:4px; color:var(--text-tertiary);">Expected headers: Roll Number,
+                    Name, Grade, Section, Gender, Squad</p>
+                <input type="file" id="csvFileInput" accept=".csv" class="sr-only"
+                    onchange="handleCsvFileSelected(event)">
             </div>
 
             <div id="csvPreviewContainer" class="hidden">
@@ -320,12 +342,18 @@
                     <p style="font-size:13px; font-weight:700; color:var(--text-primary);">Validation Preview</p>
                     <span id="csvPreviewCountBadge" class="badge badge-stage">0 records</span>
                 </div>
-                <div id="csvValidationWarnings" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+                <div id="csvValidationWarnings"
+                    style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
                 <div class="table-wrap" style="max-height:240px; overflow-y:auto;">
                     <table>
                         <thead>
                             <tr>
-                                <th>Roll</th><th>Name</th><th>Grade/Sec</th><th>Gender</th><th>Squad</th><th>Action</th>
+                                <th>Roll</th>
+                                <th>Name</th>
+                                <th>Grade/Sec</th>
+                                <th>Gender</th>
+                                <th>Squad</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody id="csvPreviewTableBody"></tbody>
@@ -334,9 +362,11 @@
             </div>
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div
+            style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
             <button class="btn btn-secondary" onclick="closeModal('csvModal')">Cancel</button>
-            <button id="commitCsvBtn" class="btn" disabled onclick="commitCsvImport()" style="opacity:0.5;">Commit Import</button>
+            <button id="commitCsvBtn" class="btn" disabled onclick="commitCsvImport()" style="opacity:0.5;">Commit
+                Import</button>
         </div>
     </div>
 </div>
@@ -345,8 +375,8 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    loadAdminCenterPage();
-});
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAdminCenterPage();
+    });
 </script>
 {% endblock %}
