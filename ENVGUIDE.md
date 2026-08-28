@@ -76,5 +76,5 @@ Both the Web frontend and Android app query the `/api/health` endpoint:
 }
 ```
 
-- **Postgres Mode (`mode: "supabase"`):** Displays `"Connected: Supabase Postgres DB"` in the app header/settings.
+- **Postgres Mode (`mode: "supabase"`):** Displays `"Connected: Postgres DB [DEBUG]"` in the app header/settings.
 - **Development Mock Mode (`mode: "mock_in_memory"`):** Displays `"Development: In-Memory Mock DB"` when running locally without a live Supabase connection.
