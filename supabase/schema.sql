@@ -271,6 +271,7 @@ SELECT
     h.short_code as house_short_code,
     COALESCE(t.gender, ms.gender, 'Boys') as gender,
     t.squad_label,
+    t.pool,
     t.sport_id,
     s.name as sport_name,
     s.type as sport_type,
@@ -283,17 +284,17 @@ SELECT
     COALESCE(SUM(ms.score_against), 0) as score_against,
     COALESCE(SUM(ms.diff), 0) as score_difference,
     COALESCE(SUM(
-        ms.won * COALESCE(s.point_win, 3) +
-        ms.drawn * COALESCE(s.point_draw, 1) +
-        ms.lost * COALESCE(s.point_loss, 0)
+        ms.won * COALESCE(tg.point_win, 3) +
+        ms.drawn * COALESCE(tg.point_draw, 1) +
+        ms.lost * COALESCE(tg.point_loss, 0)
     ), 0) as points,
     DENSE_RANK() OVER (
         PARTITION BY t.sport_id, COALESCE(t.gender, ms.gender, 'Boys'), t.level
         ORDER BY
             COALESCE(SUM(
-                ms.won * COALESCE(s.point_win, 3) +
-                ms.drawn * COALESCE(s.point_draw, 1) +
-                ms.lost * COALESCE(s.point_loss, 0)
+                ms.won * COALESCE(tg.point_win, 3) +
+                ms.drawn * COALESCE(tg.point_draw, 1) +
+                ms.lost * COALESCE(tg.point_loss, 0)
             ), 0) DESC,
             COALESCE(SUM(ms.diff), 0) DESC,
             COALESCE(SUM(ms.score_for), 0) DESC
@@ -301,8 +302,9 @@ SELECT
 FROM public.teams t
 JOIN public.sports s ON t.sport_id = s.id
 LEFT JOIN public.houses h ON t.house_id = h.id
+LEFT JOIN public.tournament_groups tg ON tg.sport_id = t.sport_id AND tg.gender = t.gender
 LEFT JOIN match_stats ms ON t.id = ms.team_id
-GROUP BY t.id, t.name, t.house_id, h.name, h.color_hex, h.short_code, t.gender, ms.gender, t.squad_label, t.sport_id, s.name, s.type, t.level, s.point_win, s.point_draw, s.point_loss;
+GROUP BY t.id, t.name, t.house_id, h.name, h.color_hex, h.short_code, t.gender, ms.gender, t.squad_label, t.pool, t.sport_id, s.name, s.type, t.level, tg.point_win, tg.point_draw, tg.point_loss;
 
 -- HOUSE OVERALL STANDINGS VIEW
 CREATE OR REPLACE VIEW public.house_overall_standings AS
