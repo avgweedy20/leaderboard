@@ -140,3 +140,7 @@ def test_matches_and_seeder_logs(client):
     logs_res = client.get('/api/admin/seeder-logs')
     assert logs_res.status_code == 200
     assert isinstance(logs_res.get_json(), list)
+
+    # Delete Match
+    del_res = client.delete(f'/api/matches/{match_id}', headers=headers)
+    assert del_res.status_code == 200
