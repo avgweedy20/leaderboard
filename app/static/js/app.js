@@ -9,12 +9,12 @@
  */
 
 // ─── GLOBALS ───────────────────────────────────────────────────────────────
-let currentToken   = localStorage.getItem('sb_auth_token') || null;
-let sportsData     = [];
-let housesData     = [];
-let squadsData     = [];
-let playersData    = [];
-let matchesData    = [];
+let currentToken = localStorage.getItem('sb_auth_token') || null;
+let sportsData = [];
+let housesData = [];
+let squadsData = [];
+let playersData = [];
+let matchesData = [];
 let seederLogsData = [];
 let selectedSportId = '';
 let pendingCsvPlayers = [];
@@ -24,10 +24,10 @@ const SESSION_DURATION_MS = 6 * 60 * 60 * 1000; // 21,600,000 ms
 
 // House color map (keyed by lowercase house name, used as fallback)
 const HOUSE_COLORS = {
-    karnali:  '#10B981',
-    koshi:    '#0EA5E9',
+    karnali: '#10B981',
+    koshi: '#0EA5E9',
     mahakali: '#8B5CF6',
-    mechi:    '#F97316'
+    mechi: '#F97316'
 };
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
@@ -60,8 +60,8 @@ function showToast(message, type = 'info', options = {}) {
     toast.setAttribute('role', 'alert');
 
     const iconId = type === 'success' ? 'icon-check'
-                 : type === 'error'   ? 'icon-alert'
-                 : 'icon-info';
+        : type === 'error' ? 'icon-alert'
+            : 'icon-info';
 
     const titleHtml = options.title ? `<div class="toast-title">${escapeHtml(options.title)}</div>` : '';
     let actionHtml = '';
@@ -248,13 +248,13 @@ async function checkDbHealth() {
     const badge = document.getElementById('dbModeBadge');
     if (!badge) return;
     try {
-        const res  = await fetch('/api/health');
+        const res = await fetch('/api/health');
         const data = await res.json();
         badge.textContent = data.supabase_connected ? 'Live DB' : 'Mock DB';
-        badge.className   = 'badge badge-status-' + (data.supabase_connected ? 'completed' : 'scheduled');
+        badge.className = 'badge badge-status-' + (data.supabase_connected ? 'completed' : 'scheduled');
     } catch (e) {
         badge.textContent = 'Offline';
-        badge.className   = 'badge';
+        badge.className = 'badge';
         badge.style.color = '#F87171';
     }
 }
@@ -280,20 +280,20 @@ function applyTheme(theme) {
 // ─── AUTH UI ───────────────────────────────────────────────────────────────
 function checkAuthUI() {
     const authBtnText = document.getElementById('authBtnText');
-    const authIcon    = document.getElementById('authIcon');
-    const adminTab    = document.getElementById('adminTabBtn');
+    const authIcon = document.getElementById('authIcon');
+    const adminTab = document.getElementById('adminTabBtn');
     const mobileAdmin = document.getElementById('mobileAdminLink');
 
     if (currentToken && !isTokenExpired()) {
         if (authBtnText) authBtnText.textContent = 'Sign Out';
-        if (authIcon)    authIcon.innerHTML = `<use href="#icon-logout"/>`;
-        if (adminTab)    adminTab.style.display = 'inline-flex';
+        if (authIcon) authIcon.innerHTML = `<use href="#icon-logout"/>`;
+        if (adminTab) adminTab.style.display = 'inline-flex';
         if (mobileAdmin) mobileAdmin.style.display = 'flex';
     } else {
         currentToken = null;
         if (authBtnText) authBtnText.textContent = 'Admin Login';
-        if (authIcon)    authIcon.innerHTML = `<use href="#icon-login"/>`;
-        if (adminTab)    adminTab.style.display = 'none';
+        if (authIcon) authIcon.innerHTML = `<use href="#icon-login"/>`;
+        if (adminTab) adminTab.style.display = 'none';
         if (mobileAdmin) mobileAdmin.style.display = 'none';
         if (window.location.pathname.startsWith('/admin')) {
             window.location.href = '/';
@@ -318,10 +318,10 @@ function openLoginModal() {
 
 async function handleLogin(e) {
     e.preventDefault();
-    const email    = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     try {
-        const res  = await fetch('/api/auth/login', {
+        const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
@@ -333,7 +333,7 @@ async function handleLogin(e) {
 
             // Compute 6-hour expiry (21,600 seconds)
             const expiresInSec = data.expires_in || 21600;
-            const expiresAtMs  = Date.now() + (expiresInSec * 1000);
+            const expiresAtMs = Date.now() + (expiresInSec * 1000);
             localStorage.setItem('sb_auth_expires_at', String(expiresAtMs));
 
             closeModal('loginModal');
@@ -368,10 +368,10 @@ document.addEventListener('click', e => {
 
 // ─── MOBILE NAV (HAMBURGER) ────────────────────────────────────────────────
 function toggleMobileNav() {
-    const nav   = document.getElementById('mobileNav');
-    const btn   = document.getElementById('navToggleBtn');
+    const nav = document.getElementById('mobileNav');
+    const btn = document.getElementById('navToggleBtn');
     if (!nav || !btn) return;
-    const open  = nav.classList.toggle('hidden') === false;
+    const open = nav.classList.toggle('hidden') === false;
     nav.setAttribute('aria-hidden', open ? 'false' : 'true');
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
@@ -405,7 +405,7 @@ function initFooterTypewriter() {
 
     const variants = [
         'Made by Samir Ghimire',
-        'Made by STEM Club President Samir Ghimire'
+        'Made by STEM Club President'
     ];
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -498,7 +498,7 @@ function renderSportFilterChips() {
                         onclick="selectSportChip('', '')">All Sports</button>`;
     sportsData.forEach(s => {
         const active = selectedSportId === s.id;
-        const slug   = s.name.toLowerCase();
+        const slug = s.name.toLowerCase();
         html += `<button class="chip ${active ? 'active' : ''}"
                          onclick="selectSportChip('${s.id}','${slug}')">${s.name}</button>`;
     });
@@ -516,17 +516,17 @@ function selectSportChip(sportId, sportSlug) {
 
 // ─── PAGE LOADERS ──────────────────────────────────────────────────────────
 function loadHouseOverallStandingsPage() { loadHouseOverallStandings(); }
-function loadPerSportStandingsPage()     { loadPerSportStandings(); }
-function loadFixturesPage()              { /* fixtures.html manages its own state via loadAllFixtures() */ }
-function loadAdminCenterPage()           { loadAdminCenterData(); }
+function loadPerSportStandingsPage() { loadPerSportStandings(); }
+function loadFixturesPage() { /* fixtures.html manages its own state via loadAllFixtures() */ }
+function loadAdminCenterPage() { loadAdminCenterData(); }
 
 // ─── 1. OVERALL HOUSE STANDINGS ────────────────────────────────────────────
 async function loadHouseOverallStandings() {
-    const heroEl  = document.getElementById('houseHeroContainer');
+    const heroEl = document.getElementById('houseHeroContainer');
     const tableEl = document.getElementById('houseTableContainer');
 
     try {
-        const res      = await fetch('/api/leaderboard/overall');
+        const res = await fetch('/api/leaderboard/overall');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const standings = await res.json();
 
@@ -540,7 +540,7 @@ async function loadHouseOverallStandings() {
                 <div class="house-hero-card fade-in" style="border-left-color:${color};">
                     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
                         <div class="badge" style="background-color:${color}; color:#fff;">
-                            ${h.short_code || h.house_name.slice(0,3).toUpperCase()}
+                            ${h.short_code || h.house_name.slice(0, 3).toUpperCase()}
                         </div>
                         <span class="rank-number" style="color:${color};">#${h.rank}</span>
                     </div>
@@ -588,8 +588,8 @@ async function loadHouseOverallStandings() {
                 </thead>
                 <tbody>
                     ${standings.map(h => {
-                        const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
-                        return `
+            const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
+            return `
                         <tr style="border-left:3px solid ${color};">
                             <td style="font-weight:700; color:${color};">#${h.rank}</td>
                             <td>
@@ -605,13 +605,13 @@ async function loadHouseOverallStandings() {
                             <td class="tabular" style="color:#F87171;">${h.total_losses}</td>
                             <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${h.total_points}</td>
                         </tr>`;
-                    }).join('')}
+        }).join('')}
                 </tbody>
             </table>
         </div>`;
 
     } catch (e) {
-        heroEl.innerHTML  = renderSharedErrorState('Failed to load house standings.', 'loadHouseOverallStandings()');
+        heroEl.innerHTML = renderSharedErrorState('Failed to load house standings.', 'loadHouseOverallStandings()');
         tableEl.innerHTML = '';
     }
 }
@@ -661,10 +661,10 @@ async function loadPerSportStandings() {
                 </thead>
                 <tbody>
                     ${standings.map(s => {
-                        const color = s.house_color || HOUSE_COLORS[(s.house_name||'').toLowerCase()] || '#10B981';
-                        const sign  = s.score_difference > 0 ? '+' : '';
-                        const squadLabel = s.squad_label ? ` ${s.squad_label}` : '';
-                        return `
+            const color = s.house_color || HOUSE_COLORS[(s.house_name || '').toLowerCase()] || '#10B981';
+            const sign = s.score_difference > 0 ? '+' : '';
+            const squadLabel = s.squad_label ? ` ${s.squad_label}` : '';
+            return `
                         <tr style="border-left:3px solid ${color};">
                             <td style="font-weight:700;">#${s.rank}</td>
                             <td style="font-weight:700;">${s.team_name}</td>
@@ -683,7 +683,7 @@ async function loadPerSportStandings() {
                             <td class="tabular" style="color:var(--text-secondary);">${sign}${s.score_difference}</td>
                             <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${s.points}</td>
                         </tr>`;
-                    }).join('')}
+        }).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -758,7 +758,7 @@ function getSortIcon(currentCol, targetCol, currentDir) {
 // ─── 1. SQUADS TABLE (SORTABLE, FILTERABLE, PAGINATED) ─────────────────────
 function renderAdminSquadsTable() {
     const container = document.getElementById('adminSquadsList');
-    const badge     = document.getElementById('squadCountBadge');
+    const badge = document.getElementById('squadCountBadge');
     if (!container) return;
     if (badge) badge.textContent = `${squadsData.length} Squads`;
 
@@ -772,8 +772,8 @@ function renderAdminSquadsTable() {
     if (adminSquadsState.search) {
         const q = adminSquadsState.search.toLowerCase();
         list = list.filter(s => {
-            const hName = ((s.houses||{}).name || getHouseName(s.house_id)).toLowerCase();
-            const sName = ((s.sports||{}).name || getSportName(s.sport_id)).toLowerCase();
+            const hName = ((s.houses || {}).name || getHouseName(s.house_id)).toLowerCase();
+            const sName = ((s.sports || {}).name || getSportName(s.sport_id)).toLowerCase();
             return s.name.toLowerCase().includes(q) || hName.includes(q) || sName.includes(q);
         });
     }
@@ -794,11 +794,11 @@ function renderAdminSquadsTable() {
             vA = (a.name || '').toLowerCase();
             vB = (b.name || '').toLowerCase();
         } else if (adminSquadsState.sortCol === 'house') {
-            vA = ((a.houses||{}).name || getHouseName(a.house_id)).toLowerCase();
-            vB = ((b.houses||{}).name || getHouseName(b.house_id)).toLowerCase();
+            vA = ((a.houses || {}).name || getHouseName(a.house_id)).toLowerCase();
+            vB = ((b.houses || {}).name || getHouseName(b.house_id)).toLowerCase();
         } else if (adminSquadsState.sortCol === 'sport') {
-            vA = ((a.sports||{}).name || getSportName(a.sport_id)).toLowerCase();
-            vB = ((b.sports||{}).name || getSportName(b.sport_id)).toLowerCase();
+            vA = ((a.sports || {}).name || getSportName(a.sport_id)).toLowerCase();
+            vB = ((b.sports || {}).name || getSportName(b.sport_id)).toLowerCase();
         } else if (adminSquadsState.sortCol === 'gender') {
             vA = (a.gender || '').toLowerCase();
             vB = (b.gender || '').toLowerCase();
@@ -810,11 +810,11 @@ function renderAdminSquadsTable() {
 
     // Pagination
     const totalItems = list.length;
-    const pageSize   = adminSquadsState.pageSize === 'all' ? totalItems : parseInt(adminSquadsState.pageSize, 10);
+    const pageSize = adminSquadsState.pageSize === 'all' ? totalItems : parseInt(adminSquadsState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
     if (adminSquadsState.page > totalPages) adminSquadsState.page = totalPages;
-    const startIdx   = (adminSquadsState.page - 1) * pageSize;
-    const pageItems  = adminSquadsState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+    const startIdx = (adminSquadsState.page - 1) * pageSize;
+    const pageItems = adminSquadsState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
     // Build House filter options
     const houseOptions = housesData.map(h =>
@@ -867,10 +867,10 @@ function renderAdminSquadsTable() {
             <tbody>
                 ${pageItems.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching squads found</td></tr>` : ''}
                 ${pageItems.map(s => {
-                    const hName  = (s.houses||{}).name  || getHouseName(s.house_id);
-                    const sName  = (s.sports||{}).name  || getSportName(s.sport_id);
-                    const color  = (s.houses||{}).color_hex || HOUSE_COLORS[(hName||'').toLowerCase()] || '#10B981';
-                    return `
+        const hName = (s.houses || {}).name || getHouseName(s.house_id);
+        const sName = (s.sports || {}).name || getSportName(s.sport_id);
+        const color = (s.houses || {}).color_hex || HOUSE_COLORS[(hName || '').toLowerCase()] || '#10B981';
+        return `
                     <tr style="border-left:3px solid ${color};">
                         <td style="font-weight:700;">${escapeHtml(s.name)}</td>
                         <td style="color:${color}; font-weight:700;">${escapeHtml(hName)}</td>
@@ -886,7 +886,7 @@ function renderAdminSquadsTable() {
                             </button>
                         </td>
                     </tr>`;
-                }).join('')}
+    }).join('')}
             </tbody>
         </table>
     </div>
@@ -922,7 +922,7 @@ function toggleSquadsSort(col) {
 // ─── 2. PLAYERS TABLE (SORTABLE, FILTERABLE, PAGINATED, BULK DELETION) ─────
 function renderAdminPlayersTable() {
     const container = document.getElementById('adminPlayersList');
-    const badge     = document.getElementById('playerCountBadge');
+    const badge = document.getElementById('playerCountBadge');
     if (!container) return;
     if (badge) badge.textContent = `${playersData.length} Players`;
 
@@ -938,9 +938,9 @@ function renderAdminPlayersTable() {
         list = list.filter(p => {
             const teamName = getTeamName(p.team_id).toLowerCase();
             return (p.name || '').toLowerCase().includes(q) ||
-                   String(p.roll_number || '').toLowerCase().includes(q) ||
-                   (p.section || '').toLowerCase().includes(q) ||
-                   teamName.includes(q);
+                String(p.roll_number || '').toLowerCase().includes(q) ||
+                (p.section || '').toLowerCase().includes(q) ||
+                teamName.includes(q);
         });
     }
     if (adminPlayersState.houseFilter) {
@@ -986,11 +986,11 @@ function renderAdminPlayersTable() {
 
     // Pagination
     const totalItems = list.length;
-    const pageSize   = adminPlayersState.pageSize === 'all' ? totalItems : parseInt(adminPlayersState.pageSize, 10);
+    const pageSize = adminPlayersState.pageSize === 'all' ? totalItems : parseInt(adminPlayersState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
     if (adminPlayersState.page > totalPages) adminPlayersState.page = totalPages;
-    const startIdx   = (adminPlayersState.page - 1) * pageSize;
-    const pageItems  = adminPlayersState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+    const startIdx = (adminPlayersState.page - 1) * pageSize;
+    const pageItems = adminPlayersState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
     // Build unique Grades for filter
     const grades = Array.from(new Set(playersData.map(p => String(p.grade || '')).filter(Boolean))).sort();
@@ -1071,9 +1071,9 @@ function renderAdminPlayersTable() {
             <tbody>
                 ${pageItems.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching players found</td></tr>` : ''}
                 ${pageItems.map(p => {
-                    const teamName = getTeamName(p.team_id);
-                    const isSelected = adminPlayersState.selectedIds.has(p.id);
-                    return `
+        const teamName = getTeamName(p.team_id);
+        const isSelected = adminPlayersState.selectedIds.has(p.id);
+        return `
                     <tr style="${isSelected ? 'background-color: var(--bg-surface-3);' : ''}">
                         <td style="text-align:center;">
                             <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectPlayer('${p.id}', this.checked)">
@@ -1092,7 +1092,7 @@ function renderAdminPlayersTable() {
                             </button>
                         </td>
                     </tr>`;
-                }).join('')}
+    }).join('')}
             </tbody>
         </table>
     </div>
@@ -1180,7 +1180,7 @@ function renderAdminSeederLogs() {
     }
 
     const latest = seederLogsData[0];
-    const isOk   = latest.status === 'success';
+    const isOk = latest.status === 'success';
 
     container.innerHTML = `
     <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; padding:16px;">
@@ -1195,12 +1195,12 @@ function renderAdminSeederLogs() {
         </div>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
             ${[
-                ['Houses',   latest.houses_created   || 0, 'var(--c-karnali)'],
-                ['Sports',   latest.sports_created   || 0, 'var(--c-koshi)'],
-                ['Squads',   latest.squads_created   || 0, 'var(--c-mahakali)'],
-                ['Players',  latest.players_created  || 0, 'var(--c-mechi)'],
-                ['Fixtures', latest.fixtures_created || 0, 'var(--text-primary)'],
-            ].map(([label, val, color]) => `
+            ['Houses', latest.houses_created || 0, 'var(--c-karnali)'],
+            ['Sports', latest.sports_created || 0, 'var(--c-koshi)'],
+            ['Squads', latest.squads_created || 0, 'var(--c-mahakali)'],
+            ['Players', latest.players_created || 0, 'var(--c-mechi)'],
+            ['Fixtures', latest.fixtures_created || 0, 'var(--text-primary)'],
+        ].map(([label, val, color]) => `
                 <div style="text-align:center;">
                     <div style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-tertiary);">${label}</div>
                     <div style="font-size:20px; font-weight:700; color:${color}; font-variant-numeric:tabular-nums;">${val}</div>
@@ -1267,11 +1267,11 @@ function renderAdminFixturesTable() {
 
     // Pagination
     const totalItems = list.length;
-    const pageSize   = adminFixturesState.pageSize === 'all' ? totalItems : parseInt(adminFixturesState.pageSize, 10);
+    const pageSize = adminFixturesState.pageSize === 'all' ? totalItems : parseInt(adminFixturesState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
     if (adminFixturesState.page > totalPages) adminFixturesState.page = totalPages;
-    const startIdx   = (adminFixturesState.page - 1) * pageSize;
-    const pageItems  = adminFixturesState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+    const startIdx = (adminFixturesState.page - 1) * pageSize;
+    const pageItems = adminFixturesState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
     // Build Sport filter options
     const sportOptions = sportsData.map(s =>
@@ -1327,14 +1327,14 @@ function renderAdminFixturesTable() {
             <tbody>
                 ${pageItems.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching fixtures found</td></tr>` : ''}
                 ${pageItems.map(m => {
-                    const aName  = getTeamName(m.team_a_id, m);
-                    const bName  = getTeamName(m.team_b_id, m);
-                    const sName  = getSportName(m.sport_id);
-                    const done   = m.status === 'completed';
-                    const scoreA = m.score_team_a ?? 0;
-                    const scoreB = m.score_team_b ?? 0;
+        const aName = getTeamName(m.team_a_id, m);
+        const bName = getTeamName(m.team_b_id, m);
+        const sName = getSportName(m.sport_id);
+        const done = m.status === 'completed';
+        const scoreA = m.score_team_a ?? 0;
+        const scoreB = m.score_team_b ?? 0;
 
-                    return `
+        return `
                     <tr>
                         <td style="font-weight:700; font-size:12px;">
                             ${escapeHtml(aName)} <span style="font-size:10px; color:var(--text-tertiary);">vs</span> ${escapeHtml(bName)}
@@ -1356,7 +1356,7 @@ function renderAdminFixturesTable() {
                             </button>
                         </td>
                     </tr>`;
-                }).join('')}
+    }).join('')}
             </tbody>
         </table>
     </div>
@@ -1448,15 +1448,15 @@ function openSquadModal(squadId = null) {
     if (squadId) {
         const sq = squadsData.find(s => s.id === squadId);
         if (sq) {
-            document.getElementById('squadId').value       = sq.id;
-            document.getElementById('squadHouseId').value  = sq.house_id;
-            document.getElementById('squadSportId').value  = sq.sport_id;
-            document.getElementById('squadGender').value   = sq.gender || 'Boys';
-            document.getElementById('squadLabel').value    = sq.squad_label || 'A';
+            document.getElementById('squadId').value = sq.id;
+            document.getElementById('squadHouseId').value = sq.house_id;
+            document.getElementById('squadSportId').value = sq.sport_id;
+            document.getElementById('squadGender').value = sq.gender || 'Boys';
+            document.getElementById('squadLabel').value = sq.squad_label || 'A';
             if (titleEl) titleEl.textContent = 'Edit Squad';
         }
     } else {
-        document.getElementById('squadId').value    = '';
+        document.getElementById('squadId').value = '';
         document.getElementById('squadLabel').value = 'A';
         if (titleEl) titleEl.textContent = 'Add House Squad';
     }
@@ -1465,14 +1465,14 @@ function openSquadModal(squadId = null) {
 
 async function handleSquadSubmit(e) {
     e.preventDefault();
-    const squadId    = document.getElementById('squadId').value;
-    const house_id   = document.getElementById('squadHouseId').value;
-    const sport_id   = document.getElementById('squadSportId').value;
-    const gender     = document.getElementById('squadGender').value;
+    const squadId = document.getElementById('squadId').value;
+    const house_id = document.getElementById('squadHouseId').value;
+    const sport_id = document.getElementById('squadSportId').value;
+    const gender = document.getElementById('squadGender').value;
     const squad_label = document.getElementById('squadLabel').value;
 
     const method = squadId ? 'PUT' : 'POST';
-    const url    = squadId ? `/api/teams/${squadId}` : '/api/teams';
+    const url = squadId ? `/api/teams/${squadId}` : '/api/teams';
 
     try {
         const res = await fetchWithAuth(url, {
@@ -1525,17 +1525,17 @@ function openPlayerModal(playerId = null) {
     if (playerId) {
         const p = playersData.find(x => x.id === playerId);
         if (p) {
-            document.getElementById('playerId').value      = p.id;
-            document.getElementById('playerName').value    = p.name;
-            document.getElementById('playerRoll').value    = p.roll_number || '';
-            document.getElementById('playerTeamId').value  = p.team_id;
-            document.getElementById('playerGrade').value   = p.grade || '';
+            document.getElementById('playerId').value = p.id;
+            document.getElementById('playerName').value = p.name;
+            document.getElementById('playerRoll').value = p.roll_number || '';
+            document.getElementById('playerTeamId').value = p.team_id;
+            document.getElementById('playerGrade').value = p.grade || '';
             document.getElementById('playerSection').value = p.section || '';
-            document.getElementById('playerGender').value  = p.gender || 'Boys';
+            document.getElementById('playerGender').value = p.gender || 'Boys';
             if (titleEl) titleEl.textContent = 'Edit Player';
         }
     } else {
-        ['playerId','playerName','playerRoll','playerGrade','playerSection'].forEach(id => {
+        ['playerId', 'playerName', 'playerRoll', 'playerGrade', 'playerSection'].forEach(id => {
             const el = document.getElementById(id); if (el) el.value = '';
         });
         if (titleEl) titleEl.textContent = 'Add Player';
@@ -1546,15 +1546,15 @@ function openPlayerModal(playerId = null) {
 async function handlePlayerSubmit(e) {
     e.preventDefault();
     const playerId = document.getElementById('playerId').value;
-    const name     = document.getElementById('playerName').value;
+    const name = document.getElementById('playerName').value;
     const roll_number = document.getElementById('playerRoll').value;
-    const team_id  = document.getElementById('playerTeamId').value;
-    const grade    = document.getElementById('playerGrade').value;
-    const section  = document.getElementById('playerSection').value;
-    const gender   = document.getElementById('playerGender').value;
+    const team_id = document.getElementById('playerTeamId').value;
+    const grade = document.getElementById('playerGrade').value;
+    const section = document.getElementById('playerSection').value;
+    const gender = document.getElementById('playerGender').value;
 
     const method = playerId ? 'PUT' : 'POST';
-    const url    = playerId ? `/api/players/${playerId}` : '/api/players';
+    const url = playerId ? `/api/players/${playerId}` : '/api/players';
 
     try {
         const res = await fetchWithAuth(url, {
@@ -1610,9 +1610,9 @@ async function openCreateMatchModal() {
 
 function onNewMatchSportOrGenderChange() {
     const sportId = (document.getElementById('newMatchSportId') || {}).value;
-    const gender  = (document.getElementById('newMatchGender')  || {}).value;
-    const aSel    = document.getElementById('newMatchTeamA');
-    const bSel    = document.getElementById('newMatchTeamB');
+    const gender = (document.getElementById('newMatchGender') || {}).value;
+    const aSel = document.getElementById('newMatchTeamA');
+    const bSel = document.getElementById('newMatchTeamB');
     if (!aSel || !bSel) return;
 
     const matching = squadsData.filter(s => s.sport_id === sportId && s.gender === gender);
@@ -1621,16 +1621,16 @@ function onNewMatchSportOrGenderChange() {
         return;
     }
     aSel.innerHTML = matching.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    bSel.innerHTML = matching.map((s, i) => `<option value="${s.id}" ${i===1 ? 'selected' : ''}>${s.name}</option>`).join('');
+    bSel.innerHTML = matching.map((s, i) => `<option value="${s.id}" ${i === 1 ? 'selected' : ''}>${s.name}</option>`).join('');
 }
 
 async function handleCreateMatchSubmit(e) {
     e.preventDefault();
-    const sport_id   = document.getElementById('newMatchSportId').value;
-    const gender     = document.getElementById('newMatchGender').value;
-    const team_a_id  = document.getElementById('newMatchTeamA').value;
-    const team_b_id  = document.getElementById('newMatchTeamB').value;
-    const stage      = document.getElementById('newMatchStage').value;
+    const sport_id = document.getElementById('newMatchSportId').value;
+    const gender = document.getElementById('newMatchGender').value;
+    const team_a_id = document.getElementById('newMatchTeamA').value;
+    const team_b_id = document.getElementById('newMatchTeamB').value;
+    const stage = document.getElementById('newMatchStage').value;
     const round_info = document.getElementById('newMatchRoundInfo').value || 'League Game';
 
     if (!team_a_id || !team_b_id || team_a_id === team_b_id) {
@@ -1699,11 +1699,11 @@ async function openMatchModal(matchId) {
 
     // Pre-populate modal labels and values
     const summary = document.getElementById('matchModalSummary');
-    const aLabel  = document.getElementById('teamALabel');
-    const bLabel  = document.getElementById('teamBLabel');
+    const aLabel = document.getElementById('teamALabel');
+    const bLabel = document.getElementById('teamBLabel');
     if (summary) summary.textContent = `${aName} vs ${bName}`;
-    if (aLabel)  aLabel.textContent  = `${aName} Score`;
-    if (bLabel)  bLabel.textContent  = `${bName} Score`;
+    if (aLabel) aLabel.textContent = `${aName} Score`;
+    if (bLabel) bLabel.textContent = `${bName} Score`;
 
     const scoreAInput = document.getElementById('matchScoreA');
     const scoreBInput = document.getElementById('matchScoreB');
@@ -1718,9 +1718,9 @@ async function openMatchModal(matchId) {
  */
 async function handleMatchSubmit(e) {
     e.preventDefault();
-    const matchId      = document.getElementById('matchId').value;
-    const scoreAVal    = document.getElementById('matchScoreA').value;
-    const scoreBVal    = document.getElementById('matchScoreB').value;
+    const matchId = document.getElementById('matchId').value;
+    const scoreAVal = document.getElementById('matchScoreA').value;
+    const scoreBVal = document.getElementById('matchScoreB').value;
 
     if (scoreAVal === '' || scoreBVal === '' || isNaN(scoreAVal) || isNaN(scoreBVal)) {
         showToast('Scores must be valid numbers.', 'error', { title: 'Invalid Score' });
@@ -1814,10 +1814,10 @@ async function triggerSeederRun() {
 function openCsvModal() {
     pendingCsvPlayers = [];
     const fileInput = document.getElementById('csvFileInput');
-    const preview   = document.getElementById('csvPreviewContainer');
+    const preview = document.getElementById('csvPreviewContainer');
     const commitBtn = document.getElementById('commitCsvBtn');
     if (fileInput) fileInput.value = '';
-    if (preview)   preview.classList.add('hidden');
+    if (preview) preview.classList.add('hidden');
     if (commitBtn) { commitBtn.disabled = true; commitBtn.style.opacity = '0.5'; }
     openModal('csvModal');
 }
@@ -1844,29 +1844,31 @@ function parseAndPreviewCsv(csvText) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
         if (!cols[0]) continue;
 
-        let roll='', name='', grade='', section='', gender='Boys', squadStr='A';
+        let roll = '', name = '', grade = '', section = '', gender = 'Boys', squadStr = 'A';
         headers.forEach((h, idx) => {
             const v = cols[idx] || '';
-            if (h.includes('roll')||h.includes('rn'))          roll = v;
-            else if (h.includes('name'))                        name = v;
-            else if (h.includes('grade'))                       grade = v;
-            else if (h.includes('sec'))                         section = v;
-            else if (h.includes('gen')||h.includes('sex'))      gender = v;
-            else if (h.includes('squad')||h.includes('team'))   squadStr = v;
+            if (h.includes('roll') || h.includes('rn')) roll = v;
+            else if (h.includes('name')) name = v;
+            else if (h.includes('grade')) grade = v;
+            else if (h.includes('sec')) section = v;
+            else if (h.includes('gen') || h.includes('sex')) gender = v;
+            else if (h.includes('squad') || h.includes('team')) squadStr = v;
         });
         if (!name) continue;
 
         let team_id = squadsData[0] ? squadsData[0].id : '';
         const found = squadsData.find(s =>
             s.name.toLowerCase().includes(squadStr.toLowerCase()) ||
-            (s.squad_label||'').toLowerCase() === squadStr.toLowerCase()
+            (s.squad_label || '').toLowerCase() === squadStr.toLowerCase()
         );
         if (found) team_id = found.id;
 
         const isUpdate = roll ? playersData.some(p => String(p.roll_number) === String(roll)) : false;
-        rows.push({ roll_number: roll, name, grade, section,
-                    gender: gender.toLowerCase().includes('girl') ? 'Girls' : 'Boys',
-                    team_id, isUpdate });
+        rows.push({
+            roll_number: roll, name, grade, section,
+            gender: gender.toLowerCase().includes('girl') ? 'Girls' : 'Boys',
+            team_id, isUpdate
+        });
     }
 
     pendingCsvPlayers = rows;
@@ -1874,26 +1876,26 @@ function parseAndPreviewCsv(csvText) {
 }
 
 function renderCsvPreviewTable(rows) {
-    const preview   = document.getElementById('csvPreviewContainer');
-    const tbody     = document.getElementById('csvPreviewTableBody');
-    const badge     = document.getElementById('csvPreviewCountBadge');
-    const warnings  = document.getElementById('csvValidationWarnings');
+    const preview = document.getElementById('csvPreviewContainer');
+    const tbody = document.getElementById('csvPreviewTableBody');
+    const badge = document.getElementById('csvPreviewCountBadge');
+    const warnings = document.getElementById('csvValidationWarnings');
     const commitBtn = document.getElementById('commitCsvBtn');
 
-    if (badge)  badge.textContent = `${rows.length} records`;
+    if (badge) badge.textContent = `${rows.length} records`;
 
     // Squad size warnings
     const squadCounts = {};
-    rows.forEach(r => { squadCounts[r.team_id] = (squadCounts[r.team_id]||0)+1; });
+    rows.forEach(r => { squadCounts[r.team_id] = (squadCounts[r.team_id] || 0) + 1; });
     let warnHtml = '';
     Object.keys(squadCounts).forEach(tid => {
         const count = squadCounts[tid];
         const squad = squadsData.find(s => s.id === tid);
         if (squad) {
             const sp = getSportName(squad.sport_id).toLowerCase();
-            let min=7, max=11;
-            if (sp.includes('futsal'))     { min=11; max=14; }
-            else if (sp.includes('basket')) { min=7;  max=10; }
+            let min = 7, max = 11;
+            if (sp.includes('futsal')) { min = 11; max = 14; }
+            else if (sp.includes('basket')) { min = 7; max = 10; }
             if (count < min || count > max) {
                 warnHtml += `<div style="padding:8px 12px; border:1px solid #92400E; border-radius:8px; background-color:#1C1200; color:#FCD34D; font-size:12px;">
                     Warning: <strong>${escapeHtml(squad.name)}</strong> has ${count} players (recommended ${min}–${max}).
@@ -1908,7 +1910,7 @@ function renderCsvPreviewTable(rows) {
         <tr>
             <td class="tabular">${escapeHtml(r.roll_number || '—')}</td>
             <td style="font-weight:700;">${escapeHtml(r.name)}</td>
-            <td>${escapeHtml(r.grade||'—')}${r.section ? ` (${escapeHtml(r.section)})`:''}</td>
+            <td>${escapeHtml(r.grade || '—')}${r.section ? ` (${escapeHtml(r.section)})` : ''}</td>
             <td>${escapeHtml(r.gender)}</td>
             <td>${escapeHtml(getTeamName(r.team_id))}</td>
             <td>
@@ -1920,7 +1922,7 @@ function renderCsvPreviewTable(rows) {
         </tr>`).join('');
     }
 
-    if (preview)   preview.classList.remove('hidden');
+    if (preview) preview.classList.remove('hidden');
     if (commitBtn) { commitBtn.disabled = rows.length === 0; commitBtn.style.opacity = rows.length ? '1' : '0.5'; }
 }
 
@@ -1992,15 +1994,15 @@ function getTeamName(teamId, matchObj = null) {
 
     // 2. Fall back to Supabase nested join data on the match object
     if (!t && matchObj) {
-        if      (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
+        if (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
         else if (matchObj.team_b_id === teamId && matchObj.team_b) t = matchObj.team_b;
     }
 
     if (!t) return 'TBD';
 
-    const houseId   = t.house_id;
-    const sportId   = t.sport_id || (matchObj ? matchObj.sport_id : null);
-    const gender    = t.gender   || (matchObj ? matchObj.gender   : null);
+    const houseId = t.house_id;
+    const sportId = t.sport_id || (matchObj ? matchObj.sport_id : null);
+    const gender = t.gender || (matchObj ? matchObj.gender : null);
     const houseName = (t.houses && t.houses.name) ? t.houses.name : getHouseName(houseId);
 
     // Show squad label suffix only when the house has multiple squads in same sport+gender
