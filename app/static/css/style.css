@@ -222,11 +222,11 @@ p {
   text-decoration: none;
   transition: color 150ms ease-out, background-color 150ms ease-out;
 }
-.mobile-nav-link:hover { color: var(--text-primary); background-color: var(--chrome-bg); }
+.mobile-nav-link:hover { color: var(--text-primary); background-color: var(--bg-surface-2); }
 .mobile-nav-link.active {
   color: var(--text-primary);
   font-weight: var(--fw-bold);
-  background-color: var(--chrome-bg);
+  background-color: var(--bg-surface-2);
 }
 
 /* ── FOOTER TYPEWRITER ──────────────────────────────────────────────────── */
@@ -949,6 +949,10 @@ input[type="checkbox"] {
   font-size: 13px;
   font-weight: var(--fw-bold);
   color: #F87171;
+}
+
+[data-theme="light"] .state-error-title {
+  color: #B91C1C;
 }
 
 /* ── FADE-IN ON RENDER ──────────────────────────────────────────────────── */
