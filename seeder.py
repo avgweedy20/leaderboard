@@ -164,6 +164,7 @@ class InterHouseSeeder:
             grp_record = {
                 "id": grp_uuid,
                 "sport_id": sport_obj["id"],
+                "sport_name": sport_obj["name"],
                 "gender": grp["gender"],
                 "format": grp["format"],
                 "point_win": grp["point_win"],
@@ -208,10 +209,12 @@ class InterHouseSeeder:
                                 "id": sq_uuid,
                                 "name": squad_name,
                                 "house_id": house_obj["id"],
+                                "house_name": house_obj["name"],
                                 "gender": gender,
                                 "squad_label": squad_label,
                                 "pool": None,
                                 "sport_id": sport_obj["id"],
+                                "sport_name": sport_obj["name"],
                                 "level": "HS"
                             }
                             if self.client:
@@ -316,10 +319,12 @@ class InterHouseSeeder:
                             "id": sq_uuid,
                             "name": squad_name,
                             "house_id": house_obj["id"],
+                            "house_name": house_obj["name"],
                             "gender": gender,
                             "squad_label": squad_label,
                             "pool": None,
                             "sport_id": sport_obj["id"],
+                            "sport_name": sport_obj["name"],
                             "level": "HS"
                         }
                         self.squads_map[squad_key] = squad_record
@@ -346,6 +351,7 @@ class InterHouseSeeder:
                         "id": player_uuid,
                         "name": p_name,
                         "team_id": squad_obj["id"],
+                        "squad_obj": squad_obj,
                         "roll_number": roll_num if roll_num else None,
                         "grade": grade,
                         "section": section,
@@ -499,12 +505,18 @@ class InterHouseSeeder:
                 print(f"Error updating squad pool: {e}")
 
     def create_placeholder_match(self, sport_id: str, gender: str, stage: str, round_info: str, row_idx: int):
+        sport_obj = next((s for s in self.sports_map.values() if s["id"] == sport_id), None)
+        sport_name = sport_obj["name"] if sport_obj else "Futsal"
         match_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"match.{sport_id}.{gender}.{stage}.placeholder.{row_idx}.{len(self.stats['fixtures'].get('created_list', []))}"))
         match_record = {
             "id": match_uuid,
             "sport_id": sport_id,
+            "sport_name": sport_name,
             "team_a_id": None,
             "team_b_id": None,
+            "team_a_obj": None,
+            "team_b_obj": None,
+            "winner_obj": None,
             "gender": gender,
             "stage": stage,
             "level": "HS",
@@ -586,12 +598,17 @@ class InterHouseSeeder:
                 )
                 return
 
+        winner_obj = squad_a if winner_id == squad_a["id"] else (squad_b if winner_id == squad_b["id"] else None)
         match_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"match.{sport_obj['id']}.{gender}.league.{squad_a['id']}.{squad_b['id']}.{row_idx}"))
         match_record = {
             "id": match_uuid,
             "sport_id": sport_obj["id"],
+            "sport_name": sport_obj["name"],
             "team_a_id": squad_a["id"],
             "team_b_id": squad_b["id"],
+            "team_a_obj": squad_a,
+            "team_b_obj": squad_b,
+            "winner_obj": winner_obj,
             "gender": gender,
             "stage": "league",
             "level": "HS",
@@ -691,7 +708,8 @@ class InterHouseSeeder:
         for g in self.groups_map.values():
             lines.append(
                 f"INSERT INTO public.tournament_groups (id, sport_id, gender, format, point_win, point_draw, point_loss) "
-                f"VALUES ('{g['id']}', '{g['sport_id']}', '{g['gender']}', '{g['format']}', {g['point_win']}, {g['point_draw']}, {g['point_loss']}) "
+                f"SELECT '{g['id']}', s.id, '{g['gender']}', '{g['format']}', {g['point_win']}, {g['point_draw']}, {g['point_loss']} "
+                f"FROM public.sports s WHERE s.name = '{g['sport_name']}' "
                 f"ON CONFLICT (sport_id, gender) DO UPDATE SET format = EXCLUDED.format;"
             )
 
@@ -702,7 +720,9 @@ class InterHouseSeeder:
             pool_val = f"'{sq['pool']}'" if sq.get('pool') else "NULL"
             lines.append(
                 f"INSERT INTO public.teams (id, name, house_id, gender, squad_label, pool, sport_id, level) "
-                f"VALUES ('{sq['id']}', '{val_name}', '{sq['house_id']}', '{sq['gender']}', '{sq['squad_label']}', {pool_val}, '{sq['sport_id']}', '{sq['level']}') "
+                f"SELECT '{sq['id']}', '{val_name}', h.id, '{sq['gender']}', '{sq['squad_label']}', {pool_val}, s.id, '{sq['level']}' "
+                f"FROM public.houses h CROSS JOIN public.sports s "
+                f"WHERE h.name = '{sq['house_name']}' AND s.name = '{sq['sport_name']}' "
                 f"ON CONFLICT (house_id, sport_id, gender, squad_label, level) DO UPDATE SET pool = EXCLUDED.pool, name = EXCLUDED.name;"
             )
 
@@ -710,10 +730,13 @@ class InterHouseSeeder:
         lines.append("\n-- 5. PLAYERS")
         for p in self.players_map.values():
             val_name = str(p['name']).replace("'", "''")
+            sq = p['squad_obj']
 
             lines.append(
                 f"INSERT INTO public.players (id, name, team_id, roll_number, grade, section, gender, level) "
-                f"VALUES ('{p['id']}', '{val_name}', '{p['team_id']}', {roll_num_sql(p.get('roll_number'))}, {str_sql(p.get('grade'))}, {str_sql(p.get('section'))}, '{p['gender']}', '{p['level']}') "
+                f"SELECT '{p['id']}', '{val_name}', t.id, {roll_num_sql(p.get('roll_number'))}, {str_sql(p.get('grade'))}, {str_sql(p.get('section'))}, '{p['gender']}', '{p['level']}' "
+                f"FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id "
+                f"WHERE h.name = '{sq['house_name']}' AND s.name = '{sq['sport_name']}' AND t.gender = '{sq['gender']}' AND t.squad_label = '{sq['squad_label']}' "
                 f"ON CONFLICT (roll_number) DO UPDATE SET name = EXCLUDED.name, team_id = EXCLUDED.team_id, grade = EXCLUDED.grade, section = EXCLUDED.section;"
             )
 
@@ -721,16 +744,22 @@ class InterHouseSeeder:
         lines.append("\n-- 6. MATCHES")
         created_matches = self.stats["fixtures"].get("created_list", [])
         for m in created_matches:
-            team_a_val = f"'{m['team_a_id']}'" if m.get('team_a_id') else "NULL"
-            team_b_val = f"'{m['team_b_id']}'" if m.get('team_b_id') else "NULL"
-            winner_val = f"'{m['winner_team_id']}'" if m.get('winner_team_id') else "NULL"
             info_val = str_sql(m.get('round_info') or "")
             summary_val = str_sql(m.get('score_summary') or "")
             is_draw_val = "TRUE" if m.get('is_draw') else "FALSE"
 
+            sq_a = m.get('team_a_obj')
+            sq_b = m.get('team_b_obj')
+            sq_w = m.get('winner_obj')
+
+            team_a_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_a['house_name']}' AND s.name = '{sq_a['sport_name']}' AND t.gender = '{sq_a['gender']}' AND t.squad_label = '{sq_a['squad_label']}')" if sq_a else "NULL"
+            team_b_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_b['house_name']}' AND s.name = '{sq_b['sport_name']}' AND t.gender = '{sq_b['gender']}' AND t.squad_label = '{sq_b['squad_label']}')" if sq_b else "NULL"
+            winner_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_w['house_name']}' AND s.name = '{sq_w['sport_name']}' AND t.gender = '{sq_w['gender']}' AND t.squad_label = '{sq_w['squad_label']}')" if sq_w else "NULL"
+
             lines.append(
                 f"INSERT INTO public.matches (id, sport_id, team_a_id, team_b_id, gender, stage, level, status, round_info, winner_team_id, is_draw, score_team_a, score_team_b, score_difference, score_summary) "
-                f"VALUES ('{m['id']}', '{m['sport_id']}', {team_a_val}, {team_b_val}, '{m['gender']}', '{m['stage']}', '{m['level']}', '{m['status']}', {info_val}, {winner_val}, {is_draw_val}, {m['score_team_a']}, {m['score_team_b']}, {m['score_difference']}, {summary_val}) "
+                f"SELECT '{m['id']}', s.id, {team_a_select}, {team_b_select}, '{m['gender']}', '{m['stage']}', '{m['level']}', '{m['status']}', {info_val}, {winner_select}, {is_draw_val}, {m['score_team_a']}, {m['score_team_b']}, {m['score_difference']}, {summary_val} "
+                f"FROM public.sports s WHERE s.name = '{m['sport_name']}' "
                 f"ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, winner_team_id = EXCLUDED.winner_team_id, is_draw = EXCLUDED.is_draw, score_team_a = EXCLUDED.score_team_a, score_team_b = EXCLUDED.score_team_b, score_difference = EXCLUDED.score_difference, score_summary = EXCLUDED.score_summary;"
             )
 
