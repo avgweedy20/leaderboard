@@ -160,7 +160,10 @@ function switchTab(tabId) {
     });
     document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
 
-    const selectedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+    const selectedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => {
+        const onclickAttr = b.getAttribute('onclick');
+        return onclickAttr && onclickAttr.includes(tabId);
+    });
     if (selectedBtn) {
         selectedBtn.classList.add('active', 'border-emerald-400', 'text-emerald-400');
         selectedBtn.classList.remove('border-transparent', 'text-slate-400');
@@ -173,7 +176,6 @@ function switchTab(tabId) {
             gsap.fromTo(contentEl, { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' });
         }
     }
-    loadCurrentTabData();
 }
 
 async function loadInitialData() {
@@ -926,7 +928,72 @@ async function deletePlayer(playerId) {
     }
 }
 
-// MODAL HANDLERS FOR MATCH SCORES
+// MODAL HANDLERS FOR CREATING FIXTURES & MATCH SCORES
+function openCreateMatchModal() {
+    const sportSelect = document.getElementById('newMatchSportId');
+    if (!sportSelect) return;
+
+    sportSelect.innerHTML = sportsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    onNewMatchSportOrGenderChange();
+    openModal('createMatchModal');
+}
+
+function onNewMatchSportOrGenderChange() {
+    const sportId = document.getElementById('newMatchSportId').value;
+    const gender = document.getElementById('newMatchGender').value;
+    const teamASel = document.getElementById('newMatchTeamA');
+    const teamBSel = document.getElementById('newMatchTeamB');
+
+    // Filter squads by matching sport_id and gender
+    const matchingSquads = squadsData.filter(s => s.sport_id === sportId && s.gender === gender);
+
+    if (matchingSquads.length === 0) {
+        teamASel.innerHTML = `<option value="">No squads available</option>`;
+        teamBSel.innerHTML = `<option value="">No squads available</option>`;
+        return;
+    }
+
+    teamASel.innerHTML = matchingSquads.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    teamBSel.innerHTML = matchingSquads.map((s, idx) => `<option value="${s.id}" ${idx === 1 ? 'selected' : ''}>${s.name}</option>`).join('');
+}
+
+async function handleCreateMatchSubmit(e) {
+    e.preventDefault();
+    const sport_id = document.getElementById('newMatchSportId').value;
+    const gender = document.getElementById('newMatchGender').value;
+    const team_a_id = document.getElementById('newMatchTeamA').value;
+    const team_b_id = document.getElementById('newMatchTeamB').value;
+    const stage = document.getElementById('newMatchStage').value;
+    const round_info = document.getElementById('newMatchRoundInfo').value || 'League Game';
+
+    if (!team_a_id || !team_b_id || team_a_id === team_b_id) {
+        alert('Please select two distinct teams for the fixture.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/matches', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ sport_id, gender, team_a_id, team_b_id, stage, round_info })
+        });
+
+        if (res.ok) {
+            closeModal('createMatchModal');
+            await loadAdminCenterData();
+            alert('Fixture created successfully!');
+        } else {
+            const err = await res.json();
+            alert(err.error || 'Failed to create fixture');
+        }
+    } catch (err) {
+        alert('Network error while creating fixture');
+    }
+}
+
 function openMatchModal(matchId) {
     const match = matchesData.find(m => m.id === matchId);
     if (!match) return;
