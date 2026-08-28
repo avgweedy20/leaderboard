@@ -490,6 +490,8 @@ async function loadFixtures() {
 
 // 4. ADMIN CENTER MANAGEMENT
 async function loadAdminCenterData() {
+    await fetchSports();
+    await fetchHouses();
     await fetchSquads();
     await fetchPlayers();
     await fetchMatches();
@@ -929,9 +931,16 @@ async function deletePlayer(playerId) {
 }
 
 // MODAL HANDLERS FOR CREATING FIXTURES & MATCH SCORES
-function openCreateMatchModal() {
+async function openCreateMatchModal() {
     const sportSelect = document.getElementById('newMatchSportId');
     if (!sportSelect) return;
+
+    if (!sportsData || sportsData.length === 0) {
+        await fetchSports();
+    }
+    if (!squadsData || squadsData.length === 0) {
+        await fetchSquads();
+    }
 
     sportSelect.innerHTML = sportsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     onNewMatchSportOrGenderChange();

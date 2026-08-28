@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS public.matches (
     team_a_id UUID REFERENCES public.teams(id) ON DELETE CASCADE,
     team_b_id UUID REFERENCES public.teams(id) ON DELETE CASCADE,
     gender TEXT CHECK (gender IN ('Boys', 'Girls', 'Mixed')),
-    stage TEXT DEFAULT 'league' CHECK (stage IN ('league', 'final')),
+    stage TEXT DEFAULT 'league' CHECK (stage IN ('league', 'semifinal', 'final')),
     level TEXT DEFAULT 'HS' CHECK (level IN ('ES', 'MS', 'HS')),
     status TEXT DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'live', 'completed', 'cancelled')),
     round_info TEXT,
@@ -143,6 +143,19 @@ CREATE TABLE IF NOT EXISTS public.matches (
     scheduled_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure stage constraint permits 'semifinal' for existing databases
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'matches_stage_check'
+    ) THEN
+        ALTER TABLE public.matches DROP CONSTRAINT matches_stage_check;
+    END IF;
+    ALTER TABLE public.matches ADD CONSTRAINT matches_stage_check CHECK (stage IN ('league', 'semifinal', 'final'));
+EXCEPTION
+    WHEN OTHERS THEN NULL;
+END $$;
 
 -- 6. CRICKET INNINGS & OVERS (Maintained for backward compatibility)
 CREATE TABLE IF NOT EXISTS public.cricket_innings (
