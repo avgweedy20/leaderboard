@@ -521,4 +521,197 @@ object ScoreBoardIcons {
             }
         }.build()
     }
+
+    val Login: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Login",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(15f, 3f)
+                lineTo(21f, 3f)
+                lineTo(21f, 21f)
+                lineTo(15f, 21f)
+                moveTo(10f, 17f)
+                lineTo(15f, 12f)
+                lineTo(10f, 7f)
+                moveTo(15f, 12f)
+                lineTo(3f, 12f)
+            }
+        }.build()
+    }
+
+    val Logout: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Logout",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(9f, 21f)
+                lineTo(3f, 21f)
+                lineTo(3f, 3f)
+                lineTo(9f, 3f)
+                moveTo(16f, 17f)
+                lineTo(21f, 12f)
+                lineTo(16f, 7f)
+                moveTo(21f, 12f)
+                lineTo(9f, 12f)
+            }
+        }.build()
+    }
+
+    val Trash: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Trash",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(3f, 6f)
+                lineTo(21f, 6f)
+                moveTo(8f, 6f)
+                lineTo(8f, 4f)
+                lineTo(16f, 4f)
+                lineTo(16f, 6f)
+                moveTo(19f, 6f)
+                lineTo(18f, 21f)
+                lineTo(6f, 21f)
+                lineTo(5f, 6f)
+                moveTo(10f, 11f)
+                lineTo(10f, 17f)
+                moveTo(14f, 11f)
+                lineTo(14f, 17f)
+            }
+        }.build()
+    }
+
+    val Alert: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Alert",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(10.29f, 3.86f)
+                lineTo(1.82f, 18f)
+                arcTo(2f, 2f, 0f, false, false, 3.54f, 21f)
+                lineTo(20.46f, 21f)
+                arcTo(2f, 2f, 0f, false, false, 22.18f, 18f)
+                lineTo(13.71f, 3.86f)
+                arcTo(2f, 2f, 0f, false, false, 10.29f, 3.86f)
+                close()
+                moveTo(12f, 9f)
+                lineTo(12f, 13f)
+                moveTo(12f, 17f)
+                lineTo(12f, 17.01f)
+            }
+        }.build()
+    }
+
+    val Info: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Info",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(12f, 21f)
+                arcTo(9f, 9f, 0f, true, false, 12f, 3f)
+                arcTo(9f, 9f, 0f, true, false, 12f, 21f)
+                close()
+                moveTo(12f, 16f)
+                lineTo(12f, 12f)
+                moveTo(12f, 8f)
+                lineTo(12f, 8.01f)
+            }
+        }.build()
+    }
+
+    val ChevronDown: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "ChevronDown",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(6f, 9f)
+                lineTo(12f, 15f)
+                lineTo(18f, 9f)
+            }
+        }.build()
+    }
+
+    val Empty: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Empty",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Square,
+                strokeLineJoin = StrokeJoin.Miter
+            ) {
+                moveTo(22f, 12f)
+                lineTo(2f, 12f)
+                moveTo(2f, 7f)
+                lineTo(2f, 17f)
+                arcTo(2f, 2f, 0f, false, false, 4f, 19f)
+                lineTo(20f, 19f)
+                arcTo(2f, 2f, 0f, false, false, 22f, 17f)
+                lineTo(22f, 7f)
+                arcTo(2f, 2f, 0f, false, false, 20f, 5f)
+                lineTo(4f, 5f)
+                arcTo(2f, 2f, 0f, false, false, 2f, 7f)
+                close()
+            }
+        }.build()
+    }
 }

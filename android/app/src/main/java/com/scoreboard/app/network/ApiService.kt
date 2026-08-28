@@ -1,185 +1,334 @@
 package com.scoreboard.app.network
 
+import com.google.gson.Gson
 import com.scoreboard.app.BuildConfig
 import com.scoreboard.app.models.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Response
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
+import java.io.IOException
 
-interface SupabaseRestService {
-    @GET("rest/v1/houses")
-    suspend fun getHouses(
-        @Query("select") select: String = "*",
-        @Query("order") order: String = "name.asc"
-    ): List<House>
+data class ApiErrorBody(val error: String?)
 
-    @GET("rest/v1/sports")
-    suspend fun getSports(
-        @Query("select") select: String = "*"
-    ): List<Sport>
+class ApiException(message: String, val statusCode: Int? = null) : Exception(message)
 
-    @POST("rest/v1/sports")
-    suspend fun createSport(
-        @Header("Prefer") prefer: String = "return=representation",
-        @Body sport: Map<String, @JvmSuppressWildcards Any>
-    ): List<Sport>
+interface FlaskApiService {
+    @GET("api/health")
+    suspend fun getHealth(): HealthInfo
 
-    @GET("rest/v1/teams")
+    @GET("api/version")
+    suspend fun getVersion(): VersionInfo
+
+    @POST("api/auth/login")
+    suspend fun login(@Body body: Map<String, String>): LoginResponse
+
+    @GET("api/houses")
+    suspend fun getHouses(): List<House>
+
+    @GET("api/sports")
+    suspend fun getSports(): List<Sport>
+
+    @GET("api/teams")
     suspend fun getTeams(
-        @Query("select") select: String = "*,houses(*),sports(*)",
         @Query("sport_id") sportId: String? = null,
         @Query("house_id") houseId: String? = null,
         @Query("gender") gender: String? = null
     ): List<Team>
 
-    @GET("rest/v1/players")
-    suspend fun getPlayers(
-        @Query("select") select: String = "*,teams(*)",
-        @Query("team_id") teamId: String? = null
-    ): List<Player>
+    @POST("api/teams")
+    suspend fun createTeam(@Body body: Map<String, @JvmSuppressWildcards Any?>): Team
 
-    @GET("rest/v1/matches")
+    @PUT("api/teams/{id}")
+    suspend fun updateTeam(@Path("id") id: String, @Body body: Map<String, @JvmSuppressWildcards Any?>): Team
+
+    @DELETE("api/teams/{id}")
+    suspend fun deleteTeam(@Path("id") id: String): Map<String, Any?>
+
+    @GET("api/players")
+    suspend fun getPlayers(@Query("team_id") teamId: String? = null): List<Player>
+
+    @POST("api/players")
+    suspend fun createPlayer(@Body body: Map<String, @JvmSuppressWildcards Any?>): Player
+
+    @PUT("api/players/{id}")
+    suspend fun updatePlayer(@Path("id") id: String, @Body body: Map<String, @JvmSuppressWildcards Any?>): Player
+
+    @DELETE("api/players/{id}")
+    suspend fun deletePlayer(@Path("id") id: String): Map<String, Any?>
+
+    @POST("api/players/bulk")
+    suspend fun bulkUpsertPlayers(@Body items: List<Map<String, @JvmSuppressWildcards Any?>>): Map<String, Any?>
+
+    @POST("api/players/bulk-delete")
+    suspend fun bulkDeletePlayers(@Body body: Map<String, @JvmSuppressWildcards Any?>): Map<String, Any?>
+
+    @GET("api/matches")
     suspend fun getMatches(
-        @Query("select") select: String = "*,sports(*)",
         @Query("sport_id") sportId: String? = null,
         @Query("gender") gender: String? = null,
         @Query("stage") stage: String? = null
     ): List<MatchItem>
 
-    @PATCH("rest/v1/matches")
-    suspend fun updateMatchScore(
-        @Query("id") idFilter: String,
-        @Body updateData: Map<String, @JvmSuppressWildcards Any?>
-    )
+    @POST("api/matches")
+    suspend fun createMatch(@Body body: Map<String, @JvmSuppressWildcards Any?>): MatchItem
 
-    @GET("rest/v1/house_overall_standings")
-    suspend fun getHouseOverallStandings(
-        @Query("select") select: String = "*",
-        @Query("order") order: String = "rank.asc"
-    ): List<HouseOverallStanding>
+    @PUT("api/matches/{id}")
+    suspend fun updateMatch(@Path("id") id: String, @Body body: Map<String, @JvmSuppressWildcards Any?>): MatchItem
 
-    @GET("rest/v1/leaderboard_view")
+    @DELETE("api/matches/{id}")
+    suspend fun deleteMatch(@Path("id") id: String): Map<String, Any?>
+
+    @GET("api/leaderboard/overall")
+    suspend fun getOverallStandings(): List<HouseOverallStanding>
+
+    @GET("api/leaderboard")
     suspend fun getLeaderboard(
-        @Query("select") select: String = "*",
         @Query("sport_id") sportId: String? = null,
-        @Query("gender") gender: String? = null,
-        @Query("order") order: String = "rank.asc"
+        @Query("gender") gender: String? = null
     ): List<LeaderboardItem>
 
-    @POST("auth/v1/token?grant_type=password")
-    suspend fun loginWithPassword(
-        @Body body: Map<String, String>
-    ): SupabaseAuthResponse
+    @GET("api/leaderboard/qualifiers")
+    suspend fun getQualifiers(): List<LeaderboardItem>
 }
 
-data class SupabaseAuthResponse(
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String,
-    @com.google.gson.annotations.SerializedName("token_type") val tokenType: String?
-)
+object ApiRepository {
+    var adminToken: String? = null
+        private set
+    var adminExpiresAtMillis: Long = 0L
+        private set
 
-object SupabaseRepository {
-    var adminAuthToken: String? = null
+    val isAuthenticated: Boolean
+        get() = !adminToken.isNullOrBlank() && adminExpiresAtMillis > System.currentTimeMillis()
 
-    val isConfigured: Boolean
-        get() = BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_ANON_KEY.isNotBlank()
+    private val gson = Gson()
 
-    private var cachedService: SupabaseRestService? = null
-
-    private val service: SupabaseRestService
+    private val baseUrl: String
         get() {
-            if (!isConfigured) {
-                throw IllegalStateException("Database Connection Error: Missing credentials or network failure")
-            }
-            if (cachedService == null) {
-                val baseUrl = if (BuildConfig.SUPABASE_URL.endsWith("/")) BuildConfig.SUPABASE_URL else "${BuildConfig.SUPABASE_URL}/"
-                val okHttpClient = OkHttpClient.Builder()
-                    .addInterceptor(object : Interceptor {
-                        override fun intercept(chain: Interceptor.Chain): Response {
-                            val token = adminAuthToken ?: BuildConfig.SUPABASE_ANON_KEY
-                            val request = chain.request().newBuilder()
-                                .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
-                                .addHeader("Authorization", "Bearer $token")
-                                .build()
-                            return chain.proceed(request)
-                        }
-                    })
-                    .build()
-
-                cachedService = Retrofit.Builder()
-                    .baseUrl(baseUrl)
-                    .client(okHttpClient)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-                    .create(SupabaseRestService::class.java)
-            }
-            return cachedService!!
+            val url = BuildConfig.API_BASE_URL.trim()
+            return if (url.endsWith("/")) url else "$url/"
         }
 
-    suspend fun getHouses(): List<House> = service.getHouses()
-
-    suspend fun getSports(): List<Sport> = service.getSports()
-
-    suspend fun getTeams(sportId: String? = null, houseId: String? = null, gender: String? = null): List<Team> {
-        val sFilter = if (!sportId.isNullOrEmpty()) "eq.$sportId" else null
-        val hFilter = if (!houseId.isNullOrEmpty()) "eq.$houseId" else null
-        val gFilter = if (!gender.isNullOrEmpty()) "eq.$gender" else null
-        return service.getTeams(sportId = sFilter, houseId = hFilter, gender = gFilter)
+    private val okHttpClient: OkHttpClient by lazy {
+        val authInterceptor = Interceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("Accept", "application/json")
+            adminToken?.takeIf { it.isNotBlank() }?.let { request.header("Authorization", "Bearer $it") }
+            chain.proceed(request.build())
+        }
+        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+        OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
     }
 
-    suspend fun getPlayers(teamId: String? = null): List<Player> {
-        val tFilter = if (!teamId.isNullOrEmpty()) "eq.$teamId" else null
-        return service.getPlayers(teamId = tFilter)
+    private val service: FlaskApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FlaskApiService::class.java)
     }
 
-    suspend fun getMatches(sportId: String? = null, gender: String? = null, stage: String? = null): List<MatchItem> {
-        val sFilter = if (!sportId.isNullOrEmpty()) "eq.$sportId" else null
-        val gFilter = if (!gender.isNullOrEmpty()) "eq.$gender" else null
-        val stFilter = if (!stage.isNullOrEmpty()) "eq.$stage" else null
-        return service.getMatches(sportId = sFilter, gender = gFilter, stage = stFilter)
+    private fun apiErrorBody(e: retrofit2.HttpException): String? {
+        return try {
+            val body = e.response()?.errorBody()?.string()
+            if (body.isNullOrBlank()) null
+            else gson.fromJson(body, ApiErrorBody::class.java)?.error ?: body
+        } catch (_: Exception) {
+            null
+        }
     }
 
-    suspend fun getHouseOverallStandings(): List<HouseOverallStanding> = service.getHouseOverallStandings()
-
-    suspend fun getLeaderboard(sportId: String? = null, gender: String? = null): List<LeaderboardItem> {
-        val sFilter = if (!sportId.isNullOrEmpty()) "eq.$sportId" else null
-        val gFilter = if (!gender.isNullOrEmpty()) "eq.$gender" else null
-        return service.getLeaderboard(sportId = sFilter, gender = gFilter)
+    private suspend fun <T> apiCall(block: suspend () -> T): T {
+        try {
+            return withContext(Dispatchers.IO) { block() }
+        } catch (e: retrofit2.HttpException) {
+            val msg = apiErrorBody(e) ?: "Request failed (HTTP ${e.code()})"
+            throw ApiException(msg, e.code())
+        } catch (e: IOException) {
+            throw ApiException("Database Connection Error: Cannot reach the API server at ${BuildConfig.API_BASE_URL}. Check that the backend is running.")
+        }
     }
 
-    suspend fun updateMatchScore(
-        matchId: String,
+    fun restoreSession(token: String, expiresAtMillis: Long) {
+        adminToken = token
+        adminExpiresAtMillis = expiresAtMillis
+    }
+
+    fun setSession(token: String, expiresAtMillis: Long) {
+        adminToken = token
+        adminExpiresAtMillis = expiresAtMillis
+    }
+
+    fun logout() {
+        adminToken = null
+        adminExpiresAtMillis = 0L
+    }
+
+    suspend fun getHealth(): HealthInfo = apiCall { service.getHealth() }
+
+    suspend fun login(email: String, password: String): LoginResponse = apiCall {
+        service.login(mapOf("email" to email, "password" to password))
+    }
+
+    suspend fun getHouses(): List<House> = apiCall { service.getHouses() }
+
+    suspend fun getSports(): List<Sport> = apiCall { service.getSports() }
+
+    suspend fun getTeams(sportId: String? = null, houseId: String? = null, gender: String? = null): List<Team> =
+        apiCall { service.getTeams(sportId, houseId, gender) }
+
+    suspend fun createTeam(name: String, houseId: String, sportId: String, gender: String, squadLabel: String?): Team =
+        apiCall {
+            service.createTeam(
+                mapOf(
+                    "name" to name,
+                    "house_id" to houseId,
+                    "sport_id" to sportId,
+                    "gender" to gender,
+                    "squad_label" to squadLabel
+                )
+            )
+        }
+
+    suspend fun updateTeam(
+        id: String,
+        name: String,
+        houseId: String,
+        sportId: String,
+        gender: String,
+        squadLabel: String?
+    ): Team = apiCall {
+        service.updateTeam(
+            id,
+            mapOf(
+                "name" to name,
+                "house_id" to houseId,
+                "sport_id" to sportId,
+                "gender" to gender,
+                "squad_label" to squadLabel
+            )
+        )
+    }
+
+    suspend fun deleteTeam(id: String) = apiCall { service.deleteTeam(id) }
+
+    suspend fun getPlayers(teamId: String? = null): List<Player> =
+        apiCall { service.getPlayers(teamId) }
+
+    suspend fun createPlayer(
+        name: String,
+        teamId: String?,
+        rollNumber: String?,
+        grade: String?,
+        section: String?,
+        gender: String?
+    ): Player = apiCall {
+        service.createPlayer(
+            mapOf(
+                "name" to name,
+                "team_id" to teamId,
+                "roll_number" to rollNumber,
+                "grade" to grade,
+                "section" to section,
+                "gender" to gender
+            )
+        )
+    }
+
+    suspend fun updatePlayer(
+        id: String,
+        name: String,
+        teamId: String?,
+        rollNumber: String?,
+        grade: String?,
+        section: String?,
+        gender: String?
+    ): Player = apiCall {
+        service.updatePlayer(
+            id,
+            mapOf(
+                "name" to name,
+                "team_id" to teamId,
+                "roll_number" to rollNumber,
+                "grade" to grade,
+                "section" to section,
+                "gender" to gender
+            )
+        )
+    }
+
+    suspend fun deletePlayer(id: String) = apiCall { service.deletePlayer(id) }
+
+    suspend fun bulkDeletePlayers(ids: List<String>) = apiCall { service.bulkDeletePlayers(mapOf("player_ids" to ids)) }
+
+    suspend fun getMatches(sportId: String? = null, gender: String? = null, stage: String? = null): List<MatchItem> =
+        apiCall { service.getMatches(sportId, gender, stage) }
+
+    suspend fun createMatch(
+        sportId: String,
+        gender: String,
+        teamAId: String?,
+        teamBId: String?,
+        stage: String?,
+        level: String?,
+        roundInfo: String?
+    ): MatchItem = apiCall {
+        service.createMatch(
+            mapOf(
+                "sport_id" to sportId,
+                "gender" to gender,
+                "team_a_id" to teamAId,
+                "team_b_id" to teamBId,
+                "stage" to stage,
+                "level" to level,
+                "round_info" to roundInfo
+            )
+        )
+    }
+
+    suspend fun updateMatch(
+        id: String,
+        teamAId: String?,
+        teamBId: String?,
+        stage: String?,
+        roundInfo: String?,
         winnerTeamId: String?,
         isDraw: Boolean,
         scoreTeamA: Int,
         scoreTeamB: Int,
-        scoreSummary: String,
-        status: String = "completed"
-    ) {
-        val diff = kotlin.math.abs(scoreTeamA - scoreTeamB)
-        val payload = mapOf<String, Any?>(
-            "status" to status,
-            "winner_team_id" to winnerTeamId,
-            "is_draw" to isDraw,
-            "score_team_a" to scoreTeamA,
-            "score_team_b" to scoreTeamB,
-            "score_difference" to diff,
-            "score_summary" to scoreSummary
-        )
-        service.updateMatchScore(idFilter = "eq.$matchId", updateData = payload)
+        scoreSummary: String?,
+        status: String?
+    ): MatchItem = apiCall {
+        val payload = mutableMapOf<String, Any?>()
+        teamAId?.let { payload["team_a_id"] = it }
+        teamBId?.let { payload["team_b_id"] = it }
+        stage?.let { payload["stage"] = it }
+        roundInfo?.let { payload["round_info"] = it }
+        winnerTeamId?.let { payload["winner_team_id"] = it }
+        payload["is_draw"] = isDraw
+        payload["score_team_a"] = scoreTeamA
+        payload["score_team_b"] = scoreTeamB
+        payload["score_summary"] = scoreSummary
+        status?.let { payload["status"] = it }
+        service.updateMatch(id, payload)
     }
 
-    suspend fun login(email: String, pass: String): String {
-        val res = service.loginWithPassword(mapOf("email" to email, "password" to pass))
-        adminAuthToken = res.accessToken
-        cachedService = null
-        return res.accessToken
-    }
+    suspend fun deleteMatch(id: String) = apiCall { service.deleteMatch(id) }
 
-    fun logout() {
-        adminAuthToken = null
-        cachedService = null
-    }
+    suspend fun getOverallStandings(): List<HouseOverallStanding> = apiCall { service.getOverallStandings() }
+
+    suspend fun getLeaderboard(sportId: String? = null, gender: String? = null): List<LeaderboardItem> =
+        apiCall { service.getLeaderboard(sportId, gender) }
+
+    suspend fun getQualifiers(): List<LeaderboardItem> = apiCall { service.getQualifiers() }
 }

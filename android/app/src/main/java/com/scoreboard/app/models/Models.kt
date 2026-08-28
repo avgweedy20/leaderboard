@@ -14,10 +14,10 @@ data class Sport(
     val name: String,
     val type: String,
     val level: String?,
-    @SerializedName("point_win") val pointWin: Int,
-    @SerializedName("point_draw") val pointDraw: Int,
-    @SerializedName("point_loss") val pointLoss: Int,
-    @SerializedName("is_lower_score_better") val isLowerScoreBetter: Boolean
+    @SerializedName("point_win") val pointWin: Int = 0,
+    @SerializedName("point_draw") val pointDraw: Int = 0,
+    @SerializedName("point_loss") val pointLoss: Int = 0,
+    @SerializedName("is_lower_score_better") val isLowerScoreBetter: Boolean = false
 )
 
 data class Team(
@@ -49,7 +49,7 @@ data class MatchItem(
     val gender: String?,
     val stage: String?,
     val level: String?,
-    val status: String,
+    val status: String?,
     @SerializedName("round_info") val roundInfo: String?,
     @SerializedName("winner_team_id") val winnerTeamId: String?,
     @SerializedName("is_draw") val isDraw: Boolean,
@@ -119,5 +119,12 @@ data class HealthInfo(
 )
 
 data class LoginResponse(
-    @SerializedName("access_token") val accessToken: String
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("expires_in") val expiresIn: Long,
+    val user: UserInfo?
+)
+
+data class UserInfo(
+    val id: String,
+    val email: String
 )
