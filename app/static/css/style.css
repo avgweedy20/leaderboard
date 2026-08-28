@@ -188,6 +188,86 @@ p {
   border-bottom-color: var(--text-primary);
 }
 
+/* ── MOBILE NAV (HAMBURGER) ─────────────────────────────────────────────── */
+.nav-toggle {
+  display: none;
+}
+
+.mobile-nav {
+  display: none;
+  flex-direction: column;
+  position: fixed;
+  top: 48px;
+  right: 12px;
+  z-index: 45;
+  min-width: 200px;
+  padding: 6px;
+  background-color: var(--nav-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-weight: var(--fw-medium);
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 150ms ease-out, background-color 150ms ease-out;
+}
+.mobile-nav-link:hover { color: var(--text-primary); background-color: var(--chrome-bg); }
+.mobile-nav-link.active {
+  color: var(--text-primary);
+  font-weight: var(--fw-bold);
+  background-color: var(--chrome-bg);
+}
+
+/* ── FOOTER TYPEWRITER ──────────────────────────────────────────────────── */
+.site-footer {
+  text-align: center;
+  padding: 24px 16px 32px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-type {
+  display: inline-block;
+  min-height: 1.2em;
+  white-space: pre;
+}
+
+.type-caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background-color: currentColor;
+  animation: caret-blink 1s steps(1) infinite;
+}
+.site-footer .typing-done + .type-caret,
+.site-footer.typing-done .type-caret { animation: none; opacity: 1; }
+
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .type-caret { animation: none; opacity: 0; }
+}
+
 /* ── CONTAINER ──────────────────────────────────────────────────────────── */
 .page-container {
   max-width: 1280px;
@@ -1037,14 +1117,10 @@ input[type="checkbox"] {
   .rank-number { font-size: 24px; }
   .stat-value  { font-size: 20px; }
 
-  .tab-bar {
-    margin-bottom: 20px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tab-btn {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
+  /* Collapse desktop nav into hamburger menu */
+  .tab-bar { display: none; }
+  .nav-toggle { display: inline-flex; }
+  .mobile-nav { display: flex; }
 
   .table-toolbar {
     flex-direction: column;

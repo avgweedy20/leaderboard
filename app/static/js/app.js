@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthUI();
     checkDbHealth();
     startSessionExpiryChecker();
+    initFooterTypewriter();
 });
 
 // ─── TOAST NOTIFICATION SYSTEM ─────────────────────────────────────────────
@@ -281,16 +282,19 @@ function checkAuthUI() {
     const authBtnText = document.getElementById('authBtnText');
     const authIcon    = document.getElementById('authIcon');
     const adminTab    = document.getElementById('adminTabBtn');
+    const mobileAdmin = document.getElementById('mobileAdminLink');
 
     if (currentToken && !isTokenExpired()) {
         if (authBtnText) authBtnText.textContent = 'Sign Out';
         if (authIcon)    authIcon.innerHTML = `<use href="#icon-logout"/>`;
         if (adminTab)    adminTab.style.display = 'inline-flex';
+        if (mobileAdmin) mobileAdmin.style.display = 'flex';
     } else {
         currentToken = null;
         if (authBtnText) authBtnText.textContent = 'Admin Login';
         if (authIcon)    authIcon.innerHTML = `<use href="#icon-login"/>`;
         if (adminTab)    adminTab.style.display = 'none';
+        if (mobileAdmin) mobileAdmin.style.display = 'none';
         if (window.location.pathname.startsWith('/admin')) {
             window.location.href = '/';
         }
@@ -361,6 +365,86 @@ document.addEventListener('click', e => {
         e.target.classList.add('hidden');
     }
 });
+
+// ─── MOBILE NAV (HAMBURGER) ────────────────────────────────────────────────
+function toggleMobileNav() {
+    const nav   = document.getElementById('mobileNav');
+    const btn   = document.getElementById('navToggleBtn');
+    if (!nav || !btn) return;
+    const open  = nav.classList.toggle('hidden') === false;
+    nav.setAttribute('aria-hidden', open ? 'false' : 'true');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function closeMobileNav() {
+    const nav = document.getElementById('mobileNav');
+    const btn = document.getElementById('navToggleBtn');
+    if (!nav || !btn || nav.classList.contains('hidden')) return;
+    nav.classList.add('hidden');
+    nav.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+}
+
+// Close on selecting an item or tapping outside (only matters below breakpoint)
+document.addEventListener('click', e => {
+    const nav = document.getElementById('mobileNav');
+    const btn = document.getElementById('navToggleBtn');
+    if (!nav || !btn) return;
+    const isMenuClick = nav.contains(e.target) || btn.contains(e.target);
+    if (isMenuClick) {
+        if (e.target.closest('.mobile-nav-link')) closeMobileNav();
+        return;
+    }
+    if (!nav.classList.contains('hidden')) closeMobileNav();
+});
+
+// ─── FOOTER TYPEWRITER ─────────────────────────────────────────────────────
+function initFooterTypewriter() {
+    const el = document.getElementById('footerType');
+    if (!el) return;
+
+    const variants = [
+        'Made by Samir Ghimire',
+        'Made by STEM Club President Samir Ghimire'
+    ];
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+        el.textContent = variants[0];
+        return;
+    }
+
+    let variant = 0, charIndex = 0, deleting = false;
+    const typeSpeed = 55, deleteSpeed = 28, holdTime = 1400;
+
+    function tick() {
+        const text = variants[variant];
+        if (!deleting) {
+            charIndex++;
+            el.textContent = text.slice(0, charIndex);
+            if (charIndex === text.length) {
+                deleting = true;
+                el.classList.add('typing-done');
+                setTimeout(tick, holdTime);
+                return;
+            }
+            setTimeout(tick, typeSpeed);
+        } else {
+            charIndex--;
+            el.textContent = text.slice(0, charIndex);
+            if (charIndex === 0) {
+                deleting = false;
+                el.classList.remove('typing-done');
+                variant = (variant + 1) % variants.length;
+                setTimeout(tick, 300);
+                return;
+            }
+            setTimeout(tick, deleteSpeed);
+        }
+    }
+
+    setTimeout(tick, 400);
+}
 
 // ─── DATA FETCHERS ─────────────────────────────────────────────────────────
 async function fetchHouses() {
