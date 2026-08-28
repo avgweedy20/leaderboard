@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Control - DSS Sports Inter-House Meet{% endblock %}
+
+{% block content %}
+<section id="adminPage" class="space-y-8">
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-6">
+        <div>
+            <h1 class="text-3xl font-extrabold text-white mb-1">Admin Control & Management Center</h1>
+            <p class="text-slate-400 text-sm">Manage house squads, player rosters, match results, and run database seeder logs.</p>
+        </div>
+        <!-- ADMIN ACTIONS TOOLBAR -->
+        <div class="flex flex-wrap items-center gap-3">
+            <button onclick="openSquadModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+                <svg class="icon w-4 h-4"><use href="#icon-plus"></use></svg> Add Squad
+            </button>
+            <button onclick="openPlayerModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+                <svg class="icon w-4 h-4"><use href="#icon-plus"></use></svg> Add Player
+            </button>
+            <button onclick="openCsvModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+                <svg class="icon w-4 h-4"><use href="#icon-upload"></use></svg> Import CSV
+            </button>
+            <button id="runSeederBtn" onclick="triggerSeederRun()" class="btn flex items-center gap-2 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+                <svg class="icon w-4 h-4"><use href="#icon-play"></use></svg> Run Seeder Now
+            </button>
+        </div>
+    </div>
+
+    <!-- ADMIN SUB-NAV -->
+    <div class="flex gap-4 border-b border-slate-800 pb-3 text-sm font-bold">
+        <a href="/admin" class="px-3 py-1.5 rounded-lg {% if active_admin_sub == 'dashboard' %}bg-slate-800 text-emerald-400{% else %}text-slate-400 hover:text-white{% endif %}">Overview</a>
+        <a href="/admin/squads" class="px-3 py-1.5 rounded-lg {% if active_admin_sub == 'squads' %}bg-slate-800 text-emerald-400{% else %}text-slate-400 hover:text-white{% endif %}">Squads</a>
+        <a href="/admin/players" class="px-3 py-1.5 rounded-lg {% if active_admin_sub == 'players' %}bg-slate-800 text-emerald-400{% else %}text-slate-400 hover:text-white{% endif %}">Players</a>
+        <a href="/admin/seeder-log" class="px-3 py-1.5 rounded-lg {% if active_admin_sub == 'seeder-log' %}bg-slate-800 text-emerald-400{% else %}text-slate-400 hover:text-white{% endif %}">Seeder Log</a>
+    </div>
+
+    <!-- ADMIN GRID CARDS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- SQUADS -->
+        <div class="card bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
+            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                    <h3 class="text-lg font-bold text-white">House Squad Roster</h3>
+                </div>
+                <a href="/admin/squads" id="squadCountBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 hover:text-white">0 Squads</a>
+            </div>
+            <div id="adminSquadsList" class="table-responsive flex-1">
+                <div class="p-3 space-y-2"><div class="skeleton-table-row"></div><div class="skeleton-table-row"></div></div>
+            </div>
+        </div>
+
+        <!-- PLAYERS -->
+        <div class="card bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
+            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+                    <h3 class="text-lg font-bold text-white">Registered Players</h3>
+                </div>
+                <a href="/admin/players" id="playerCountBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 hover:text-white">0 Players</a>
+            </div>
+            <div id="adminPlayersList" class="table-responsive flex-1">
+                <div class="p-3 space-y-2"><div class="skeleton-table-row"></div><div class="skeleton-table-row"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEEDER LOG -->
+    <div class="card bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <h3 class="text-lg font-bold text-white">Seeder Log & Diagnostic History</h3>
+            </div>
+            <a href="/admin/seeder-log" class="text-xs text-slate-400 hover:text-white">Full Log View &rarr;</a>
+        </div>
+        <div id="adminSeederLogsContainer">
+            <div class="skeleton-card"></div>
+        </div>
+    </div>
+
+    <!-- FIXTURES MANAGEMENT -->
+    <div class="card bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+                <h3 class="text-lg font-bold text-white">Fixtures & Match Scores Management</h3>
+            </div>
+            <span class="text-xs text-slate-400">Score Entry & Outcome Controls</span>
+        </div>
+        <div id="adminFixturesContainer" class="table-responsive">
+            <div class="p-3 space-y-2"><div class="skeleton-table-row"></div><div class="skeleton-table-row"></div></div>
+        </div>
+    </div>
+</section>
+
+<!-- SQUAD MODAL -->
+<div id="squadModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="modal-content bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+        <div class="modal-header flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <h3 id="squadModalTitle" class="text-lg font-bold text-white">Add House Squad</h3>
+            <button class="close-btn text-slate-400 hover:text-white text-xl font-bold" onclick="closeModal('squadModal')">&times;</button>
+        </div>
+        <form onsubmit="handleSquadSubmit(event)" autocomplete="off" class="space-y-4">
+            <input type="hidden" id="squadId">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">House</label>
+                <select id="squadHouseId" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Sport</label>
+                <select id="squadSportId" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Gender</label>
+                <select id="squadGender" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="Boys">Boys</option>
+                    <option value="Girls">Girls</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Squad Label (A/B)</label>
+                <input type="text" id="squadLabel" required placeholder="A" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('squadModal')">Cancel</button>
+                <button type="submit" class="btn px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg">Save Squad</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- PLAYER MODAL -->
+<div id="playerModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="modal-content bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+        <div class="modal-header flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <h3 id="playerModalTitle" class="text-lg font-bold text-white">Add Player</h3>
+            <button class="close-btn text-slate-400 hover:text-white text-xl font-bold" onclick="closeModal('playerModal')">&times;</button>
+        </div>
+        <form onsubmit="handlePlayerSubmit(event)" autocomplete="off" class="space-y-4">
+            <input type="hidden" id="playerId">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Player Full Name</label>
+                <input type="text" id="playerName" required placeholder="Aarav Lama" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Roll Number</label>
+                <input type="text" id="playerRoll" placeholder="28058" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Squad Assignment</label>
+                <select id="playerTeamId" required class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none"></select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Grade</label>
+                    <input type="text" id="playerGrade" placeholder="11" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Section</label>
+                    <input type="text" id="playerSection" placeholder="Changla" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Gender</label>
+                <select id="playerGender" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="Boys">Boys</option>
+                    <option value="Girls">Girls</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('playerModal')">Cancel</button>
+                <button type="submit" class="btn px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg">Save Player</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- CSV BULK IMPORT MODAL -->
+<div id="csvModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden">
+    <div class="modal-content bg-slate-900 border border-slate-800 rounded-xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+        <div class="modal-header flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div>
+                <h3 class="text-lg font-bold text-white">CSV Bulk Player Import</h3>
+                <p class="text-xs text-slate-400">Upload roster CSV file (Roll Number, Name, Grade, Section, Gender, Squad Assignment)</p>
+            </div>
+            <button class="close-btn text-slate-400 hover:text-white text-xl font-bold" onclick="closeModal('csvModal')">&times;</button>
+        </div>
+
+        <div class="space-y-4 flex-1 overflow-y-auto pr-1">
+            <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center bg-slate-800/50 hover:border-purple-500 transition cursor-pointer" onclick="document.getElementById('csvFileInput').click()">
+                <svg class="icon w-8 h-8 text-purple-400 mx-auto mb-2"><use href="#icon-upload"></use></svg>
+                <p class="text-sm font-semibold text-slate-200">Click to select CSV file</p>
+                <p class="text-xs text-slate-500 mt-1">Expected headers: Roll Number, Name, Grade, Section, Gender, Squad</p>
+                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleCsvFileSelected(event)">
+            </div>
+
+            <div id="csvPreviewContainer" class="hidden space-y-3">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-sm font-bold text-white">Validation Preview</h4>
+                    <span id="csvPreviewCountBadge" class="text-xs font-mono bg-purple-900/50 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700">0 records</span>
+                </div>
+
+                <div id="csvValidationWarnings" class="space-y-1"></div>
+
+                <div class="table-responsive max-h-60 overflow-y-auto bg-slate-950 rounded-lg border border-slate-800">
+                    <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-900 text-slate-400 font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="p-2">Roll</th>
+                                <th class="p-2">Name</th>
+                                <th class="p-2">Grade/Sec</th>
+                                <th class="p-2">Gender</th>
+                                <th class="p-2">Squad</th>
+                                <th class="p-2">Import Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="csvPreviewTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
+            <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('csvModal')">Cancel</button>
+            <button id="commitCsvBtn" type="button" disabled onclick="commitCsvImport()" class="btn px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow">Commit Import</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAdminCenterPage();
+    });
+</script>
+{% endblock %}

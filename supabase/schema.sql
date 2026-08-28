@@ -30,19 +30,46 @@ CREATE TABLE IF NOT EXISTS public.sports (
     name TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL CHECK (type IN ('cricket', 'football', 'basketball', 'generic')),
     level TEXT DEFAULT 'HS' CHECK (level IN ('ES', 'MS', 'HS', 'ALL')),
-    point_win NUMERIC DEFAULT 3,
-    point_draw NUMERIC DEFAULT 1,
-    point_loss NUMERIC DEFAULT 0,
     is_lower_score_better BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Seed default Sports for Inter-House Meet
-INSERT INTO public.sports (name, type, level, point_win, point_draw, point_loss) VALUES
-('Futsal', 'football', 'HS', 3, 1, 0),
-('Basketball', 'basketball', 'HS', 3, 1, 0),
-('Cricksal', 'generic', 'HS', 3, 1, 0)
+INSERT INTO public.sports (name, type, level) VALUES
+('Futsal', 'football', 'HS'),
+('Basketball', 'basketball', 'HS'),
+('Cricksal', 'generic', 'HS')
 ON CONFLICT (name) DO NOTHING;
+
+-- 2b. TOURNAMENT GROUPS TABLE (per sport + gender format & points configuration)
+CREATE TABLE IF NOT EXISTS public.tournament_groups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sport_id UUID REFERENCES public.sports(id) ON DELETE CASCADE,
+    gender TEXT CHECK (gender IN ('Boys', 'Girls', 'Mixed')),
+    format TEXT CHECK (format IN ('round_robin', 'pool_to_semis')) DEFAULT 'round_robin',
+    point_win NUMERIC DEFAULT 3,
+    point_draw NUMERIC DEFAULT 1,
+    point_loss NUMERIC DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_sport_gender_group UNIQUE (sport_id, gender)
+);
+
+-- Seed default Tournament Groups
+INSERT INTO public.tournament_groups (sport_id, gender, format, point_win, point_draw, point_loss)
+SELECT s.id, g.gender, g.format, 3, 1, 0
+FROM public.sports s
+CROSS JOIN (
+    VALUES
+        ('Boys', 'Futsal', 'pool_to_semis'),
+        ('Girls', 'Futsal', 'round_robin'),
+        ('Boys', 'Basketball', 'round_robin'),
+        ('Girls', 'Basketball', 'round_robin'),
+        ('Boys', 'Cricksal', 'pool_to_semis'),
+        ('Girls', 'Cricksal', 'round_robin')
+) AS g(gender, sport_name, format)
+WHERE s.name = g.sport_name
+ON CONFLICT (sport_id, gender) DO UPDATE SET
+    format = EXCLUDED.format;
 
 -- 3. TEAMS / SQUADS TABLE
 CREATE TABLE IF NOT EXISTS public.teams (
@@ -51,6 +78,7 @@ CREATE TABLE IF NOT EXISTS public.teams (
     house_id UUID REFERENCES public.houses(id) ON DELETE CASCADE,
     gender TEXT CHECK (gender IN ('Boys', 'Girls', 'Mixed')),
     squad_label TEXT CHECK (squad_label IN ('A', 'B', 'C', 'D')),
+    pool TEXT CHECK (pool IN ('A', 'B')),
     sport_id UUID REFERENCES public.sports(id) ON DELETE CASCADE,
     level TEXT DEFAULT 'HS' CHECK (level IN ('ES', 'MS', 'HS')),
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -243,6 +271,7 @@ SELECT
     h.short_code as house_short_code,
     COALESCE(t.gender, ms.gender, 'Boys') as gender,
     t.squad_label,
+    t.pool,
     t.sport_id,
     s.name as sport_name,
     s.type as sport_type,
@@ -255,17 +284,17 @@ SELECT
     COALESCE(SUM(ms.score_against), 0) as score_against,
     COALESCE(SUM(ms.diff), 0) as score_difference,
     COALESCE(SUM(
-        ms.won * COALESCE(s.point_win, 3) +
-        ms.drawn * COALESCE(s.point_draw, 1) +
-        ms.lost * COALESCE(s.point_loss, 0)
+        ms.won * COALESCE(tg.point_win, 3) +
+        ms.drawn * COALESCE(tg.point_draw, 1) +
+        ms.lost * COALESCE(tg.point_loss, 0)
     ), 0) as points,
     DENSE_RANK() OVER (
         PARTITION BY t.sport_id, COALESCE(t.gender, ms.gender, 'Boys'), t.level
         ORDER BY
             COALESCE(SUM(
-                ms.won * COALESCE(s.point_win, 3) +
-                ms.drawn * COALESCE(s.point_draw, 1) +
-                ms.lost * COALESCE(s.point_loss, 0)
+                ms.won * COALESCE(tg.point_win, 3) +
+                ms.drawn * COALESCE(tg.point_draw, 1) +
+                ms.lost * COALESCE(tg.point_loss, 0)
             ), 0) DESC,
             COALESCE(SUM(ms.diff), 0) DESC,
             COALESCE(SUM(ms.score_for), 0) DESC
@@ -273,8 +302,9 @@ SELECT
 FROM public.teams t
 JOIN public.sports s ON t.sport_id = s.id
 LEFT JOIN public.houses h ON t.house_id = h.id
+LEFT JOIN public.tournament_groups tg ON tg.sport_id = t.sport_id AND tg.gender = t.gender
 LEFT JOIN match_stats ms ON t.id = ms.team_id
-GROUP BY t.id, t.name, t.house_id, h.name, h.color_hex, h.short_code, t.gender, ms.gender, t.squad_label, t.sport_id, s.name, s.type, t.level, s.point_win, s.point_draw, s.point_loss;
+GROUP BY t.id, t.name, t.house_id, h.name, h.color_hex, h.short_code, t.gender, ms.gender, t.squad_label, t.pool, t.sport_id, s.name, s.type, t.level, tg.point_win, tg.point_draw, tg.point_loss;
 
 -- HOUSE OVERALL STANDINGS VIEW
 CREATE OR REPLACE VIEW public.house_overall_standings AS
@@ -310,6 +340,7 @@ WHERE rank <= 2;
 -- ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.houses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tournament_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.matches ENABLE ROW LEVEL SECURITY;
@@ -324,6 +355,7 @@ ALTER TABLE public.migration_logs ENABLE ROW LEVEL SECURITY;
 -- Public Read Policies
 CREATE POLICY "Public Read Houses" ON public.houses FOR SELECT USING (true);
 CREATE POLICY "Public Read Sports" ON public.sports FOR SELECT USING (true);
+CREATE POLICY "Public Read Groups" ON public.tournament_groups FOR SELECT USING (true);
 CREATE POLICY "Public Read Teams" ON public.teams FOR SELECT USING (true);
 CREATE POLICY "Public Read Players" ON public.players FOR SELECT USING (true);
 CREATE POLICY "Public Read Matches" ON public.matches FOR SELECT USING (true);
@@ -338,6 +370,7 @@ CREATE POLICY "Public Read Migration Logs" ON public.migration_logs FOR SELECT U
 -- Admin Write Policies
 CREATE POLICY "Admin Write Houses" ON public.houses FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Sports" ON public.sports FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+CREATE POLICY "Admin Write Groups" ON public.tournament_groups FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Teams" ON public.teams FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Players" ON public.players FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
 CREATE POLICY "Admin Write Matches" ON public.matches FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
