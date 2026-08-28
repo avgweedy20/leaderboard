@@ -221,6 +221,15 @@ async function fetchPlayers() {
     }
 }
 
+async function fetchMatches() {
+    try {
+        const res = await fetch('/api/matches');
+        matchesData = await res.json();
+    } catch (e) {
+        console.error('Error fetching matches', e);
+    }
+}
+
 function renderSportFilterChips() {
     const chipGroup = document.getElementById('sportChipGroup');
     if (!chipGroup) return;
