@@ -558,6 +558,8 @@ fun TableCell(
         textAlign = align,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
-        fontFeatureSettings = if (number) "tnum" else null
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFeatureSettings = if (number) "tnum" else null
+        )
     )
 }

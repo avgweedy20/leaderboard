@@ -674,7 +674,7 @@ fun HouseHeroCard(standing: HouseOverallStanding) {
                         fontSize = 30.sp,
                         fontWeight = FontWeight.Bold,
                         color = color,
-                        fontFeatureSettings = "tnum"
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
                     )
                 }
                 Column {
@@ -685,7 +685,7 @@ fun HouseHeroCard(standing: HouseOverallStanding) {
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = color,
-                        fontFeatureSettings = "tnum",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                         maxLines = 1
                     )
                 }
@@ -701,7 +701,7 @@ fun HouseHeroCard(standing: HouseOverallStanding) {
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontFeatureSettings = "tnum"
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
@@ -1111,7 +1111,7 @@ fun FixtureMatchCard(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontFeatureSettings = "tnum"
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
                             )
                         }
                         else -> Text("Not yet played", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
