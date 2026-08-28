@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkAuthUI();
     checkDbHealth();
-    loadInitialData();
 });
 
 async function checkDbHealth() {
@@ -83,7 +82,9 @@ function checkAuthUI() {
         if (authBtnText) authBtnText.textContent = 'Admin Login';
         if (authIcon) authIcon.innerHTML = `<use href="#icon-login"></use>`;
         if (adminTabBtn) adminTabBtn.style.display = 'none';
-        if (activeTab === 'adminTab') switchTab('houseLeaderboardTab');
+        if (window.location.pathname.startsWith('/admin')) {
+            window.location.href = '/';
+        }
     }
 }
 
@@ -92,7 +93,7 @@ function openLoginModal() {
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
         checkAuthUI();
-        loadCurrentTabData();
+        window.location.reload();
     } else {
         openModal('loginModal');
     }
@@ -116,7 +117,7 @@ async function handleLogin(e) {
             localStorage.setItem('sb_auth_token', currentToken);
             closeModal('loginModal');
             checkAuthUI();
-            loadCurrentTabData();
+            window.location.href = '/admin';
         } else {
             alert(data.error || 'Login failed');
         }
@@ -224,25 +225,38 @@ function renderSportFilterChips() {
     const chipGroup = document.getElementById('sportChipGroup');
     if (!chipGroup) return;
 
-    let html = `<button type="button" class="chip px-3 py-1.5 rounded-lg text-xs font-bold border transition ${selectedSportId === '' ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}" onclick="selectSportChip('')">ALL SPORTS</button>`;
+    let html = `<button type="button" class="chip px-3 py-1.5 rounded-lg text-xs font-bold border transition ${selectedSportId === '' ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}" onclick="selectSportChip('', '')">ALL SPORTS</button>`;
     sportsData.forEach(s => {
         const isActive = selectedSportId === s.id;
-        html += `<button type="button" class="chip px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isActive ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}" onclick="selectSportChip('${s.id}')">${s.name.toUpperCase()}</button>`;
+        const slug = s.name.toLowerCase();
+        html += `<button type="button" class="chip px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isActive ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}" onclick="selectSportChip('${s.id}', '${slug}')">${s.name.toUpperCase()}</button>`;
     });
     chipGroup.innerHTML = html;
 }
 
-function selectSportChip(sportId) {
+function selectSportChip(sportId, sportSlug = '') {
     selectedSportId = sportId;
     renderSportFilterChips();
-    loadCurrentTabData();
+    if (sportSlug) {
+        window.history.pushState({}, '', `/standings/${sportSlug}`);
+    }
+    loadPerSportStandings();
 }
 
-function loadCurrentTabData() {
-    if (activeTab === 'houseLeaderboardTab') loadHouseOverallStandings();
-    else if (activeTab === 'sportStandingsTab') loadPerSportStandings();
-    else if (activeTab === 'fixturesTab') loadFixtures();
-    else if (activeTab === 'adminTab') loadAdminCenterData();
+function loadHouseOverallStandingsPage() {
+    loadHouseOverallStandings();
+}
+
+function loadPerSportStandingsPage() {
+    loadPerSportStandings();
+}
+
+function loadFixturesPage() {
+    loadFixtures();
+}
+
+function loadAdminCenterPage() {
+    loadAdminCenterData();
 }
 
 // 1. OVERALL HOUSE STANDINGS

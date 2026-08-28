@@ -466,3 +466,58 @@ tr:last-child td {
   outline: 2px solid var(--primary-container) !important;
   outline-offset: 2px;
 }
+
+/* Skeleton Loading Animation - Neutral Pulse (No Gradients) */
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+
+.skeleton-box {
+  background-color: var(--surface-container-high);
+  border-radius: 6px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+  background-color: var(--surface-container-high);
+  border-radius: 4px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-hero-card {
+  height: 180px;
+  background-color: var(--bg-surface);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-table-row {
+  height: 52px;
+  background-color: var(--surface-container-low);
+  border-bottom: 1px solid var(--border-color);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-card {
+  height: 160px;
+  background-color: var(--bg-surface);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
