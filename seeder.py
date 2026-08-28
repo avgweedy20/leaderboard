@@ -100,8 +100,9 @@ class InterHouseSeeder:
         print("\n=== Seeding Houses ===")
         for house in HOUSE_CONFIG:
             key = house["name"].lower()
+            house_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"house.{house['name']}"))
             record = {
-                "id": str(uuid.uuid4()),
+                "id": house_uuid,
                 "name": house["name"],
                 "color_hex": house["color_hex"],
                 "short_code": house["short_code"]
@@ -128,8 +129,9 @@ class InterHouseSeeder:
         print("\n=== Seeding Sports & Tournament Groups ===")
         for sport in SPORT_CONFIG:
             key = sport["name"].lower()
+            sport_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"sport.{sport['name']}"))
             record = {
-                "id": str(uuid.uuid4()),
+                "id": sport_uuid,
                 "name": sport["name"],
                 "type": sport["type"],
                 "level": sport["level"]
@@ -158,8 +160,9 @@ class InterHouseSeeder:
             if not sport_obj:
                 continue
             grp_key = f"{sport_obj['id']}_{grp['gender']}"
+            grp_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"group.{sport_obj['name']}.{grp['gender']}"))
             grp_record = {
-                "id": str(uuid.uuid4()),
+                "id": grp_uuid,
                 "sport_id": sport_obj["id"],
                 "gender": grp["gender"],
                 "format": grp["format"],
@@ -200,8 +203,9 @@ class InterHouseSeeder:
                                 squad_name = f"{house_obj['name']}"
                             else:
                                 squad_name = f"{house_obj['name']} {squad_label}"
+                            sq_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"squad.{house_obj['name']}.{sport_obj['name']}.{gender}.{squad_label}"))
                             squad_record = {
-                                "id": str(uuid.uuid4()),
+                                "id": sq_uuid,
                                 "name": squad_name,
                                 "house_id": house_obj["id"],
                                 "gender": gender,
@@ -307,8 +311,9 @@ class InterHouseSeeder:
 
                     if squad_key not in self.squads_map:
                         squad_name = f"{house_obj['name']} {gender} {sport_obj['name']} {squad_label}"
+                        sq_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"squad.{house_obj['name']}.{sport_obj['name']}.{gender}.{squad_label}"))
                         squad_record = {
-                            "id": str(uuid.uuid4()),
+                            "id": sq_uuid,
                             "name": squad_name,
                             "house_id": house_obj["id"],
                             "gender": gender,
@@ -317,6 +322,7 @@ class InterHouseSeeder:
                             "sport_id": sport_obj["id"],
                             "level": "HS"
                         }
+                        self.squads_map[squad_key] = squad_record
                         if self.client:
                             try:
                                 res = self.client.table("teams").upsert(
@@ -335,8 +341,9 @@ class InterHouseSeeder:
                     squad_obj = self.squads_map[squad_key]
 
                     p_key = roll_num if roll_num else f"{p_name}_{squad_obj['id']}"
+                    player_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"player.{roll_num if roll_num else p_key}"))
                     p_record = {
-                        "id": str(uuid.uuid4()),
+                        "id": player_uuid,
                         "name": p_name,
                         "team_id": squad_obj["id"],
                         "roll_number": roll_num if roll_num else None,
@@ -492,8 +499,9 @@ class InterHouseSeeder:
                 print(f"Error updating squad pool: {e}")
 
     def create_placeholder_match(self, sport_id: str, gender: str, stage: str, round_info: str, row_idx: int):
+        match_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"match.{sport_id}.{gender}.{stage}.placeholder.{row_idx}.{len(self.stats['fixtures'].get('created_list', []))}"))
         match_record = {
-            "id": str(uuid.uuid4()),
+            "id": match_uuid,
             "sport_id": sport_id,
             "team_a_id": None,
             "team_b_id": None,
@@ -578,8 +586,9 @@ class InterHouseSeeder:
                 )
                 return
 
+        match_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"match.{sport_obj['id']}.{gender}.league.{squad_a['id']}.{squad_b['id']}.{row_idx}"))
         match_record = {
-            "id": str(uuid.uuid4()),
+            "id": match_uuid,
             "sport_id": sport_obj["id"],
             "team_a_id": squad_a["id"],
             "team_b_id": squad_b["id"],
@@ -647,13 +656,114 @@ class InterHouseSeeder:
             self.parse_fixtures_and_scores()
         self.print_summary()
 
+    def generate_sql(self, output_path: str = "seed.sql"):
+        print(f"\n=== Generating SQL Seed File: {output_path} ===")
+        lines = [
+            "-- Generated static seed.sql for DSS Sports Inter-House Meet",
+            "-- Upsert-safe SQL file runnable directly in Supabase SQL editor or psql",
+            "BEGIN;",
+            ""
+        ]
+
+        # 1. Houses
+        lines.append("-- 1. HOUSES")
+        for h in self.houses_map.values():
+            val_name = h['name'].replace("'", "''")
+            val_code = h['short_code'].replace("'", "''")
+            lines.append(
+                f"INSERT INTO public.houses (id, name, color_hex, short_code) "
+                f"VALUES ('{h['id']}', '{val_name}', '{h['color_hex']}', '{val_code}') "
+                f"ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;"
+            )
+
+        # 2. Sports
+        lines.append("\n-- 2. SPORTS")
+        for s in self.sports_map.values():
+            val_name = s['name'].replace("'", "''")
+            lines.append(
+                f"INSERT INTO public.sports (id, name, type, level) "
+                f"VALUES ('{s['id']}', '{val_name}', '{s['type']}', '{s['level']}') "
+                f"ON CONFLICT (name) DO UPDATE SET type = EXCLUDED.type, level = EXCLUDED.level;"
+            )
+
+        # 3. Tournament Groups
+        lines.append("\n-- 3. TOURNAMENT GROUPS")
+        for g in self.groups_map.values():
+            lines.append(
+                f"INSERT INTO public.tournament_groups (id, sport_id, gender, format, point_win, point_draw, point_loss) "
+                f"VALUES ('{g['id']}', '{g['sport_id']}', '{g['gender']}', '{g['format']}', {g['point_win']}, {g['point_draw']}, {g['point_loss']}) "
+                f"ON CONFLICT (sport_id, gender) DO UPDATE SET format = EXCLUDED.format;"
+            )
+
+        # 4. Squads / Teams
+        lines.append("\n-- 4. TEAMS / SQUADS")
+        for sq in self.squads_map.values():
+            val_name = sq['name'].replace("'", "''")
+            pool_val = f"'{sq['pool']}'" if sq.get('pool') else "NULL"
+            lines.append(
+                f"INSERT INTO public.teams (id, name, house_id, gender, squad_label, pool, sport_id, level) "
+                f"VALUES ('{sq['id']}', '{val_name}', '{sq['house_id']}', '{sq['gender']}', '{sq['squad_label']}', {pool_val}, '{sq['sport_id']}', '{sq['level']}') "
+                f"ON CONFLICT (house_id, sport_id, gender, squad_label, level) DO UPDATE SET pool = EXCLUDED.pool, name = EXCLUDED.name;"
+            )
+
+        # 5. Players
+        lines.append("\n-- 5. PLAYERS")
+        for p in self.players_map.values():
+            val_name = p['name'].replace("'", "''")
+            roll_val = f"'{p['roll_number'].replace('\'', '\'\'')}'" if p.get('roll_number') else "NULL"
+            grade_val = f"'{p['grade'].replace('\'', '\'\'')}'" if p.get('grade') else "NULL"
+            sec_val = f"'{p['section'].replace('\'', '\'\'')}'" if p.get('section') else "NULL"
+
+            lines.append(
+                f"INSERT INTO public.players (id, name, team_id, roll_number, grade, section, gender, level) "
+                f"VALUES ('{p['id']}', '{val_name}', '{p['team_id']}', {roll_num_sql(p.get('roll_number'))}, {str_sql(p.get('grade'))}, {str_sql(p.get('section'))}, '{p['gender']}', '{p['level']}') "
+                f"ON CONFLICT (roll_number) DO UPDATE SET name = EXCLUDED.name, team_id = EXCLUDED.team_id, grade = EXCLUDED.grade, section = EXCLUDED.section;"
+            )
+
+        # 6. Matches
+        lines.append("\n-- 6. MATCHES")
+        created_matches = self.stats["fixtures"].get("created_list", [])
+        for m in created_matches:
+            team_a_val = f"'{m['team_a_id']}'" if m.get('team_a_id') else "NULL"
+            team_b_val = f"'{m['team_b_id']}'" if m.get('team_b_id') else "NULL"
+            winner_val = f"'{m['winner_team_id']}'" if m.get('winner_team_id') else "NULL"
+            info_val = f"'{m['round_info'].replace('\'', '\'\'')}'" if m.get('round_info') else "''"
+            summary_val = f"'{m['score_summary'].replace('\'', '\'\'')}'" if m.get('score_summary') else "''"
+            is_draw_val = "TRUE" if m.get('is_draw') else "FALSE"
+
+            lines.append(
+                f"INSERT INTO public.matches (id, sport_id, team_a_id, team_b_id, gender, stage, level, status, round_info, winner_team_id, is_draw, score_team_a, score_team_b, score_difference, score_summary) "
+                f"VALUES ('{m['id']}', '{m['sport_id']}', {team_a_val}, {team_b_val}, '{m['gender']}', '{m['stage']}', '{m['level']}', '{m['status']}', {info_val}, {winner_val}, {is_draw_val}, {m['score_team_a']}, {m['score_team_b']}, {m['score_difference']}, {summary_val}) "
+                f"ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, winner_team_id = EXCLUDED.winner_team_id, is_draw = EXCLUDED.is_draw, score_team_a = EXCLUDED.score_team_a, score_team_b = EXCLUDED.score_team_b, score_difference = EXCLUDED.score_difference, score_summary = EXCLUDED.score_summary;"
+            )
+
+        lines.append("\nCOMMIT;")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"Successfully wrote {len(lines)} SQL lines to '{output_path}'")
+
+def str_sql(val: Optional[str]) -> str:
+    if val is None or val == "":
+        return "NULL"
+    escaped = str(val).replace("'", "''")
+    return f"'{escaped}'"
+
+def roll_num_sql(val: Optional[str]) -> str:
+    if val is None or val == "":
+        return "NULL"
+    escaped = str(val).replace("'", "''")
+    return f"'{escaped}'"
+
 def main():
     parser = argparse.ArgumentParser(description="Seed DSS Sports Inter-House Meet data.")
     parser.add_argument("--file", default="seed-data/interhouse_meet.xlsx", help="Path to .xlsx file")
+    parser.add_argument("--output-sql", action="store_true", help="Generate static SQL file instead of running API seeder")
+    parser.add_argument("--sql-file", default="seed.sql", help="Output path for SQL seed file")
     args = parser.parse_args()
 
     supabase_client = None
-    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and "mock" not in SUPABASE_URL:
+    if not args.output_sql and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and "mock" not in SUPABASE_URL:
         try:
             from supabase import create_client
             supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -663,6 +773,9 @@ def main():
 
     seeder = InterHouseSeeder(args.file, supabase_client)
     seeder.run()
+
+    if args.output_sql:
+        seeder.generate_sql(args.sql_file)
 
 if __name__ == "__main__":
     main()

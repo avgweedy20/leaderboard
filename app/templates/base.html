@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DSS Sports - Inter-House Sports Meet{% endblock %}</title>
+    <!-- Inline FOUC Prevention for Theme Persistence -->
+    <script>
+      (function() {
+        const savedTheme = localStorage.getItem('sb_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        if (savedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
     <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,11 +27,7 @@
               karnali: '#10B981',
               koshi: '#0EA5E9',
               mahakali: '#8B5CF6',
-              mechi: '#F97316',
-              darkBg: '#0b0f19',
-              darkSurface: '#111827',
-              darkCard: '#1f2937',
-              darkBorder: '#374151'
+              mechi: '#F97316'
             }
           }
         }
