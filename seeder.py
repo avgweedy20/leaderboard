@@ -26,9 +26,18 @@ HOUSE_CONFIG = [
 ]
 
 SPORT_CONFIG = [
-    {"name": "Futsal", "type": "football", "level": "HS", "point_win": 3, "point_draw": 1, "point_loss": 0},
-    {"name": "Basketball", "type": "basketball", "level": "HS", "point_win": 3, "point_draw": 1, "point_loss": 0},
-    {"name": "Cricksal", "type": "generic", "level": "HS", "point_win": 3, "point_draw": 1, "point_loss": 0}
+    {"name": "Futsal", "type": "football", "level": "HS"},
+    {"name": "Basketball", "type": "basketball", "level": "HS"},
+    {"name": "Cricksal", "type": "generic", "level": "HS"}
+]
+
+TOURNAMENT_GROUP_CONFIG = [
+    {"sport_name": "Futsal", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
+    {"sport_name": "Futsal", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+    {"sport_name": "Basketball", "gender": "Boys", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+    {"sport_name": "Basketball", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+    {"sport_name": "Cricksal", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
+    {"sport_name": "Cricksal", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0}
 ]
 
 # Squad count matrix: {sport: {house: {gender: count}}}
@@ -61,12 +70,14 @@ class InterHouseSeeder:
 
         self.houses_map: Dict[str, Dict[str, Any]] = {}
         self.sports_map: Dict[str, Dict[str, Any]] = {}
+        self.groups_map: Dict[str, Dict[str, Any]] = {}
         self.squads_map: Dict[str, Dict[str, Any]] = {}
         self.players_map: Dict[str, Dict[str, Any]] = {}
 
         self.stats = {
             "houses": {"created": 0, "updated": 0, "skipped": 0},
             "sports": {"created": 0, "updated": 0, "skipped": 0},
+            "groups": {"created": 0, "updated": 0, "skipped": 0},
             "squads": {"created": 0, "updated": 0, "skipped": 0},
             "players": {"created": 0, "updated": 0, "skipped": 0},
             "fixtures": {
@@ -80,7 +91,7 @@ class InterHouseSeeder:
 
     def load_workbook(self) -> bool:
         if not os.path.exists(self.excel_path):
-            print(f"Warning: Excel file not found at '{self.excel_path}'. Proceeding with default houses and sports configuration.")
+            print(f"Warning: Excel file not found at '{self.excel_path}'. Proceeding with default config.")
             return False
         self.wb = openpyxl.load_workbook(self.excel_path, data_only=True)
         return True
@@ -114,17 +125,14 @@ class InterHouseSeeder:
             print(f"  House: {record['name']} ({record['short_code']}) -> {record['color_hex']}")
 
     def seed_sports(self):
-        print("\n=== Seeding Sports ===")
+        print("\n=== Seeding Sports & Tournament Groups ===")
         for sport in SPORT_CONFIG:
             key = sport["name"].lower()
             record = {
                 "id": str(uuid.uuid4()),
                 "name": sport["name"],
                 "type": sport["type"],
-                "level": sport["level"],
-                "point_win": sport["point_win"],
-                "point_draw": sport["point_draw"],
-                "point_loss": sport["point_loss"]
+                "level": sport["level"]
             }
 
             if self.client:
@@ -143,6 +151,39 @@ class InterHouseSeeder:
 
             self.sports_map[key] = record
             print(f"  Sport: {record['name']} ({record['type']})")
+
+        # Seed Tournament Groups
+        for grp in TOURNAMENT_GROUP_CONFIG:
+            sport_obj = self.sports_map.get(grp["sport_name"].lower())
+            if not sport_obj:
+                continue
+            grp_key = f"{sport_obj['id']}_{grp['gender']}"
+            grp_record = {
+                "id": str(uuid.uuid4()),
+                "sport_id": sport_obj["id"],
+                "gender": grp["gender"],
+                "format": grp["format"],
+                "point_win": grp["point_win"],
+                "point_draw": grp["point_draw"],
+                "point_loss": grp["point_loss"]
+            }
+
+            if self.client:
+                try:
+                    res = self.client.table("tournament_groups").upsert(
+                        grp_record, on_conflict="sport_id,gender"
+                    ).execute()
+                    if res.data:
+                        grp_record = res.data[0]
+                    self.stats["groups"]["created"] += 1
+                except Exception as e:
+                    print(f"Error upserting tournament group {grp['sport_name']} {grp['gender']}: {e}")
+                    self.stats["groups"]["skipped"] += 1
+            else:
+                self.stats["groups"]["created"] += 1
+
+            self.groups_map[grp_key] = grp_record
+            print(f"  Tournament Group: {grp['sport_name']} {grp['gender']} -> {grp['format']}")
 
     def ensure_default_squads(self):
         for h_key, house_obj in self.houses_map.items():
@@ -165,6 +206,7 @@ class InterHouseSeeder:
                                 "house_id": house_obj["id"],
                                 "gender": gender,
                                 "squad_label": squad_label,
+                                "pool": None,
                                 "sport_id": sport_obj["id"],
                                 "level": "HS"
                             }
@@ -221,8 +263,6 @@ class InterHouseSeeder:
                                 block_starts.append((col, self.sports_map[s_key]))
                                 break
 
-            print(f"    Found {len(block_starts)} sport blocks in {sheet_name}")
-
             for start_col, sport_obj in block_starts:
                 header_row = 2
                 col_indices = {}
@@ -273,6 +313,7 @@ class InterHouseSeeder:
                             "house_id": house_obj["id"],
                             "gender": gender,
                             "squad_label": squad_label,
+                            "pool": None,
                             "sport_id": sport_obj["id"],
                             "level": "HS"
                         }
@@ -349,12 +390,47 @@ class InterHouseSeeder:
             elif "boy" in row_lower and " vs " not in row_lower:
                 current_gender = "Boys"
 
+            sport_obj = self.sports_map.get(current_sport_name.lower(), list(self.sports_map.values())[0])
+
+            # Parse Pool Headers for Format B (e.g., "Pole A: Mechi A, Koshi B... Pool B: Koshi A...")
+            if ("pole a" in row_lower or "pool a" in row_lower) and ("pole b" in row_lower or "pool b" in row_lower):
+                self.parse_pool_header_row(row_str, sport_obj["id"], current_gender)
+                continue
+
+            # Parse Semi Final / Final Placeholders
+            if "semi final" in row_lower or "semifinal" in row_lower:
+                self.create_placeholder_match(sport_obj["id"], current_gender, "semifinal", "Semi Final Match", r)
+                # If row mentions 2 matches
+                if "2 match" in row_lower or "2 matches" in row_lower:
+                    self.create_placeholder_match(sport_obj["id"], current_gender, "semifinal", "Semi Final Match", r)
+                continue
+            elif "final match" in row_lower or " final " in f" {row_lower} ":
+                if "semi" not in row_lower:
+                    self.create_placeholder_match(sport_obj["id"], current_gender, "final", "Final Match", r)
+                    continue
+
+            # Parse Format A (4-cell separated) or Format B (merged single cell "Vs")
+            # First check for Format B merged fixture cells in row
+            merged_vs_cells = []
+            for val in row_vals:
+                if val and isinstance(val, str) and re.search(r'\bvs\b', val, re.IGNORECASE):
+                    merged_vs_cells.append(str(val).strip())
+
+            if len(merged_vs_cells) >= 1 and not (len(row_vals) >= 4 and any(str(v).strip().lower() in ["vs", "vs."] for v in row_vals if v)):
+                # Format B: Process each merged cell in row
+                for fixture_text in merged_vs_cells:
+                    parts = re.split(r'\bvs\b', fixture_text, flags=re.IGNORECASE)
+                    if len(parts) == 2:
+                        team_a_str = parts[0].strip()
+                        team_b_str = parts[1].strip()
+                        self.process_fixture_pair(team_a_str, team_b_str, "", sport_obj, current_gender, r)
+                continue
+
+            # Format A: 4-cell separated (Team A | Vs | Team B | Score)
             if " vs " in row_lower or " vs. " in row_lower:
                 team_a_str = ""
                 team_b_str = ""
                 score_str = ""
-                sport_name = current_sport_name
-                gender = current_gender
 
                 for idx, val in enumerate(row_vals):
                     if val is None:
@@ -369,80 +445,166 @@ class InterHouseSeeder:
                         if re.search(r'\d+\s*[-–]\s*\d+', v_str):
                             score_str = v_str
 
-                if not team_a_str or not team_b_str:
-                    continue
+                if team_a_str and team_b_str:
+                    self.process_fixture_pair(team_a_str, team_b_str, score_str, sport_obj, current_gender, r)
 
-                sport_obj = self.sports_map.get(sport_name.lower(), list(self.sports_map.values())[0])
+    def parse_pool_header_row(self, row_str: str, sport_id: str, gender: str):
+        # Extract Pole A / Pool A and Pole B / Pool B contents
+        pole_a_match = re.search(r'(?:Pole|Pool)\s*A[:\s]+(.*?)(?=(?:Pole|Pool)\s*B|$)', row_str, re.IGNORECASE)
+        pole_b_match = re.search(r'(?:Pole|Pool)\s*B[:\s]+(.*)', row_str, re.IGNORECASE)
 
-                squad_a = self.resolve_squad(team_a_str, sport_obj["id"], gender)
-                squad_b = self.resolve_squad(team_b_str, sport_obj["id"], gender)
+        if pole_a_match:
+            teams_a_text = pole_a_match.group(1)
+            for squad in self.squads_map.values():
+                if squad["sport_id"] == sport_id and squad["gender"] == gender:
+                    if self.is_squad_mentioned_in_text(squad, teams_a_text):
+                        squad["pool"] = "A"
+                        self.update_squad_pool(squad["id"], "A")
 
-                if not squad_a or not squad_b:
-                    self.stats["fixtures"]["unparseable"] += 1
-                    self.stats["fixtures"]["unparseable_details"].append(
-                        f"Row {r}: Could not resolve squad for '{team_a_str}' or '{team_b_str}'"
-                    )
-                    continue
+        if pole_b_match:
+            teams_b_text = pole_b_match.group(1)
+            for squad in self.squads_map.values():
+                if squad["sport_id"] == sport_id and squad["gender"] == gender:
+                    if self.is_squad_mentioned_in_text(squad, teams_b_text):
+                        squad["pool"] = "B"
+                        self.update_squad_pool(squad["id"], "B")
 
-                status = "scheduled"
-                winner_id = None
-                is_draw = False
-                score_a = 0
-                score_b = 0
-                score_diff = 0
-                summary = ""
+    def is_squad_mentioned_in_text(self, squad: Dict[str, Any], text: str) -> bool:
+        h_name = self.houses_map.get(squad.get("house_id", ""), {}).get("name", "")
+        if not h_name:
+            for h in self.houses_map.values():
+                if h["id"] == squad.get("house_id"):
+                    h_name = h["name"]
+                    break
+        if not h_name:
+            return False
 
-                if not score_str:
-                    self.stats["fixtures"]["unplayed"] += 1
-                else:
-                    match_score = re.search(r'(\d+)\s*[-–]\s*(\d+)', score_str)
-                    if match_score:
-                        score_a = int(match_score.group(1))
-                        score_b = int(match_score.group(2))
-                        score_diff = abs(score_a - score_b)
-                        status = "completed"
-                        summary = f"{score_a} - {score_b}"
+        label = squad.get("squad_label", "Single")
+        # Matches e.g. "Koshi B", "Mahakali", "Karnali A"
+        pattern = r'\b' + re.escape(h_name) + (r'\s+' + label if label != "Single" else r'(\s+A|\s+B)?') + r'\b'
+        return bool(re.search(pattern, text, re.IGNORECASE))
 
-                        if score_a > score_b:
-                            winner_id = squad_a["id"]
-                        elif score_b > score_a:
-                            winner_id = squad_b["id"]
-                        else:
-                            is_draw = True
-                    else:
-                        status = "scheduled"
+    def update_squad_pool(self, squad_id: str, pool_label: str):
+        if self.client:
+            try:
+                self.client.table("teams").update({"pool": pool_label}).eq("id", squad_id).execute()
+            except Exception as e:
+                print(f"Error updating squad pool: {e}")
+
+    def create_placeholder_match(self, sport_id: str, gender: str, stage: str, round_info: str, row_idx: int):
+        match_record = {
+            "id": str(uuid.uuid4()),
+            "sport_id": sport_id,
+            "team_a_id": None,
+            "team_b_id": None,
+            "gender": gender,
+            "stage": stage,
+            "level": "HS",
+            "status": "scheduled",
+            "round_info": round_info,
+            "winner_team_id": None,
+            "is_draw": False,
+            "score_team_a": 0,
+            "score_team_b": 0,
+            "score_difference": 0,
+            "score_summary": ""
+        }
+        self.stats["fixtures"].setdefault("created_list", []).append(match_record)
+        self.stats["fixtures"]["unplayed"] += 1
+
+        if self.client:
+            try:
+                self.client.table("matches").insert(match_record).execute()
+                self.stats["fixtures"]["created"] += 1
+            except Exception as e:
+                print(f"    Error inserting placeholder match: {e}")
+        else:
+            self.stats["fixtures"]["created"] += 1
+
+    def process_fixture_pair(self, team_a_str: str, team_b_str: str, score_str: str, sport_obj: Dict[str, Any], gender: str, row_idx: int):
+        squad_a = self.resolve_squad(team_a_str, sport_obj["id"], gender)
+        squad_b = self.resolve_squad(team_b_str, sport_obj["id"], gender)
+
+        if not squad_a or not squad_b:
+            self.stats["fixtures"]["unparseable"] += 1
+            self.stats["fixtures"]["unparseable_details"].append(
+                f"Row {row_idx}: Could not resolve squad for '{team_a_str}' or '{team_b_str}'"
+            )
+            return
+
+        status = "scheduled"
+        winner_id = None
+        is_draw = False
+        score_a = 0
+        score_b = 0
+        score_diff = 0
+        summary = ""
+
+        if not score_str:
+            self.stats["fixtures"]["unplayed"] += 1
+        else:
+            # Parse score: format X-Y=Z
+            match_score = re.search(r'(\d+)\s*[-–]\s*(\d+)(?:\s*=\s*(\d+))?', score_str)
+            if match_score:
+                score_a = int(match_score.group(1))
+                score_b = int(match_score.group(2))
+                diff_calc = abs(score_a - score_b)
+
+                # Arithmetic Verification Check if Z (printed diff) is present
+                if match_score.group(3) is not None:
+                    printed_diff = int(match_score.group(3))
+                    if diff_calc != printed_diff:
                         self.stats["fixtures"]["unparseable"] += 1
                         self.stats["fixtures"]["unparseable_details"].append(
-                            f"Row {r}: Unparseable score string '{score_str}' for match {squad_a['name']} vs {squad_b['name']}"
+                            f"Row {row_idx}: Arithmetic mismatch |{score_a} - {score_b}| != printed difference {printed_diff} for match {squad_a['name']} vs {squad_b['name']}"
                         )
+                        return
 
-                match_record = {
-                    "id": str(uuid.uuid4()),
-                    "sport_id": sport_obj["id"],
-                    "team_a_id": squad_a["id"],
-                    "team_b_id": squad_b["id"],
-                    "gender": gender,
-                    "stage": "league",
-                    "level": "HS",
-                    "status": status,
-                    "round_info": "League Game",
-                    "winner_team_id": winner_id,
-                    "is_draw": is_draw,
-                    "score_team_a": score_a,
-                    "score_team_b": score_b,
-                    "score_difference": score_diff,
-                    "score_summary": summary
-                }
+                score_diff = diff_calc
+                status = "completed"
+                summary = f"{score_a} - {score_b}"
 
-                self.stats["fixtures"].setdefault("created_list", []).append(match_record)
-                if self.client:
-                    try:
-                        self.client.table("matches").insert(match_record).execute()
-                        self.stats["fixtures"]["created"] += 1
-                    except Exception as e:
-                        print(f"    Error inserting match: {e}")
+                if score_a > score_b:
+                    winner_id = squad_a["id"]
+                elif score_b > score_a:
+                    winner_id = squad_b["id"]
                 else:
-                    self.stats["fixtures"]["created"] += 1
+                    is_draw = True
+            else:
+                status = "scheduled"
+                self.stats["fixtures"]["unparseable"] += 1
+                self.stats["fixtures"]["unparseable_details"].append(
+                    f"Row {row_idx}: Unparseable score string '{score_str}' for match {squad_a['name']} vs {squad_b['name']}"
+                )
+                return
+
+        match_record = {
+            "id": str(uuid.uuid4()),
+            "sport_id": sport_obj["id"],
+            "team_a_id": squad_a["id"],
+            "team_b_id": squad_b["id"],
+            "gender": gender,
+            "stage": "league",
+            "level": "HS",
+            "status": status,
+            "round_info": "League Game" if not score_str else "Completed Game",
+            "winner_team_id": winner_id,
+            "is_draw": is_draw,
+            "score_team_a": score_a,
+            "score_team_b": score_b,
+            "score_difference": score_diff,
+            "score_summary": summary
+        }
+
+        self.stats["fixtures"].setdefault("created_list", []).append(match_record)
+        if self.client:
+            try:
+                self.client.table("matches").insert(match_record).execute()
+                self.stats["fixtures"]["created"] += 1
+            except Exception as e:
+                print(f"    Error inserting match: {e}")
+        else:
+            self.stats["fixtures"]["created"] += 1
 
     def resolve_squad(self, team_str: str, sport_id: str, gender: str) -> Optional[Dict[str, Any]]:
         for h_key, h_obj in self.houses_map.items():
@@ -460,11 +622,12 @@ class InterHouseSeeder:
 
     def print_summary(self):
         print("\n================ SEEDING SUMMARY REPORT ================")
-        print(f"  Houses:   {self.stats['houses']['created']} created/upserted")
-        print(f"  Sports:   {self.stats['sports']['created']} created/upserted")
-        print(f"  Squads:   {self.stats['squads']['created']} created/upserted")
-        print(f"  Players:  {self.stats['players']['created']} created/upserted")
-        print(f"  Fixtures: {self.stats['fixtures']['created']} created")
+        print(f"  Houses:            {self.stats['houses']['created']} created/upserted")
+        print(f"  Sports:            {self.stats['sports']['created']} created/upserted")
+        print(f"  Tournament Groups: {self.stats['groups']['created']} created/upserted")
+        print(f"  Squads:            {self.stats['squads']['created']} created/upserted")
+        print(f"  Players:           {self.stats['players']['created']} created/upserted")
+        print(f"  Fixtures:          {self.stats['fixtures']['created']} created")
         print(f"    - Unplayed fixtures (scheduled):   {self.stats['fixtures']['unplayed']}")
         print(f"    - Unparseable scores (logged):      {self.stats['fixtures']['unparseable']}")
 
