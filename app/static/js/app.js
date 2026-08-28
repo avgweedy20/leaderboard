@@ -384,6 +384,13 @@ async function fetchSquads() {
     } catch (e) { console.error('fetchSquads:', e); }
 }
 
+async function fetchPlayers() {
+    try {
+        const res = await fetch('/api/players');
+        playersData = await res.json();
+    } catch (e) { console.error('fetchPlayers:', e); }
+}
+
 async function fetchMatches() {
     try {
         const res = await fetch('/api/matches');
