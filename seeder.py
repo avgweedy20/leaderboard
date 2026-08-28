@@ -709,10 +709,7 @@ class InterHouseSeeder:
         # 5. Players
         lines.append("\n-- 5. PLAYERS")
         for p in self.players_map.values():
-            val_name = p['name'].replace("'", "''")
-            roll_val = f"'{p['roll_number'].replace('\'', '\'\'')}'" if p.get('roll_number') else "NULL"
-            grade_val = f"'{p['grade'].replace('\'', '\'\'')}'" if p.get('grade') else "NULL"
-            sec_val = f"'{p['section'].replace('\'', '\'\'')}'" if p.get('section') else "NULL"
+            val_name = str(p['name']).replace("'", "''")
 
             lines.append(
                 f"INSERT INTO public.players (id, name, team_id, roll_number, grade, section, gender, level) "
@@ -727,8 +724,8 @@ class InterHouseSeeder:
             team_a_val = f"'{m['team_a_id']}'" if m.get('team_a_id') else "NULL"
             team_b_val = f"'{m['team_b_id']}'" if m.get('team_b_id') else "NULL"
             winner_val = f"'{m['winner_team_id']}'" if m.get('winner_team_id') else "NULL"
-            info_val = f"'{m['round_info'].replace('\'', '\'\'')}'" if m.get('round_info') else "''"
-            summary_val = f"'{m['score_summary'].replace('\'', '\'\'')}'" if m.get('score_summary') else "''"
+            info_val = str_sql(m.get('round_info') or "")
+            summary_val = str_sql(m.get('score_summary') or "")
             is_draw_val = "TRUE" if m.get('is_draw') else "FALSE"
 
             lines.append(
