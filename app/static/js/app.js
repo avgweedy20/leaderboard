@@ -610,9 +610,36 @@ async function loadPerSportStandings() {
     const container = document.getElementById('perSportStandingsContainer');
     if (!container) return;
 
-    // Show skeleton while loading
-    container.innerHTML = `<div style="padding:16px; display:flex; flex-direction:column; gap:8px;">
-        ${Array(5).fill('<div class="skeleton-table-row"></div>').join('')}
+    // Show skeleton while loading (mirrors the per-sport tables container)
+    container.innerHTML = `
+    <div class="skeleton-table sk" aria-hidden="true">
+        <div class="skeleton-table-header">
+            <div class="sk-bar" style="height:12px; width:50px;"></div>
+            <div class="sk-bar" style="height:12px; width:110px;"></div>
+            <div class="sk-bar" style="height:12px; width:80px;"></div>
+            <div class="sk-bar" style="height:12px; width:70px;"></div>
+            <div class="sk-bar" style="height:12px; width:55px;"></div>
+            <div class="sk-bar" style="height:12px; width:30px;"></div>
+            <div class="sk-bar" style="height:12px; width:30px;"></div>
+            <div class="sk-bar" style="height:12px; width:30px;"></div>
+            <div class="sk-bar" style="height:12px; width:30px;"></div>
+            <div class="sk-bar" style="height:12px; width:40px;"></div>
+            <div class="sk-bar" style="height:12px; width:50px; margin-left:auto;"></div>
+        </div>
+        ${Array(4).fill(`
+        <div class="skeleton-row">
+            <div class="sk-bar" style="height:12px; width:45px;"></div>
+            <div class="sk-bar" style="height:12px; width:100px;"></div>
+            <div class="sk-bar" style="height:12px; width:70px;"></div>
+            <div class="sk-bar" style="height:12px; width:60px;"></div>
+            <div class="sk-bar" style="height:12px; width:45px;"></div>
+            <div class="sk-bar" style="height:12px; width:28px;"></div>
+            <div class="sk-bar" style="height:12px; width:28px;"></div>
+            <div class="sk-bar" style="height:12px; width:28px;"></div>
+            <div class="sk-bar" style="height:12px; width:28px;"></div>
+            <div class="sk-bar" style="height:12px; width:35px;"></div>
+            <div class="sk-bar" style="height:12px; width:42px; margin-left:auto;"></div>
+        </div>`).join('')}
     </div>`;
 
     const gender = (document.getElementById('filterGender') || {}).value || '';

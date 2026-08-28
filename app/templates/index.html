@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Overall House Standings — DSS Sports Inter-House Meet{% endblock %}
+{% block title %}DSS League Games{% endblock %}
 {% block meta_desc %}Live overall house championship standings across all sports for the DSS Inter-House Sports Meet
 2083.{% endblock %}
 
@@ -14,20 +14,142 @@
 
     <!-- Hero cards: 4 house cards, grid -->
     <div id="houseHeroContainer" class="house-hero-grid" style="margin-bottom:32px;" aria-label="House standings cards">
-        <!-- Skeleton placeholders shown before data loads -->
-        <div class="skeleton-hero-card"></div>
-        <div class="skeleton-hero-card"></div>
-        <div class="skeleton-hero-card"></div>
-        <div class="skeleton-hero-card"></div>
+        <!-- Skeleton placeholders mirroring the house-hero-card layout -->
+        <div class="skeleton-hero-card sk">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                <div style="min-width:0; display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:18px; width:55%;"></div>
+                    <div class="sk-bar" style="height:11px; width:35%;"></div>
+                </div>
+                <span class="sk-bar" style="height:30px; width:38px; flex-shrink:0;"></span>
+            </div>
+            <div
+                style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; border-top:1px solid var(--border);">
+                <div style="display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:10px; width:50%;"></div>
+                    <div class="sk-bar" style="height:26px; width:45%;"></div>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                    <div class="sk-bar" style="height:10px; width:60px;"></div>
+                    <div class="sk-bar" style="height:14px; width:44px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="skeleton-hero-card sk">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                <div style="min-width:0; display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:18px; width:50%;"></div>
+                    <div class="sk-bar" style="height:11px; width:32%;"></div>
+                </div>
+                <span class="sk-bar" style="height:30px; width:38px; flex-shrink:0;"></span>
+            </div>
+            <div
+                style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; border-top:1px solid var(--border);">
+                <div style="display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:10px; width:48%;"></div>
+                    <div class="sk-bar" style="height:26px; width:40%;"></div>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                    <div class="sk-bar" style="height:10px; width:60px;"></div>
+                    <div class="sk-bar" style="height:14px; width:44px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="skeleton-hero-card sk">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                <div style="min-width:0; display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:18px; width:60%;"></div>
+                    <div class="sk-bar" style="height:11px; width:38%;"></div>
+                </div>
+                <span class="sk-bar" style="height:30px; width:38px; flex-shrink:0;"></span>
+            </div>
+            <div
+                style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; border-top:1px solid var(--border);">
+                <div style="display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:10px; width:52%;"></div>
+                    <div class="sk-bar" style="height:26px; width:46%;"></div>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                    <div class="sk-bar" style="height:10px; width:60px;"></div>
+                    <div class="sk-bar" style="height:14px; width:44px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="skeleton-hero-card sk">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                <div style="min-width:0; display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:18px; width:45%;"></div>
+                    <div class="sk-bar" style="height:11px; width:34%;"></div>
+                </div>
+                <span class="sk-bar" style="height:30px; width:38px; flex-shrink:0;"></span>
+            </div>
+            <div
+                style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:12px; border-top:1px solid var(--border);">
+                <div style="display:flex; flex-direction:column; gap:6px; flex:1;">
+                    <div class="sk-bar" style="height:10px; width:50%;"></div>
+                    <div class="sk-bar" style="height:26px; width:44%;"></div>
+                </div>
+                <div style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                    <div class="sk-bar" style="height:10px; width:60px;"></div>
+                    <div class="sk-bar" style="height:14px; width:44px;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Overall standings table -->
     <div id="houseTableContainer">
-        <div style="padding:16px; display:flex; flex-direction:column; gap:8px;">
-            <div class="skeleton-table-row"></div>
-            <div class="skeleton-table-row"></div>
-            <div class="skeleton-table-row"></div>
-            <div class="skeleton-table-row"></div>
+        <div class="skeleton-table sk" aria-hidden="true">
+            <div class="skeleton-table-header">
+                <div class="sk-bar" style="height:12px; width:50px;"></div>
+                <div class="sk-bar" style="height:12px; width:120px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px;"></div>
+                <div class="sk-bar" style="height:12px; width:55px;"></div>
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:70px; margin-left:auto;"></div>
+            </div>
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:130px;"></div>
+                <div class="sk-bar" style="height:12px; width:55px;"></div>
+                <div class="sk-bar" style="height:12px; width:50px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px; margin-left:auto;"></div>
+            </div>
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:100px;"></div>
+                <div class="sk-bar" style="height:12px; width:55px;"></div>
+                <div class="sk-bar" style="height:12px; width:50px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px; margin-left:auto;"></div>
+            </div>
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:115px;"></div>
+                <div class="sk-bar" style="height:12px; width:55px;"></div>
+                <div class="sk-bar" style="height:12px; width:50px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px; margin-left:auto;"></div>
+            </div>
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:40px;"></div>
+                <div class="sk-bar" style="height:12px; width:95px;"></div>
+                <div class="sk-bar" style="height:12px; width:55px;"></div>
+                <div class="sk-bar" style="height:12px; width:50px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:38px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px; margin-left:auto;"></div>
+            </div>
         </div>
     </div>
 </section>
