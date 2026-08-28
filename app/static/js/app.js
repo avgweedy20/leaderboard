@@ -260,12 +260,12 @@ async function checkDbHealth() {
 
 // ─── THEME ─────────────────────────────────────────────────────────────────
 function initTheme() {
-    const saved = localStorage.getItem('sb_theme') || 'light';
+    const saved = localStorage.getItem('sb_theme') || 'dark';
     applyTheme(saved);
 }
 
 function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
     applyTheme(current === 'dark' ? 'light' : 'dark');
 }
 

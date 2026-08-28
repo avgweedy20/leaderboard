@@ -6,7 +6,7 @@ Inter-House Sports Meet 2083.{% endblock %}
 
 {% block content %}
 <section>
-    <!-- Page header + Filter bar -->
+
     <div
         style="display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:28px;">
         <div>
@@ -16,14 +16,14 @@ Inter-House Sports Meet 2083.{% endblock %}
             </p>
         </div>
 
-        <!-- Filter controls -->
+
         <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
-            <!-- Sport chips -->
+
             <div id="fixtureFilterChips" class="chip-group" role="group" aria-label="Sport filter">
-                <!-- Injected by JS -->
+
             </div>
 
-            <!-- Gender filter -->
+
             <select id="fixtureGenderFilter" onchange="applyFixtureFilters()" aria-label="Gender filter"
                 style="height:32px; font-size:12px; padding:0 24px 0 10px;">
                 <option value="">All Genders</option>
@@ -31,7 +31,7 @@ Inter-House Sports Meet 2083.{% endblock %}
                 <option value="Girls">Girls</option>
             </select>
 
-            <!-- Status filter -->
+
             <select id="fixtureStatusFilter" onchange="applyFixtureFilters()" aria-label="Status filter"
                 style="height:32px; font-size:12px; padding:0 24px 0 10px;">
                 <option value="">All Statuses</option>
@@ -41,9 +41,9 @@ Inter-House Sports Meet 2083.{% endblock %}
         </div>
     </div>
 
-    <!-- Fixtures grouped by sport + gender -->
+
     <div id="fixturesContainer">
-        <!-- Skeleton placeholders mirroring fixture-card layout -->
+
         <div class="card-grid">
             <div class="skeleton-card sk">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">

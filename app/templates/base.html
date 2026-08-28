@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}DSS Sports — Inter-House Sports Meet{% endblock %}</title>
     <meta name="description" content="{% block meta_desc %}DSS Inter-House Sports Meet 2083 — live fixtures, standings, and scores for Futsal, Basketball, and Cricksal.{% endblock %}">
 
-    <!-- FOUC prevention: apply saved theme before paint -->
+
     <script>
       (function() {
-        var t = localStorage.getItem('sb_theme') || 'light';
+        var t = localStorage.getItem('sb_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', t);
       })();
     </script>
 
-    <!-- Tailwind CSS (used for layout utilities only; design tokens come from style.css) -->
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -29,7 +29,7 @@
 </head>
 <body>
 
-    <!-- SVG SPRITE DEFINITIONS — inline SVG icons, no emoji -->
+
     <svg style="display:none;" xmlns="http://www.w3.org/2000/svg">
       <symbol id="icon-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
         <path d="M6 3h12v6a6 6 0 0 1-12 0V3z"/>
@@ -118,10 +118,10 @@
       </symbol>
     </svg>
 
-    <!-- TOAST NOTIFICATION CONTAINER -->
+
     <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- HEADER NAVBAR -->
+
     <header class="navbar">
         <div class="brand">
             <svg class="icon" style="color: var(--text-primary);" width="18" height="18">
@@ -146,10 +146,10 @@
         </div>
     </header>
 
-    <!-- MAIN -->
+
     <main class="page-container">
 
-        <!-- PAGE NAV TABS -->
+
         <nav class="tab-bar" aria-label="Page navigation">
             <a href="/" class="tab-btn {% if active_page == 'overall' %}active{% endif %}">
                 <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
@@ -172,12 +172,12 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- FOOTER CREDIT -->
+
     <footer class="site-footer">
         <span class="footer-type" id="footerType" aria-live="polite"></span><span class="type-caret" aria-hidden="true"></span>
     </footer>
 
-    <!-- MOBILE NAV MENU -->
+
     <div id="mobileNav" class="mobile-nav hidden" aria-hidden="true">
         <a href="/" class="mobile-nav-link {% if active_page == 'overall' %}active{% endif %}">
             <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
@@ -197,7 +197,7 @@
         </a>
     </div>
 
-    <!-- SHARED: LOGIN MODAL -->
+
     <div id="loginModal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -223,7 +223,7 @@
         </div>
     </div>
 
-    <!-- SHARED: MATCH SCORE MODAL -->
+
     <div id="matchModal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">

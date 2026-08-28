@@ -4,7 +4,7 @@
 
 {% block content %}
 <section>
-    <!-- Page header -->
+
     <div
         style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
@@ -39,16 +39,16 @@
         </div>
     </div>
 
-    <!-- Admin sub-nav -->
+
     <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
         <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
         <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
         <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
     </div>
 
-    <!-- Full-width stacked cards: Squads + Players -->
+
     <div style="display:grid; grid-template-columns:1fr; gap:20px; margin-bottom:20px;">
-        <!-- Squads card -->
+
         <div class="admin-section">
             <div class="admin-section-header">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -84,7 +84,7 @@
             </div>
         </div>
 
-        <!-- Players card -->
+
         <div class="admin-section">
             <div class="admin-section-header">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -125,7 +125,7 @@
         </div>
     </div>
 
-    <!-- Fixtures management card -->
+
     <div class="admin-section">
         <div class="admin-section-header">
             <div style="display:flex; align-items:center; gap:8px;">
@@ -179,7 +179,7 @@
     </div>
 </section>
 
-<!-- CREATE MATCH MODAL -->
+
 <div id="createMatchModal" class="modal-overlay hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -228,7 +228,7 @@
     </div>
 </div>
 
-<!-- SQUAD MODAL -->
+
 <div id="squadModal" class="modal-overlay hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -265,7 +265,7 @@
     </div>
 </div>
 
-<!-- PLAYER MODAL -->
+
 <div id="playerModal" class="modal-overlay hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -312,7 +312,7 @@
     </div>
 </div>
 
-<!-- CSV IMPORT MODAL -->
+
 <div id="csvModal" class="modal-overlay hidden">
     <div class="modal-content modal-content-wide">
         <div class="modal-header">
@@ -324,7 +324,7 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; max-height:60vh; overflow-y:auto;">
-            <!-- Drop area -->
+
             <div style="border:1px dashed var(--border); border-radius:12px; padding:32px; text-align:center; cursor:pointer;"
                 onclick="document.getElementById('csvFileInput').click()">
                 <svg class="icon" width="32" height="32" style="color:var(--text-tertiary); margin:0 auto 10px;">

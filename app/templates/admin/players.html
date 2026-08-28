@@ -4,7 +4,7 @@
 
 {% block content %}
 <section>
-    <!-- Page header -->
+
     <div
         style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
@@ -27,7 +27,7 @@
         </div>
     </div>
 
-    <!-- Admin sub-nav -->
+
     <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
         <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
         <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
@@ -77,7 +77,7 @@
     </div>
 </section>
 
-<!-- PLAYER MODAL -->
+
 <div id="playerModal" class="modal-overlay hidden">
     <div class="modal-content">
         <div class="modal-header">
@@ -124,7 +124,7 @@
     </div>
 </div>
 
-<!-- CSV BULK IMPORT MODAL -->
+
 <div id="csvModal" class="modal-overlay hidden">
     <div class="modal-content modal-content-wide">
         <div class="modal-header">
