@@ -36,12 +36,76 @@ def test_seeder_parses_sample_file(sample_excel_file):
     assert "karnali" in seeder.houses_map
     assert len(seeder.sports_map) == 3
     assert "futsal" in seeder.sports_map
+    assert len(seeder.groups_map) == 6
     assert seeder.stats["houses"]["created"] == 4
     assert seeder.stats["sports"]["created"] == 3
+    assert seeder.stats["groups"]["created"] == 6
     assert seeder.stats["squads"]["created"] >= 1
     assert seeder.stats["players"]["created"] >= 2
     assert seeder.stats["fixtures"]["created"] == 2
     assert seeder.stats["fixtures"]["unplayed"] == 1
+
+def test_format_b_pool_stage_and_placeholders(tmp_path):
+    excel_file = tmp_path / "format_b_test.xlsx"
+    wb = openpyxl.Workbook()
+    ws_tiesheet = wb.active
+    ws_tiesheet.title = "Tie-sheet & Scores Update"
+
+    ws_tiesheet.append(["Boys Cricksal League Matches"])
+    ws_tiesheet.append(["Pole A: Mechi A, Koshi B, Mahakali, Karnali B Pole B: Koshi A, Karnali A, Mechi B"])
+    ws_tiesheet.append(["1", "Koshi B Vs Mahakali", "", "Koshi A Vs Karnali A"])
+    ws_tiesheet.append(["2", "Karnali B Vs Mechi A", "", "Mechi B Vs Koshi A"])
+    ws_tiesheet.append(["Semi final match of cricksal(2 matches)"])
+    ws_tiesheet.append(["Final match of cricksal"])
+
+    wb.save(excel_file)
+
+    seeder = InterHouseSeeder(str(excel_file), supabase_client=None)
+    seeder.run()
+
+    created_matches = seeder.stats.get("fixtures", {}).get("created_list", [])
+
+    # Check pool assignments
+    mechi_a = [s for s in seeder.squads_map.values() if s["name"] == "Mechi A" and s["gender"] == "Boys" and s["sport_id"] == seeder.sports_map["cricksal"]["id"]][0]
+    koshi_a = [s for s in seeder.squads_map.values() if s["name"] == "Koshi A" and s["gender"] == "Boys" and s["sport_id"] == seeder.sports_map["cricksal"]["id"]][0]
+
+    assert mechi_a["pool"] == "A"
+    assert koshi_a["pool"] == "B"
+
+    # Check matches created from merged cell strings (4 pool matches + 2 semi final + 1 final = 7 matches total)
+    assert len(created_matches) == 7
+
+    semis = [m for m in created_matches if m["stage"] == "semifinal"]
+    finals = [m for m in created_matches if m["stage"] == "final"]
+
+    assert len(semis) == 2
+    assert len(finals) == 1
+    for m in semis + finals:
+        assert m["team_a_id"] is None
+        assert m["team_b_id"] is None
+        assert m["status"] == "scheduled"
+
+def test_score_arithmetic_verification(tmp_path):
+    excel_file = tmp_path / "score_arithmetic_test.xlsx"
+    wb = openpyxl.Workbook()
+    ws_tiesheet = wb.active
+    ws_tiesheet.title = "Tie-sheet & Scores Update"
+
+    ws_tiesheet.append(["Girls Futsal League Matches"])
+    # Valid row
+    ws_tiesheet.append(["1", "Mechi", "Vs", "Koshi", "6-1=5"])
+    # Invalid arithmetic row (6-1=10)
+    ws_tiesheet.append(["2", "Karnali A", "Vs", "Mahakali", "6-1=10"])
+
+    wb.save(excel_file)
+
+    seeder = InterHouseSeeder(str(excel_file), supabase_client=None)
+    seeder.run()
+
+    created_matches = seeder.stats.get("fixtures", {}).get("created_list", [])
+    assert len(created_matches) == 1
+    assert created_matches[0]["score_summary"] == "6 - 1"
+    assert seeder.stats["fixtures"]["unparseable"] == 1
 
 def test_concrete_validation_targets(tmp_path):
     """

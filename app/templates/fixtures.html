@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Tie-Sheet & Fixtures - DSS Sports Inter-House Meet{% endblock %}
+
+{% block content %}
+<section id="fixturesPage" class="space-y-6">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-white mb-2">Tie-Sheet & Fixture Matches</h1>
+            <p class="text-xs text-slate-400">Round-Robin & Pool Stage Fixtures → Semifinals & Finals</p>
+        </div>
+        <div class="w-64">
+            <select id="fixtureSportFilter" onchange="filterFixturesBySport(this.value)" class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 outline-none">
+                <option value="">All Sports</option>
+            </select>
+        </div>
+    </div>
+    <div id="fixturesContainer" class="card-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchSports();
+        populateFixtureSportFilter();
+        loadFixturesPage();
+    });
+
+    function populateFixtureSportFilter() {
+        const sel = document.getElementById('fixtureSportFilter');
+        if (!sel) return;
+        sel.innerHTML = `<option value="">All Sports</option>` + sportsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    function filterFixturesBySport(sportId) {
+        selectedSportId = sportId;
+        loadFixturesPage();
+    }
+</script>
+{% endblock %}
