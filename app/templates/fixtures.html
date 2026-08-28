@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 
 {% block title %}Fixtures — DSS Sports Inter-House Meet{% endblock %}
-{% block meta_desc %}Tie-sheet and fixture results for Futsal, Basketball, and Cricksal — Boys and Girls divisions — DSS Inter-House Sports Meet 2083.{% endblock %}
+{% block meta_desc %}Tie-sheet and fixture results for Futsal, Basketball, and Cricksal — Boys and Girls divisions — DSS
+Inter-House Sports Meet 2083.{% endblock %}
 
 {% block content %}
 <section>
     <!-- Page header + filters -->
-    <div style="display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:28px;">
+    <div
+        style="display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:28px;">
         <div>
             <h1>Fixtures</h1>
             <p style="margin-top:6px; font-size:14px;">
@@ -54,116 +56,116 @@
 
 {% block scripts %}
 <script>
-// Local fixture data and filter state
-let allFixtures = [];
-let activeFixtureSportId = '';
-let activeFixtureGender = '';
-let activeFixtureStatus = '';
+    // Local fixture data and filter state
+    let allFixtures = [];
+    let activeFixtureSportId = '';
+    let activeFixtureGender = '';
+    let activeFixtureStatus = '';
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchHouses();
-    await fetchSports();
-    await fetchSquads();
-    populateFixtureChips();
-    await loadAllFixtures();
-});
-
-function populateFixtureChips() {
-    const chipGroup = document.getElementById('fixtureFilterChips');
-    let html = `<button class="chip active" id="chip-all" onclick="filterFixtures('', this)">All Sports</button>`;
-    sportsData.forEach(s => {
-        html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${s.id}', this)">${s.name}</button>`;
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchHouses();
+        await fetchSports();
+        await fetchSquads();
+        populateFixtureChips();
+        await loadAllFixtures();
     });
-    chipGroup.innerHTML = html;
-}
 
-function filterFixtures(sportId, btn) {
-    // Deactivate all chips
-    document.querySelectorAll('#fixtureFilterChips .chip').forEach(c => c.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    activeFixtureSportId = sportId;
-    applyFixtureFilters();
-}
-
-function applyFixtureFilters() {
-    activeFixtureGender = document.getElementById('fixtureGenderFilter').value;
-    activeFixtureStatus  = document.getElementById('fixtureStatusFilter').value;
-    renderFixtureGroups(allFixtures);
-}
-
-async function loadAllFixtures() {
-    const container = document.getElementById('fixturesContainer');
-    try {
-        const res = await fetch('/api/matches');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        allFixtures = await res.json();
-        matchesData = allFixtures;
-        renderFixtureGroups(allFixtures);
-    } catch (err) {
-        container.innerHTML = renderSharedErrorState('Failed to load fixtures.', 'loadAllFixtures()');
-    }
-}
-
-// Reload fixtures after admin score update (called from app.js handleMatchSubmit)
-async function reloadFixturesAfterUpdate() {
-    try {
-        const res = await fetch('/api/matches');
-        if (!res.ok) return;
-        allFixtures = await res.json();
-        matchesData = allFixtures;
-        renderFixtureGroups(allFixtures);
-    } catch(e) { /* silent */ }
-}
-
-function renderFixtureGroups(fixtures) {
-    const container = document.getElementById('fixturesContainer');
-
-    // Apply filters
-    let filtered = fixtures;
-    if (activeFixtureSportId) filtered = filtered.filter(m => m.sport_id === activeFixtureSportId);
-    if (activeFixtureGender)  filtered = filtered.filter(m => m.gender === activeFixtureGender);
-    if (activeFixtureStatus)  filtered = filtered.filter(m => m.status === activeFixtureStatus);
-
-    if (filtered.length === 0) {
-        container.innerHTML = renderSharedEmptyState(
-            'No fixtures match your filters',
-            'Try adjusting the sport or gender filters above.'
-        );
-        return;
+    function populateFixtureChips() {
+        const chipGroup = document.getElementById('fixtureFilterChips');
+        let html = `<button class="chip active" id="chip-all" onclick="filterFixtures('', this)">All Sports</button>`;
+        sportsData.forEach(s => {
+            html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${s.id}', this)">${s.name}</button>`;
+        });
+        chipGroup.innerHTML = html;
     }
 
-    // Group by sport_name + gender
-    const groups = {};
-    filtered.forEach(m => {
-        // Get sport name
-        const sport = sportsData.find(s => s.id === m.sport_id);
-        const sportName = sport ? sport.name : (m.sports ? m.sports.name : 'Unknown');
-        const gender = m.gender || 'Unknown';
-        const key = `${sportName}__${gender}`;
-        if (!groups[key]) groups[key] = { sportName, gender, matches: [] };
-        groups[key].matches.push(m);
-    });
+    function filterFixtures(sportId, btn) {
+        // Deactivate all chips
+        document.querySelectorAll('#fixtureFilterChips .chip').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        activeFixtureSportId = sportId;
+        applyFixtureFilters();
+    }
 
-    // Sort groups: Futsal Girls, Futsal Boys, Basketball Girls, Basketball Boys, Cricksal Girls, Cricksal Boys
-    const ORDER = ['Futsal', 'Basketball', 'Cricksal'];
-    const GENDER_ORDER = ['Girls', 'Boys'];
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-        const [sA, gA] = a.split('__');
-        const [sB, gB] = b.split('__');
-        const sOrd = ORDER.indexOf(sA) - ORDER.indexOf(sB);
-        if (sOrd !== 0) return sOrd;
-        return GENDER_ORDER.indexOf(gA) - GENDER_ORDER.indexOf(gB);
-    });
+    function applyFixtureFilters() {
+        activeFixtureGender = document.getElementById('fixtureGenderFilter').value;
+        activeFixtureStatus = document.getElementById('fixtureStatusFilter').value;
+        renderFixtureGroups(allFixtures);
+    }
 
-    let html = '<div style="display:flex; flex-direction:column; gap:40px;" class="fade-in">';
-    sortedKeys.forEach(key => {
-        const g = groups[key];
-        const completedCount = g.matches.filter(m => m.status === 'completed').length;
-        const sportIconId = g.sportName.toLowerCase().includes('basket') ? 'icon-basketball'
-                          : g.sportName.toLowerCase().includes('cricket') ? 'icon-cricket'
-                          : 'icon-football';
+    async function loadAllFixtures() {
+        const container = document.getElementById('fixturesContainer');
+        try {
+            const res = await fetch('/api/matches');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            allFixtures = await res.json();
+            matchesData = allFixtures;
+            renderFixtureGroups(allFixtures);
+        } catch (err) {
+            container.innerHTML = renderSharedErrorState('Failed to load fixtures.', 'loadAllFixtures()');
+        }
+    }
 
-        html += `
+    // Reload fixtures after admin score update (called from app.js handleMatchSubmit)
+    async function reloadFixturesAfterUpdate() {
+        try {
+            const res = await fetch('/api/matches');
+            if (!res.ok) return;
+            allFixtures = await res.json();
+            matchesData = allFixtures;
+            renderFixtureGroups(allFixtures);
+        } catch (e) { /* silent */ }
+    }
+
+    function renderFixtureGroups(fixtures) {
+        const container = document.getElementById('fixturesContainer');
+
+        // Apply filters
+        let filtered = fixtures;
+        if (activeFixtureSportId) filtered = filtered.filter(m => m.sport_id === activeFixtureSportId);
+        if (activeFixtureGender) filtered = filtered.filter(m => m.gender === activeFixtureGender);
+        if (activeFixtureStatus) filtered = filtered.filter(m => m.status === activeFixtureStatus);
+
+        if (filtered.length === 0) {
+            container.innerHTML = renderSharedEmptyState(
+                'No fixtures match your filters',
+                'Try adjusting the sport or gender filters above.'
+            );
+            return;
+        }
+
+        // Group by sport_name + gender
+        const groups = {};
+        filtered.forEach(m => {
+            // Get sport name
+            const sport = sportsData.find(s => s.id === m.sport_id);
+            const sportName = sport ? sport.name : (m.sports ? m.sports.name : 'Unknown');
+            const gender = m.gender || 'Unknown';
+            const key = `${sportName}__${gender}`;
+            if (!groups[key]) groups[key] = { sportName, gender, matches: [] };
+            groups[key].matches.push(m);
+        });
+
+        // Sort groups: Futsal Girls, Futsal Boys, Basketball Girls, Basketball Boys, Cricksal Girls, Cricksal Boys
+        const ORDER = ['Futsal', 'Basketball', 'Cricksal'];
+        const GENDER_ORDER = ['Girls', 'Boys'];
+        const sortedKeys = Object.keys(groups).sort((a, b) => {
+            const [sA, gA] = a.split('__');
+            const [sB, gB] = b.split('__');
+            const sOrd = ORDER.indexOf(sA) - ORDER.indexOf(sB);
+            if (sOrd !== 0) return sOrd;
+            return GENDER_ORDER.indexOf(gA) - GENDER_ORDER.indexOf(gB);
+        });
+
+        let html = '<div style="display:flex; flex-direction:column; gap:40px;" class="fade-in">';
+        sortedKeys.forEach(key => {
+            const g = groups[key];
+            const completedCount = g.matches.filter(m => m.status === 'completed').length;
+            const sportIconId = g.sportName.toLowerCase().includes('basket') ? 'icon-basketball'
+                : g.sportName.toLowerCase().includes('cricket') ? 'icon-cricket'
+                    : 'icon-football';
+
+            html += `
         <div>
             <div class="section-header">
                 <svg class="icon" width="16" height="16" style="color:var(--text-secondary);">
@@ -174,52 +176,52 @@ function renderFixtureGroups(fixtures) {
             </div>
             <div class="card-grid">`;
 
-        g.matches.forEach(m => {
-            html += renderFixtureCard(m);
+            g.matches.forEach(m => {
+                html += renderFixtureCard(m);
+            });
+
+            html += `</div></div>`;
         });
+        html += '</div>';
 
-        html += `</div></div>`;
-    });
-    html += '</div>';
+        container.innerHTML = html;
+    }
 
-    container.innerHTML = html;
-}
+    function renderFixtureCard(m) {
+        const isCompleted = m.status === 'completed';
+        const teamAName = getTeamName(m.team_a_id, m);
+        const teamBName = getTeamName(m.team_b_id, m);
 
-function renderFixtureCard(m) {
-    const isCompleted = m.status === 'completed';
-    const teamAName = getTeamName(m.team_a_id, m);
-    const teamBName = getTeamName(m.team_b_id, m);
+        // Get house colors for left-border accents on team names
+        const teamA = resolveTeam(m.team_a_id, m);
+        const teamB = resolveTeam(m.team_b_id, m);
+        const colorA = teamA ? getHouseColor(teamA.house_id, teamA.houses) : 'var(--border)';
+        const colorB = teamB ? getHouseColor(teamB.house_id, teamB.houses) : 'var(--border)';
 
-    // Get house colors for left-border accents on team names
-    const teamA = resolveTeam(m.team_a_id, m);
-    const teamB = resolveTeam(m.team_b_id, m);
-    const colorA = teamA ? getHouseColor(teamA.house_id, teamA.houses) : 'var(--border)';
-    const colorB = teamB ? getHouseColor(teamB.house_id, teamB.houses) : 'var(--border)';
+        const stageLabel = m.stage === 'semifinal' ? 'Semifinal'
+            : m.stage === 'final' ? 'Final'
+                : 'League';
 
-    const stageLabel = m.stage === 'semifinal' ? 'Semifinal'
-                     : m.stage === 'final'     ? 'Final'
-                     : 'League';
-
-    const editBtn = currentToken && m.team_a_id && m.team_b_id ? `
+        const editBtn = currentToken && m.team_a_id && m.team_b_id ? `
         <button onclick="openMatchModal('${m.id}')" class="btn btn-secondary btn-icon" title="Edit score" style="height:26px; width:26px; border-radius:6px;">
             <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
         </button>` : '';
 
-    let scoreSection = '';
-    if (isCompleted && (m.score_summary || (m.score_team_a != null && m.score_team_b != null))) {
-        const summary = m.score_summary || `${m.score_team_a} - ${m.score_team_b}`;
-        scoreSection = `
+        let scoreSection = '';
+        if (isCompleted && (m.score_summary || (m.score_team_a != null && m.score_team_b != null))) {
+            const summary = m.score_summary || `${m.score_team_a} - ${m.score_team_b}`;
+            scoreSection = `
             <div class="fixture-score">
                 <span class="score-label">Final Score</span>
                 <span class="score-text">${summary}</span>
             </div>`;
-    } else if (!m.team_a_id || !m.team_b_id) {
-        scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD — awaiting qualifiers</p>`;
-    } else {
-        scoreSection = `<p class="fixture-unplayed">Not yet played</p>`;
-    }
+        } else if (!m.team_a_id || !m.team_b_id) {
+            scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD — awaiting qualifiers</p>`;
+        } else {
+            scoreSection = `<p class="fixture-unplayed">Not yet played</p>`;
+        }
 
-    return `
+        return `
     <div class="fixture-card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
             <div style="display:flex; align-items:center; gap:6px;">
@@ -243,26 +245,26 @@ function renderFixtureCard(m) {
         </div>
         ${scoreSection}
     </div>`;
-}
-
-// Resolve full team object (from squadsData or nested match join data)
-function resolveTeam(teamId, matchObj) {
-    if (!teamId) return null;
-    let t = squadsData.find(s => s.id === teamId);
-    if (!t && matchObj) {
-        if (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
-        else if (matchObj.team_b_id === teamId && matchObj.team_b) t = matchObj.team_b;
     }
-    return t || null;
-}
 
-// Get house color from house_id, checking nested houses object first
-function getHouseColor(houseId, housesObj) {
-    if (housesObj && housesObj.color_hex) return housesObj.color_hex;
-    const h = housesData.find(x => x.id === houseId);
-    return h ? h.color_hex : 'var(--border)';
-}
+    // Resolve full team object (from squadsData or nested match join data)
+    function resolveTeam(teamId, matchObj) {
+        if (!teamId) return null;
+        let t = squadsData.find(s => s.id === teamId);
+        if (!t && matchObj) {
+            if (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
+            else if (matchObj.team_b_id === teamId && matchObj.team_b) t = matchObj.team_b;
+        }
+        return t || null;
+    }
 
-}
+    // Get house color from house_id, checking nested houses object first
+    function getHouseColor(houseId, housesObj) {
+        if (housesObj && housesObj.color_hex) return housesObj.color_hex;
+        const h = housesData.find(x => x.id === houseId);
+        return h ? h.color_hex : 'var(--border)';
+    }
+
+
 </script>
 {% endblock %}
