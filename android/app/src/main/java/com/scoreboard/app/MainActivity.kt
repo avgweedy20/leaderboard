@@ -306,21 +306,14 @@ fun HouseOverallStandingsScreen(standings: List<HouseOverallStanding>) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            color = color,
-                            shape = ComponentCornerRadius
-                        ) {
-                            Text(
-                                text = "${h.shortCode} HOUSE",
-                                color = Color.White,
-                                style = MonoLabelStyle.copy(fontSize = 12.sp),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                        Text(
+                            h.houseName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            modifier = Modifier.weight(1f)
+                        )
                         Text("#${h.rank}", style = DisplayScoreStyle.copy(fontSize = 32.sp, color = color))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(h.houseName, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

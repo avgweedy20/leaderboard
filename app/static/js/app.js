@@ -538,17 +538,14 @@ async function loadHouseOverallStandings() {
                 const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
                 return `
                 <div class="house-hero-card fade-in" style="border-left-color:${color};">
-                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
-                        <div class="badge" style="background-color:${color}; color:#fff;">
-                            ${h.short_code || h.house_name.slice(0, 3).toUpperCase()}
+                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                        <div style="min-width:0;">
+                            <div class="house-name">${h.house_name}</div>
+                            <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">
+                                ${h.total_squads} squad${h.total_squads !== 1 ? 's' : ''}
+                            </div>
                         </div>
-                        <span class="rank-number" style="color:${color};">#${h.rank}</span>
-                    </div>
-                    <div>
-                        <div class="house-name">${h.house_name}</div>
-                        <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">
-                            ${h.total_squads} squad${h.total_squads !== 1 ? 's' : ''}
-                        </div>
+                        <span class="rank-number" style="color:${color}; flex-shrink:0;">#${h.rank}</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:flex-end;
                                 padding-top:12px; border-top:1px solid var(--border);">

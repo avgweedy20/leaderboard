@@ -1106,7 +1106,13 @@ input[type="checkbox"] {
 
 /* ── RESPONSIVE ─────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .page-container { padding: 16px 12px; }
+  html, body { overflow-x: clip; }
+  .page-container {
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 16px;
+  }
   .navbar { padding: 0 12px; height: 48px; }
   .brand-name { font-size: 13px; }
   h1 { font-size: 20px; }
@@ -1169,7 +1175,7 @@ input[type="checkbox"] {
 }
 
 @media (max-width: 480px) {
-  .page-container { padding: 12px 8px; }
+  .page-container { padding: 16px; }
   .navbar { padding: 0 10px; }
   .brand-name { max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   
