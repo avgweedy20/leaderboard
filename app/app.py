@@ -1822,6 +1822,24 @@ def bulk_upsert_players():
 
     return jsonify({"message": f"Bulk import complete: {created_count} created, {updated_count} updated", "created": created_count, "updated": updated_count})
 
+@app.route("/api/players/bulk-delete", methods=["POST"])
+@req_admin_auth
+def bulk_delete_players():
+    data = request.get_json() or {}
+    player_ids = data.get("player_ids", [])
+    if not player_ids or not isinstance(player_ids, list):
+        return jsonify({"error": "player_ids list is required"}), 400
+
+    if supabase_client:
+        try:
+            supabase_client.table("players").delete().in_("id", player_ids).execute()
+            return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    MOCK_DB["players"] = [p for p in MOCK_DB["players"] if p["id"] not in player_ids]
+    return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
+
 
 # MATCHES ENDPOINTS
 @app.route("/api/matches", methods=["GET"])

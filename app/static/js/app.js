@@ -617,7 +617,54 @@ async function loadAdminCenterData() {
     renderAdminFixturesTable();
 }
 
-// SQUADS TABLE
+// ─── ADMIN TABLE STATE ─────────────────────────────────────────────────────
+const adminSquadsState = {
+    sortCol: 'name',
+    sortDir: 'asc',
+    search: '',
+    houseFilter: '',
+    sportFilter: '',
+    genderFilter: '',
+    page: 1,
+    pageSize: 10
+};
+
+const adminPlayersState = {
+    sortCol: 'name',
+    sortDir: 'asc',
+    search: '',
+    houseFilter: '',
+    sportFilter: '',
+    gradeFilter: '',
+    genderFilter: '',
+    page: 1,
+    pageSize: 10,
+    selectedIds: new Set()
+};
+
+const adminFixturesState = {
+    sortCol: 'id',
+    sortDir: 'asc',
+    search: '',
+    sportFilter: '',
+    genderFilter: '',
+    stageFilter: '',
+    statusFilter: '',
+    page: 1,
+    pageSize: 10
+};
+
+function getSortIcon(currentCol, targetCol, currentDir) {
+    if (currentCol !== targetCol) {
+        return `<span class="sort-indicator"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.35"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg></span>`;
+    }
+    if (currentDir === 'asc') {
+        return `<span class="sort-indicator active"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></span>`;
+    }
+    return `<span class="sort-indicator active"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></span>`;
+}
+
+// ─── 1. SQUADS TABLE (SORTABLE, FILTERABLE, PAGINATED) ─────────────────────
 function renderAdminSquadsTable() {
     const container = document.getElementById('adminSquadsList');
     const badge     = document.getElementById('squadCountBadge');
@@ -625,44 +672,163 @@ function renderAdminSquadsTable() {
     if (badge) badge.textContent = `${squadsData.length} Squads`;
 
     if (!squadsData || squadsData.length === 0) {
-        container.innerHTML = renderSharedEmptyState('No squads yet', '');
+        container.innerHTML = renderSharedEmptyState('No squads registered yet', '');
         return;
     }
 
+    // Apply combined filters
+    let list = [...squadsData];
+    if (adminSquadsState.search) {
+        const q = adminSquadsState.search.toLowerCase();
+        list = list.filter(s => {
+            const hName = ((s.houses||{}).name || getHouseName(s.house_id)).toLowerCase();
+            const sName = ((s.sports||{}).name || getSportName(s.sport_id)).toLowerCase();
+            return s.name.toLowerCase().includes(q) || hName.includes(q) || sName.includes(q);
+        });
+    }
+    if (adminSquadsState.houseFilter) {
+        list = list.filter(s => s.house_id === adminSquadsState.houseFilter);
+    }
+    if (adminSquadsState.sportFilter) {
+        list = list.filter(s => s.sport_id === adminSquadsState.sportFilter);
+    }
+    if (adminSquadsState.genderFilter) {
+        list = list.filter(s => s.gender === adminSquadsState.genderFilter);
+    }
+
+    // Sorting
+    list.sort((a, b) => {
+        let vA = '', vB = '';
+        if (adminSquadsState.sortCol === 'name') {
+            vA = (a.name || '').toLowerCase();
+            vB = (b.name || '').toLowerCase();
+        } else if (adminSquadsState.sortCol === 'house') {
+            vA = ((a.houses||{}).name || getHouseName(a.house_id)).toLowerCase();
+            vB = ((b.houses||{}).name || getHouseName(b.house_id)).toLowerCase();
+        } else if (adminSquadsState.sortCol === 'sport') {
+            vA = ((a.sports||{}).name || getSportName(a.sport_id)).toLowerCase();
+            vB = ((b.sports||{}).name || getSportName(b.sport_id)).toLowerCase();
+        } else if (adminSquadsState.sortCol === 'gender') {
+            vA = (a.gender || '').toLowerCase();
+            vB = (b.gender || '').toLowerCase();
+        }
+        if (vA < vB) return adminSquadsState.sortDir === 'asc' ? -1 : 1;
+        if (vA > vB) return adminSquadsState.sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Pagination
+    const totalItems = list.length;
+    const pageSize   = adminSquadsState.pageSize === 'all' ? totalItems : parseInt(adminSquadsState.pageSize, 10);
+    const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
+    if (adminSquadsState.page > totalPages) adminSquadsState.page = totalPages;
+    const startIdx   = (adminSquadsState.page - 1) * pageSize;
+    const pageItems  = adminSquadsState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+
+    // Build House filter options
+    const houseOptions = housesData.map(h =>
+        `<option value="${h.id}" ${adminSquadsState.houseFilter === h.id ? 'selected' : ''}>${h.name}</option>`
+    ).join('');
+
+    // Build Sport filter options
+    const sportOptions = sportsData.map(s =>
+        `<option value="${s.id}" ${adminSquadsState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+    ).join('');
+
     container.innerHTML = `
-    <table>
-        <thead>
-            <tr>
-                <th>Squad</th><th>House</th><th>Sport</th><th>Gender</th><th style="text-align:right;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${squadsData.map(s => {
-                const hName  = (s.houses||{}).name  || getHouseName(s.house_id);
-                const sName  = (s.sports||{}).name  || getSportName(s.sport_id);
-                const color  = (s.houses||{}).color_hex || HOUSE_COLORS[(hName||'').toLowerCase()] || '#10B981';
-                return `
-                <tr style="border-left:3px solid ${color};">
-                    <td style="font-weight:700;">${s.name}</td>
-                    <td style="color:${color}; font-weight:700;">${hName}</td>
-                    <td style="color:var(--text-secondary);">${sName}</td>
-                    <td style="color:var(--text-secondary);">${s.gender} (${s.squad_label})</td>
-                    <td style="text-align:right;">
-                        <button onclick="openSquadModal('${s.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
-                            <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
-                        </button>
-                        <button onclick="deleteSquad('${s.id}')" class="btn btn-secondary btn-icon" title="Delete"
-                                style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
-                            <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('')}
-        </tbody>
-    </table>`;
+    <!-- Toolbar -->
+    <div class="table-toolbar">
+        <div class="table-toolbar-left">
+            <input type="text" class="table-search-input" placeholder="Search squads, houses..."
+                   value="${escapeHtml(adminSquadsState.search)}"
+                   oninput="adminSquadsState.search = this.value; adminSquadsState.page = 1; renderAdminSquadsTable();">
+            <select class="table-filter-select" onchange="adminSquadsState.houseFilter = this.value; adminSquadsState.page = 1; renderAdminSquadsTable();">
+                <option value="">All Houses</option>
+                ${houseOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminSquadsState.sportFilter = this.value; adminSquadsState.page = 1; renderAdminSquadsTable();">
+                <option value="">All Sports</option>
+                ${sportOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminSquadsState.genderFilter = this.value; adminSquadsState.page = 1; renderAdminSquadsTable();">
+                <option value="">All Genders</option>
+                <option value="Boys" ${adminSquadsState.genderFilter === 'Boys' ? 'selected' : ''}>Boys</option>
+                <option value="Girls" ${adminSquadsState.genderFilter === 'Girls' ? 'selected' : ''}>Girls</option>
+            </select>
+        </div>
+        <div class="table-toolbar-right">
+            <span style="font-size:11px; color:var(--text-secondary);">${totalItems} result${totalItems !== 1 ? 's' : ''}</span>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th class="th-sortable" onclick="toggleSquadsSort('name')">Squad ${getSortIcon(adminSquadsState.sortCol, 'name', adminSquadsState.sortDir)}</th>
+                    <th class="th-sortable" onclick="toggleSquadsSort('house')">House ${getSortIcon(adminSquadsState.sortCol, 'house', adminSquadsState.sortDir)}</th>
+                    <th class="th-sortable" onclick="toggleSquadsSort('sport')">Sport ${getSortIcon(adminSquadsState.sortCol, 'sport', adminSquadsState.sortDir)}</th>
+                    <th class="th-sortable" onclick="toggleSquadsSort('gender')">Gender ${getSortIcon(adminSquadsState.sortCol, 'gender', adminSquadsState.sortDir)}</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pageItems.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching squads found</td></tr>` : ''}
+                ${pageItems.map(s => {
+                    const hName  = (s.houses||{}).name  || getHouseName(s.house_id);
+                    const sName  = (s.sports||{}).name  || getSportName(s.sport_id);
+                    const color  = (s.houses||{}).color_hex || HOUSE_COLORS[(hName||'').toLowerCase()] || '#10B981';
+                    return `
+                    <tr style="border-left:3px solid ${color};">
+                        <td style="font-weight:700;">${escapeHtml(s.name)}</td>
+                        <td style="color:${color}; font-weight:700;">${escapeHtml(hName)}</td>
+                        <td style="color:var(--text-secondary);">${escapeHtml(sName)}</td>
+                        <td style="color:var(--text-secondary);">${escapeHtml(s.gender)} (${escapeHtml(s.squad_label || 'A')})</td>
+                        <td style="text-align:right;">
+                            <button onclick="openSquadModal('${s.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
+                                <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
+                            </button>
+                            <button onclick="deleteSquad('${s.id}')" class="btn btn-secondary btn-icon" title="Delete"
+                                    style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
+                                <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar">
+        <div>
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+        </div>
+        <div class="pagination-nav">
+            <button class="pagination-btn" ${adminSquadsState.page <= 1 ? 'disabled' : ''} onclick="adminSquadsState.page--; renderAdminSquadsTable();">Prev</button>
+            <span style="font-size:11px; padding:0 4px;">Page ${adminSquadsState.page} of ${totalPages}</span>
+            <button class="pagination-btn" ${adminSquadsState.page >= totalPages ? 'disabled' : ''} onclick="adminSquadsState.page++; renderAdminSquadsTable();">Next</button>
+            <select class="page-size-select" onchange="adminSquadsState.pageSize = this.value; adminSquadsState.page = 1; renderAdminSquadsTable();">
+                <option value="10" ${adminSquadsState.pageSize == '10' ? 'selected' : ''}>10 / page</option>
+                <option value="25" ${adminSquadsState.pageSize == '25' ? 'selected' : ''}>25 / page</option>
+                <option value="all" ${adminSquadsState.pageSize == 'all' ? 'selected' : ''}>Show All</option>
+            </select>
+        </div>
+    </div>`;
 }
 
-// PLAYERS TABLE
+function toggleSquadsSort(col) {
+    if (adminSquadsState.sortCol === col) {
+        adminSquadsState.sortDir = adminSquadsState.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        adminSquadsState.sortCol = col;
+        adminSquadsState.sortDir = 'asc';
+    }
+    renderAdminSquadsTable();
+}
+
+// ─── 2. PLAYERS TABLE (SORTABLE, FILTERABLE, PAGINATED, BULK DELETION) ─────
 function renderAdminPlayersTable() {
     const container = document.getElementById('adminPlayersList');
     const badge     = document.getElementById('playerCountBadge');
@@ -670,42 +836,249 @@ function renderAdminPlayersTable() {
     if (badge) badge.textContent = `${playersData.length} Players`;
 
     if (!playersData || playersData.length === 0) {
-        container.innerHTML = renderSharedEmptyState('No players yet', '');
+        container.innerHTML = renderSharedEmptyState('No players registered yet', '');
         return;
     }
 
+    // Apply combined filters
+    let list = [...playersData];
+    if (adminPlayersState.search) {
+        const q = adminPlayersState.search.toLowerCase();
+        list = list.filter(p => {
+            const teamName = getTeamName(p.team_id).toLowerCase();
+            return (p.name || '').toLowerCase().includes(q) ||
+                   String(p.roll_number || '').toLowerCase().includes(q) ||
+                   (p.section || '').toLowerCase().includes(q) ||
+                   teamName.includes(q);
+        });
+    }
+    if (adminPlayersState.houseFilter) {
+        list = list.filter(p => {
+            const squad = squadsData.find(s => s.id === p.team_id);
+            return squad && squad.house_id === adminPlayersState.houseFilter;
+        });
+    }
+    if (adminPlayersState.sportFilter) {
+        list = list.filter(p => {
+            const squad = squadsData.find(s => s.id === p.team_id);
+            return squad && squad.sport_id === adminPlayersState.sportFilter;
+        });
+    }
+    if (adminPlayersState.gradeFilter) {
+        list = list.filter(p => String(p.grade || '') === adminPlayersState.gradeFilter);
+    }
+    if (adminPlayersState.genderFilter) {
+        list = list.filter(p => p.gender === adminPlayersState.genderFilter);
+    }
+
+    // Sorting
+    list.sort((a, b) => {
+        let vA = '', vB = '';
+        if (adminPlayersState.sortCol === 'name') {
+            vA = (a.name || '').toLowerCase();
+            vB = (b.name || '').toLowerCase();
+        } else if (adminPlayersState.sortCol === 'roll') {
+            vA = parseInt(a.roll_number, 10) || 0;
+            vB = parseInt(b.roll_number, 10) || 0;
+            return adminPlayersState.sortDir === 'asc' ? vA - vB : vB - vA;
+        } else if (adminPlayersState.sortCol === 'squad') {
+            vA = getTeamName(a.team_id).toLowerCase();
+            vB = getTeamName(b.team_id).toLowerCase();
+        } else if (adminPlayersState.sortCol === 'grade') {
+            vA = (a.grade || '').toLowerCase();
+            vB = (b.grade || '').toLowerCase();
+        }
+        if (vA < vB) return adminPlayersState.sortDir === 'asc' ? -1 : 1;
+        if (vA > vB) return adminPlayersState.sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Pagination
+    const totalItems = list.length;
+    const pageSize   = adminPlayersState.pageSize === 'all' ? totalItems : parseInt(adminPlayersState.pageSize, 10);
+    const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
+    if (adminPlayersState.page > totalPages) adminPlayersState.page = totalPages;
+    const startIdx   = (adminPlayersState.page - 1) * pageSize;
+    const pageItems  = adminPlayersState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+
+    // Build unique Grades for filter
+    const grades = Array.from(new Set(playersData.map(p => String(p.grade || '')).filter(Boolean))).sort();
+    const gradeOptions = grades.map(g =>
+        `<option value="${g}" ${adminPlayersState.gradeFilter === g ? 'selected' : ''}>Grade ${g}</option>`
+    ).join('');
+
+    // Build House filter options
+    const houseOptions = housesData.map(h =>
+        `<option value="${h.id}" ${adminPlayersState.houseFilter === h.id ? 'selected' : ''}>${h.name}</option>`
+    ).join('');
+
+    // Build Sport filter options
+    const sportOptions = sportsData.map(s =>
+        `<option value="${s.id}" ${adminPlayersState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+    ).join('');
+
+    const allCurrentSelected = pageItems.length > 0 && pageItems.every(p => adminPlayersState.selectedIds.has(p.id));
+    const selectedCount = adminPlayersState.selectedIds.size;
+
     container.innerHTML = `
-    <table>
-        <thead>
-            <tr>
-                <th style="width:60px;">Roll</th><th>Name</th><th>Squad</th><th>Grade</th><th style="text-align:right;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${playersData.map(p => {
-                const teamName = getTeamName(p.team_id);
-                return `
+    <!-- Bulk actions bar -->
+    ${selectedCount > 0 ? `
+    <div class="bulk-actions-bar">
+        <span style="font-weight:700;">${selectedCount} player${selectedCount !== 1 ? 's' : ''} selected</span>
+        <button class="btn btn-secondary" style="height:24px; font-size:11px; padding:0 8px; color:#F87171; border-color:#7F1D1D;" onclick="bulkDeleteSelectedPlayers()">
+            <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg> Delete Selected
+        </button>
+        <button class="btn btn-secondary" style="height:24px; font-size:11px; padding:0 8px;" onclick="adminPlayersState.selectedIds.clear(); renderAdminPlayersTable();">
+            Deselect All
+        </button>
+    </div>` : ''}
+
+    <!-- Toolbar -->
+    <div class="table-toolbar">
+        <div class="table-toolbar-left">
+            <input type="text" class="table-search-input" placeholder="Search name, roll #, squad..."
+                   value="${escapeHtml(adminPlayersState.search)}"
+                   oninput="adminPlayersState.search = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+            <select class="table-filter-select" onchange="adminPlayersState.houseFilter = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+                <option value="">All Houses</option>
+                ${houseOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminPlayersState.sportFilter = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+                <option value="">All Sports</option>
+                ${sportOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminPlayersState.gradeFilter = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+                <option value="">All Grades</option>
+                ${gradeOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminPlayersState.genderFilter = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+                <option value="">All Genders</option>
+                <option value="Boys" ${adminPlayersState.genderFilter === 'Boys' ? 'selected' : ''}>Boys</option>
+                <option value="Girls" ${adminPlayersState.genderFilter === 'Girls' ? 'selected' : ''}>Girls</option>
+            </select>
+        </div>
+        <div class="table-toolbar-right">
+            <span style="font-size:11px; color:var(--text-secondary);">${totalItems} result${totalItems !== 1 ? 's' : ''}</span>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+        <table>
+            <thead>
                 <tr>
-                    <td style="font-variant-numeric:tabular-nums; color:var(--text-secondary);">${p.roll_number || '—'}</td>
-                    <td style="font-weight:700;">${p.name}</td>
-                    <td style="color:var(--text-secondary); font-size:12px;">${teamName}</td>
-                    <td style="color:var(--text-secondary);">${p.grade || '—'}${p.section ? ` (${p.section})` : ''}</td>
-                    <td style="text-align:right;">
-                        <button onclick="openPlayerModal('${p.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
-                            <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
-                        </button>
-                        <button onclick="deletePlayer('${p.id}')" class="btn btn-secondary btn-icon" title="Delete"
-                                style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
-                            <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('')}
-        </tbody>
-    </table>`;
+                    <th style="width:36px; text-align:center;">
+                        <input type="checkbox" ${allCurrentSelected ? 'checked' : ''} onchange="toggleSelectAllPlayers(this.checked, ${JSON.stringify(pageItems.map(p => p.id))})">
+                    </th>
+                    <th class="th-sortable" style="width:64px;" onclick="togglePlayersSort('roll')">Roll ${getSortIcon(adminPlayersState.sortCol, 'roll', adminPlayersState.sortDir)}</th>
+                    <th class="th-sortable" onclick="togglePlayersSort('name')">Name ${getSortIcon(adminPlayersState.sortCol, 'name', adminPlayersState.sortDir)}</th>
+                    <th class="th-sortable" onclick="togglePlayersSort('squad')">Squad ${getSortIcon(adminPlayersState.sortCol, 'squad', adminPlayersState.sortDir)}</th>
+                    <th class="th-sortable" onclick="togglePlayersSort('grade')">Grade ${getSortIcon(adminPlayersState.sortCol, 'grade', adminPlayersState.sortDir)}</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pageItems.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching players found</td></tr>` : ''}
+                ${pageItems.map(p => {
+                    const teamName = getTeamName(p.team_id);
+                    const isSelected = adminPlayersState.selectedIds.has(p.id);
+                    return `
+                    <tr style="${isSelected ? 'background-color: var(--bg-surface-3);' : ''}">
+                        <td style="text-align:center;">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectPlayer('${p.id}', this.checked)">
+                        </td>
+                        <td style="font-variant-numeric:tabular-nums; color:var(--text-secondary);">${escapeHtml(p.roll_number || '—')}</td>
+                        <td style="font-weight:700;">${escapeHtml(p.name)}</td>
+                        <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(teamName)}</td>
+                        <td style="color:var(--text-secondary);">${escapeHtml(p.grade || '—')}${p.section ? ` (${escapeHtml(p.section)})` : ''}</td>
+                        <td style="text-align:right;">
+                            <button onclick="openPlayerModal('${p.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
+                                <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
+                            </button>
+                            <button onclick="deletePlayer('${p.id}')" class="btn btn-secondary btn-icon" title="Delete"
+                                    style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
+                                <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar">
+        <div>
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+        </div>
+        <div class="pagination-nav">
+            <button class="pagination-btn" ${adminPlayersState.page <= 1 ? 'disabled' : ''} onclick="adminPlayersState.page--; renderAdminPlayersTable();">Prev</button>
+            <span style="font-size:11px; padding:0 4px;">Page ${adminPlayersState.page} of ${totalPages}</span>
+            <button class="pagination-btn" ${adminPlayersState.page >= totalPages ? 'disabled' : ''} onclick="adminPlayersState.page++; renderAdminPlayersTable();">Next</button>
+            <select class="page-size-select" onchange="adminPlayersState.pageSize = this.value; adminPlayersState.page = 1; renderAdminPlayersTable();">
+                <option value="10" ${adminPlayersState.pageSize == '10' ? 'selected' : ''}>10 / page</option>
+                <option value="25" ${adminPlayersState.pageSize == '25' ? 'selected' : ''}>25 / page</option>
+                <option value="50" ${adminPlayersState.pageSize == '50' ? 'selected' : ''}>50 / page</option>
+                <option value="all" ${adminPlayersState.pageSize == 'all' ? 'selected' : ''}>Show All</option>
+            </select>
+        </div>
+    </div>`;
 }
 
-// SEEDER LOGS
+function togglePlayersSort(col) {
+    if (adminPlayersState.sortCol === col) {
+        adminPlayersState.sortDir = adminPlayersState.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        adminPlayersState.sortCol = col;
+        adminPlayersState.sortDir = 'asc';
+    }
+    renderAdminPlayersTable();
+}
+
+function toggleSelectPlayer(id, checked) {
+    if (checked) adminPlayersState.selectedIds.add(id);
+    else adminPlayersState.selectedIds.delete(id);
+    renderAdminPlayersTable();
+}
+
+function toggleSelectAllPlayers(checked, pageIds) {
+    if (checked) {
+        pageIds.forEach(id => adminPlayersState.selectedIds.add(id));
+    } else {
+        pageIds.forEach(id => adminPlayersState.selectedIds.delete(id));
+    }
+    renderAdminPlayersTable();
+}
+
+async function bulkDeleteSelectedPlayers() {
+    const ids = Array.from(adminPlayersState.selectedIds);
+    if (!ids.length) return;
+
+    if (!confirm(`Are you sure you want to delete ${ids.length} selected player(s)?`)) return;
+
+    try {
+        const res = await fetchWithAuth('/api/players/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_ids: ids })
+        });
+        if (res.ok) {
+            adminPlayersState.selectedIds.clear();
+            await fetchPlayers();
+            renderAdminPlayersTable();
+            showToast(`Deleted ${ids.length} player(s) successfully`, 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to delete selected players', 'error');
+        }
+    } catch (e) {
+        if (!e.message.includes('Session expired')) {
+            showToast('Network error during bulk delete', 'error');
+        }
+    }
+}
+
+// ─── 3. SEEDER LOGS ────────────────────────────────────────────────────────
 function renderAdminSeederLogs() {
     const container = document.getElementById('adminSeederLogsContainer');
     if (!container) return;
@@ -746,7 +1119,7 @@ function renderAdminSeederLogs() {
     </div>`;
 }
 
-// FIXTURES MANAGEMENT TABLE
+// ─── 4. FIXTURES MANAGEMENT (SORTABLE, MULTI-FILTER, PAGINATED, INLINE QUICK SCORE) ──
 function renderAdminFixturesTable() {
     const container = document.getElementById('adminFixturesContainer');
     if (!container) return;
@@ -756,35 +1129,219 @@ function renderAdminFixturesTable() {
         return;
     }
 
+    // Apply combined filters
+    let list = [...matchesData];
+    if (adminFixturesState.search) {
+        const q = adminFixturesState.search.toLowerCase();
+        list = list.filter(m => {
+            const aName = getTeamName(m.team_a_id, m).toLowerCase();
+            const bName = getTeamName(m.team_b_id, m).toLowerCase();
+            const sName = getSportName(m.sport_id).toLowerCase();
+            return aName.includes(q) || bName.includes(q) || sName.includes(q) || (m.round_info || '').toLowerCase().includes(q);
+        });
+    }
+    if (adminFixturesState.sportFilter) {
+        list = list.filter(m => m.sport_id === adminFixturesState.sportFilter);
+    }
+    if (adminFixturesState.genderFilter) {
+        list = list.filter(m => m.gender === adminFixturesState.genderFilter);
+    }
+    if (adminFixturesState.stageFilter) {
+        list = list.filter(m => m.stage === adminFixturesState.stageFilter);
+    }
+    if (adminFixturesState.statusFilter) {
+        list = list.filter(m => m.status === adminFixturesState.statusFilter);
+    }
+
+    // Sorting
+    list.sort((a, b) => {
+        let vA = '', vB = '';
+        if (adminFixturesState.sortCol === 'stage') {
+            vA = (a.stage || '').toLowerCase();
+            vB = (b.stage || '').toLowerCase();
+        } else if (adminFixturesState.sortCol === 'status') {
+            vA = (a.status || '').toLowerCase();
+            vB = (b.status || '').toLowerCase();
+        } else if (adminFixturesState.sortCol === 'sport') {
+            vA = getSportName(a.sport_id).toLowerCase();
+            vB = getSportName(b.sport_id).toLowerCase();
+        } else {
+            vA = (a.id || '').toLowerCase();
+            vB = (b.id || '').toLowerCase();
+        }
+        if (vA < vB) return adminFixturesState.sortDir === 'asc' ? -1 : 1;
+        if (vA > vB) return adminFixturesState.sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Pagination
+    const totalItems = list.length;
+    const pageSize   = adminFixturesState.pageSize === 'all' ? totalItems : parseInt(adminFixturesState.pageSize, 10);
+    const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
+    if (adminFixturesState.page > totalPages) adminFixturesState.page = totalPages;
+    const startIdx   = (adminFixturesState.page - 1) * pageSize;
+    const pageItems  = adminFixturesState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
+
+    // Build Sport filter options
+    const sportOptions = sportsData.map(s =>
+        `<option value="${s.id}" ${adminFixturesState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+    ).join('');
+
     container.innerHTML = `
-    <table>
-        <thead>
-            <tr>
-                <th>Match</th><th>Sport / Gender</th><th>Stage</th><th>Status</th><th>Score</th><th style="text-align:right;">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${matchesData.map(m => {
-                const aName  = getTeamName(m.team_a_id, m);
-                const bName  = getTeamName(m.team_b_id, m);
-                const sName  = getSportName(m.sport_id);
-                const done   = m.status === 'completed';
-                return `
+    <!-- Toolbar -->
+    <div class="table-toolbar">
+        <div class="table-toolbar-left">
+            <input type="text" class="table-search-input" placeholder="Search teams, round..."
+                   value="${escapeHtml(adminFixturesState.search)}"
+                   oninput="adminFixturesState.search = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+            <select class="table-filter-select" onchange="adminFixturesState.sportFilter = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+                <option value="">All Sports</option>
+                ${sportOptions}
+            </select>
+            <select class="table-filter-select" onchange="adminFixturesState.genderFilter = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+                <option value="">All Genders</option>
+                <option value="Boys" ${adminFixturesState.genderFilter === 'Boys' ? 'selected' : ''}>Boys</option>
+                <option value="Girls" ${adminFixturesState.genderFilter === 'Girls' ? 'selected' : ''}>Girls</option>
+            </select>
+            <select class="table-filter-select" onchange="adminFixturesState.stageFilter = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+                <option value="">All Stages</option>
+                <option value="league" ${adminFixturesState.stageFilter === 'league' ? 'selected' : ''}>League</option>
+                <option value="semifinal" ${adminFixturesState.stageFilter === 'semifinal' ? 'selected' : ''}>Semifinal</option>
+                <option value="final" ${adminFixturesState.stageFilter === 'final' ? 'selected' : ''}>Final</option>
+            </select>
+            <select class="table-filter-select" onchange="adminFixturesState.statusFilter = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+                <option value="">All Statuses</option>
+                <option value="completed" ${adminFixturesState.statusFilter === 'completed' ? 'selected' : ''}>Completed</option>
+                <option value="scheduled" ${adminFixturesState.statusFilter === 'scheduled' ? 'selected' : ''}>Scheduled</option>
+            </select>
+        </div>
+        <div class="table-toolbar-right">
+            <span style="font-size:11px; color:var(--text-secondary);">${totalItems} match${totalItems !== 1 ? 'es' : ''}</span>
+        </div>
+    </div>
+
+    <!-- Table with Inline Score Entry -->
+    <div class="table-wrap">
+        <table>
+            <thead>
                 <tr>
-                    <td style="font-weight:700; font-size:12px;">${aName} vs ${bName}</td>
-                    <td style="color:var(--text-secondary); font-size:12px;">${sName} &mdash; ${m.gender}</td>
-                    <td><span class="badge badge-stage">${m.stage || 'league'}</span></td>
-                    <td><span class="badge ${done ? 'badge-status-completed' : 'badge-status-scheduled'}">${done ? 'FT' : 'Sched.'}</span></td>
-                    <td style="font-variant-numeric:tabular-nums; font-weight:700;">${m.score_summary || '—'}</td>
-                    <td style="text-align:right;">
-                        <button onclick="openMatchModal('${m.id}')" class="btn btn-secondary" style="height:26px; font-size:11px; padding:0 10px;">
-                            Record Score
-                        </button>
-                    </td>
-                </tr>`;
-            }).join('')}
-        </tbody>
-    </table>`;
+                    <th>Matchup</th>
+                    <th class="th-sortable" onclick="toggleFixturesSort('sport')">Sport / Div ${getSortIcon(adminFixturesState.sortCol, 'sport', adminFixturesState.sortDir)}</th>
+                    <th class="th-sortable" onclick="toggleFixturesSort('stage')">Stage ${getSortIcon(adminFixturesState.sortCol, 'stage', adminFixturesState.sortDir)}</th>
+                    <th class="th-sortable" onclick="toggleFixturesSort('status')">Status ${getSortIcon(adminFixturesState.sortCol, 'status', adminFixturesState.sortDir)}</th>
+                    <th>Quick Score Entry</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pageItems.length === 0 ? `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-secondary);">No matching fixtures found</td></tr>` : ''}
+                ${pageItems.map(m => {
+                    const aName  = getTeamName(m.team_a_id, m);
+                    const bName  = getTeamName(m.team_b_id, m);
+                    const sName  = getSportName(m.sport_id);
+                    const done   = m.status === 'completed';
+                    const scoreA = m.score_team_a ?? 0;
+                    const scoreB = m.score_team_b ?? 0;
+
+                    return `
+                    <tr>
+                        <td style="font-weight:700; font-size:12px;">
+                            ${escapeHtml(aName)} <span style="font-size:10px; color:var(--text-tertiary);">vs</span> ${escapeHtml(bName)}
+                        </td>
+                        <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(sName)} &mdash; ${escapeHtml(m.gender)}</td>
+                        <td><span class="badge badge-stage">${escapeHtml(m.stage || 'league')}</span></td>
+                        <td><span class="badge ${done ? 'badge-status-completed' : 'badge-status-scheduled'}">${done ? 'FT' : 'Sched.'}</span></td>
+                        <td>
+                            <div class="inline-score-wrap">
+                                <input type="number" min="0" class="inline-score-input" id="inline_a_${m.id}" value="${scoreA}" placeholder="0" aria-label="${escapeHtml(aName)} score">
+                                <span style="font-size:11px; color:var(--text-tertiary);">&ndash;</span>
+                                <input type="number" min="0" class="inline-score-input" id="inline_b_${m.id}" value="${scoreB}" placeholder="0" aria-label="${escapeHtml(bName)} score">
+                                <button class="inline-save-btn" onclick="saveInlineMatchScore('${m.id}')" title="Quick Save Score">Save</button>
+                            </div>
+                        </td>
+                        <td style="text-align:right;">
+                            <button onclick="openMatchModal('${m.id}')" class="btn btn-secondary btn-icon" title="Full Edit" style="height:26px; width:26px;">
+                                <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar">
+        <div>
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+        </div>
+        <div class="pagination-nav">
+            <button class="pagination-btn" ${adminFixturesState.page <= 1 ? 'disabled' : ''} onclick="adminFixturesState.page--; renderAdminFixturesTable();">Prev</button>
+            <span style="font-size:11px; padding:0 4px;">Page ${adminFixturesState.page} of ${totalPages}</span>
+            <button class="pagination-btn" ${adminFixturesState.page >= totalPages ? 'disabled' : ''} onclick="adminFixturesState.page++; renderAdminFixturesTable();">Next</button>
+            <select class="page-size-select" onchange="adminFixturesState.pageSize = this.value; adminFixturesState.page = 1; renderAdminFixturesTable();">
+                <option value="10" ${adminFixturesState.pageSize == '10' ? 'selected' : ''}>10 / page</option>
+                <option value="25" ${adminFixturesState.pageSize == '25' ? 'selected' : ''}>25 / page</option>
+                <option value="all" ${adminFixturesState.pageSize == 'all' ? 'selected' : ''}>Show All</option>
+            </select>
+        </div>
+    </div>`;
+}
+
+function toggleFixturesSort(col) {
+    if (adminFixturesState.sortCol === col) {
+        adminFixturesState.sortDir = adminFixturesState.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        adminFixturesState.sortCol = col;
+        adminFixturesState.sortDir = 'asc';
+    }
+    renderAdminFixturesTable();
+}
+
+/**
+ * Fast inline score recording action directly from table row
+ */
+async function saveInlineMatchScore(matchId) {
+    const aInput = document.getElementById(`inline_a_${matchId}`);
+    const bInput = document.getElementById(`inline_b_${matchId}`);
+    if (!aInput || !bInput) return;
+
+    const valA = aInput.value.trim();
+    const valB = bInput.value.trim();
+
+    if (valA === '' || valB === '' || isNaN(valA) || isNaN(valB)) {
+        showToast('Scores must be valid numbers', 'error');
+        return;
+    }
+
+    const score_team_a = parseInt(valA, 10);
+    const score_team_b = parseInt(valB, 10);
+
+    if (score_team_a < 0 || score_team_b < 0) {
+        showToast('Scores cannot be negative', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetchWithAuth(`/api/matches/${matchId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ score_team_a, score_team_b })
+        });
+
+        if (res.ok) {
+            await fetchMatches();
+            renderAdminFixturesTable();
+            showToast(`Match score saved: ${score_team_a} - ${score_team_b}`, 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to save score', 'error');
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast('Network error while saving score', 'error');
+        }
+    }
 }
 
 // ─── ADMIN CRUD: SQUADS ────────────────────────────────────────────────────
