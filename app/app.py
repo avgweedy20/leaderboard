@@ -40,9 +40,6 @@ MOCK_DB = {
             "name": "Futsal",
             "type": "football",
             "level": "HS",
-            "point_win": 3,
-            "point_draw": 1,
-            "point_loss": 0,
             "is_lower_score_better": False
         },
         {
@@ -50,9 +47,6 @@ MOCK_DB = {
             "name": "Basketball",
             "type": "basketball",
             "level": "HS",
-            "point_win": 3,
-            "point_draw": 1,
-            "point_loss": 0,
             "is_lower_score_better": False
         },
         {
@@ -60,17 +54,22 @@ MOCK_DB = {
             "name": "Cricksal",
             "type": "generic",
             "level": "HS",
-            "point_win": 3,
-            "point_draw": 1,
-            "point_loss": 0,
             "is_lower_score_better": False
         }
     ],
+    "tournament_groups": [
+        {"id": "g1", "sport_id": "11111111-1111-1111-1111-111111111111", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
+        {"id": "g2", "sport_id": "11111111-1111-1111-1111-111111111111", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+        {"id": "g3", "sport_id": "22222222-2222-2222-2222-222222222222", "gender": "Boys", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+        {"id": "g4", "sport_id": "22222222-2222-2222-2222-222222222222", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
+        {"id": "g5", "sport_id": "33333333-3333-3333-3333-333333333333", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
+        {"id": "g6", "sport_id": "33333333-3333-3333-3333-333333333333", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0}
+    ],
     "teams": [
-        {"id": "t1", "name": "Karnali Boys Futsal A", "house_id": "h1", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
-        {"id": "t2", "name": "Koshi Boys Futsal A", "house_id": "h2", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
-        {"id": "t3", "name": "Mahakali Boys Futsal A", "house_id": "h3", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
-        {"id": "t4", "name": "Mechi Boys Futsal A", "house_id": "h4", "gender": "Boys", "squad_label": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"}
+        {"id": "t1", "name": "Karnali Boys Futsal A", "house_id": "h1", "gender": "Boys", "squad_label": "A", "pool": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t2", "name": "Koshi Boys Futsal A", "house_id": "h2", "gender": "Boys", "squad_label": "A", "pool": "B", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t3", "name": "Mahakali Boys Futsal A", "house_id": "h3", "gender": "Boys", "squad_label": "A", "pool": "A", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"},
+        {"id": "t4", "name": "Mechi Boys Futsal A", "house_id": "h4", "gender": "Boys", "squad_label": "A", "pool": "B", "sport_id": "11111111-1111-1111-1111-111111111111", "level": "HS"}
     ],
     "players": [
         {"id": "p1", "name": "Aarav Sharma", "team_id": "t1", "roll_number": "101", "grade": "11", "section": "A", "gender": "Boys", "level": "HS"},
@@ -140,11 +139,36 @@ def req_admin_auth(f):
     return decorated
 
 
-# --- ROUTES ---
+# --- HTML PAGE ENDPOINTS (MULTI-PAGE ARCHITECTURE) ---
 
 @app.route("/")
 def index_page():
-    return render_template("index.html")
+    return render_template("index.html", active_page="overall")
+
+@app.route("/standings")
+@app.route("/standings/<sport_slug>")
+def standings_page(sport_slug="futsal"):
+    return render_template("standings.html", active_page="standings", sport_slug=sport_slug)
+
+@app.route("/fixtures")
+def fixtures_page():
+    return render_template("fixtures.html", active_page="fixtures")
+
+@app.route("/admin")
+def admin_page():
+    return render_template("admin/index.html", active_page="admin", active_admin_sub="dashboard")
+
+@app.route("/admin/squads")
+def admin_squads_page():
+    return render_template("admin/squads.html", active_page="admin_squads", active_admin_sub="squads")
+
+@app.route("/admin/players")
+def admin_players_page():
+    return render_template("admin/players.html", active_page="admin_players", active_admin_sub="players")
+
+@app.route("/admin/seeder-log")
+def admin_seeder_log_page():
+    return render_template("admin/seeder_log.html", active_page="admin_seeder_log", active_admin_sub="seeder-log")
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
