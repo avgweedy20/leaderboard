@@ -232,3 +232,27 @@ def test_concrete_validation_targets(tmp_path):
     # Mahakali: 0W-2L-0D, 0 pts, PF 9, PA 115
     mahakali_bb = bb_stats[find_sq("mahakali", "Boys", "Basketball")["id"]]
     assert mahakali_bb["w"] == 0 and mahakali_bb["l"] == 2 and mahakali_bb["pts"] == 0 and mahakali_bb["gf"] == 9 and mahakali_bb["ga"] == 115
+
+def test_generate_fixtures_sql(tmp_path):
+    excel_file = tmp_path / "test_interhouse_meet.xlsx"
+    wb = openpyxl.Workbook()
+    ws_tiesheet = wb.active
+    ws_tiesheet.title = "Tie-sheet & Scores Update"
+
+    ws_tiesheet.append(["HS Futsal Girls League Matches"])
+    ws_tiesheet.append(["1", "Karnali A", "Vs", "Koshi", "6-1=5"])
+
+    wb.save(excel_file)
+
+    fixtures_sql_file = tmp_path / "seed2.sql"
+    seeder = InterHouseSeeder(str(excel_file), supabase_client=None)
+    seeder.run()
+    seeder.generate_fixtures_sql(str(fixtures_sql_file))
+
+    assert os.path.exists(fixtures_sql_file)
+    content = fixtures_sql_file.read_text(encoding="utf-8")
+    assert "-- DEPENDENCY: Must be executed AFTER seed.sql" in content
+    assert "INSERT INTO public.matches" in content
+    assert "Karnali" in content
+    assert "Koshi" in content
+    assert "SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id" in content

@@ -9,7 +9,7 @@
             <h1 class="text-3xl font-extrabold text-white mb-1">House Squad Roster</h1>
             <p class="text-slate-400 text-sm">Manage house squads across sports and gender divisions.</p>
         </div>
-        <button onclick="openSquadModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+        <button onclick="openSquadModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition">
             <svg class="icon w-4 h-4"><use href="#icon-plus"></use></svg> Add Squad
         </button>
     </div>
@@ -58,8 +58,8 @@
                 <input type="text" id="squadLabel" required placeholder="A" class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm outline-none">
             </div>
             <div class="flex justify-end gap-3 pt-2">
-                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('squadModal')">Cancel</button>
-                <button type="submit" class="btn px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg">Save Squad</button>
+                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700" onclick="closeModal('squadModal')">Cancel</button>
+                <button type="submit" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg border border-slate-700 shadow-sm">Save Squad</button>
             </div>
         </form>
     </div>

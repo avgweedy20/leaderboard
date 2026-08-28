@@ -10,8 +10,45 @@ import sys
 import uuid
 import argparse
 from typing import Dict, Any, Optional, Tuple, List
+import csv
 import openpyxl
 from dotenv import load_dotenv
+
+class MockCell:
+    def __init__(self, value):
+        self.value = value
+
+class MockSheet:
+    def __init__(self, title, rows):
+        self.title = title
+        self._rows = rows
+
+    @property
+    def max_row(self):
+        return len(self._rows)
+
+    @property
+    def max_column(self):
+        return max((len(r) for r in self._rows), default=0)
+
+    def cell(self, row, column):
+        r_idx = row - 1
+        c_idx = column - 1
+        if 0 <= r_idx < len(self._rows) and 0 <= c_idx < len(self._rows[r_idx]):
+            val = self._rows[r_idx][c_idx]
+            return MockCell(val if val != "" else None)
+        return MockCell(None)
+
+class MockWorkbook:
+    def __init__(self):
+        self.sheets = {}
+
+    @property
+    def sheetnames(self):
+        return list(self.sheets.keys())
+
+    def __getitem__(self, item):
+        return self.sheets[item]
 
 load_dotenv()
 
@@ -91,8 +128,16 @@ class InterHouseSeeder:
 
     def load_workbook(self) -> bool:
         if not os.path.exists(self.excel_path):
-            print(f"Warning: Excel file not found at '{self.excel_path}'. Proceeding with default config.")
+            print(f"Warning: Excel/CSV file not found at '{self.excel_path}'. Proceeding with default config.")
             return False
+        if self.excel_path.endswith('.csv'):
+            with open(self.excel_path, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                rows = [row for row in reader]
+            mock_wb = MockWorkbook()
+            mock_wb.sheets["Tie-sheet & Scores Update"] = MockSheet("Tie-sheet & Scores Update", rows)
+            self.wb = mock_wb
+            return True
         self.wb = openpyxl.load_workbook(self.excel_path, data_only=True)
         return True
 
@@ -769,6 +814,44 @@ class InterHouseSeeder:
             f.write("\n".join(lines) + "\n")
         print(f"Successfully wrote {len(lines)} SQL lines to '{output_path}'")
 
+    def generate_fixtures_sql(self, output_path: str = "seed2.sql"):
+        print(f"\n=== Generating Fixtures SQL Seed File: {output_path} ===")
+        lines = [
+            "-- Generated static seed2.sql for DSS Sports Inter-House Meet (Fixtures & Matches)",
+            "-- DEPENDENCY: Must be executed AFTER seed.sql (houses, sports, tournament_groups, and teams must already exist).",
+            "-- Upsert-safe SQL file runnable directly in Supabase SQL editor or psql",
+            "BEGIN;",
+            "",
+            "-- MATCHES & FIXTURES"
+        ]
+
+        created_matches = self.stats["fixtures"].get("created_list", [])
+        for m in created_matches:
+            info_val = str_sql(m.get('round_info') or "")
+            summary_val = str_sql(m.get('score_summary') or "")
+            is_draw_val = "TRUE" if m.get('is_draw') else "FALSE"
+
+            sq_a = m.get('team_a_obj')
+            sq_b = m.get('team_b_obj')
+            sq_w = m.get('winner_obj')
+
+            team_a_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_a['house_name']}' AND s.name = '{sq_a['sport_name']}' AND t.gender = '{sq_a['gender']}' AND t.squad_label = '{sq_a['squad_label']}')" if sq_a else "NULL"
+            team_b_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_b['house_name']}' AND s.name = '{sq_b['sport_name']}' AND t.gender = '{sq_b['gender']}' AND t.squad_label = '{sq_b['squad_label']}')" if sq_b else "NULL"
+            winner_select = f"(SELECT t.id FROM public.teams t JOIN public.houses h ON t.house_id = h.id JOIN public.sports s ON t.sport_id = s.id WHERE h.name = '{sq_w['house_name']}' AND s.name = '{sq_w['sport_name']}' AND t.gender = '{sq_w['gender']}' AND t.squad_label = '{sq_w['squad_label']}')" if sq_w else "NULL"
+
+            lines.append(
+                f"INSERT INTO public.matches (id, sport_id, team_a_id, team_b_id, gender, stage, level, status, round_info, winner_team_id, is_draw, score_team_a, score_team_b, score_difference, score_summary) "
+                f"SELECT '{m['id']}', s.id, {team_a_select}, {team_b_select}, '{m['gender']}', '{m['stage']}', '{m['level']}', '{m['status']}', {info_val}, {winner_select}, {is_draw_val}, {m['score_team_a']}, {m['score_team_b']}, {m['score_difference']}, {summary_val} "
+                f"FROM public.sports s WHERE s.name = '{m['sport_name']}' "
+                f"ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, winner_team_id = EXCLUDED.winner_team_id, is_draw = EXCLUDED.is_draw, score_team_a = EXCLUDED.score_team_a, score_team_b = EXCLUDED.score_team_b, score_difference = EXCLUDED.score_difference, score_summary = EXCLUDED.score_summary;"
+            )
+
+        lines.append("\nCOMMIT;")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"Successfully wrote {len(lines)} SQL lines to '{output_path}'")
+
 def str_sql(val: Optional[str]) -> str:
     if val is None or val == "":
         return "NULL"
@@ -784,8 +867,10 @@ def roll_num_sql(val: Optional[str]) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Seed DSS Sports Inter-House Meet data.")
     parser.add_argument("--file", default="seed-data/interhouse_meet.xlsx", help="Path to .xlsx file")
-    parser.add_argument("--output-sql", action="store_true", help="Generate static SQL file instead of running API seeder")
+    parser.add_argument("--output-sql", action="store_true", help="Generate static SQL file (seed.sql) instead of running API seeder")
     parser.add_argument("--sql-file", default="seed.sql", help="Output path for SQL seed file")
+    parser.add_argument("--output-fixtures-sql", action="store_true", help="Generate static SQL file for fixtures/matches only (seed2.sql)")
+    parser.add_argument("--fixtures-sql-file", default="seed2.sql", help="Output path for fixtures SQL seed file")
     args = parser.parse_args()
 
     supabase_client = None
@@ -802,6 +887,9 @@ def main():
 
     if args.output_sql:
         seeder.generate_sql(args.sql_file)
+
+    if args.output_fixtures_sql:
+        seeder.generate_fixtures_sql(args.fixtures_sql_file)
 
 if __name__ == "__main__":
     main()

@@ -10,10 +10,10 @@
             <p class="text-slate-400 text-sm">Manage student players, roll numbers, and squad assignments.</p>
         </div>
         <div class="flex gap-2">
-            <button onclick="openPlayerModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+            <button onclick="openPlayerModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition">
                 <svg class="icon w-4 h-4"><use href="#icon-plus"></use></svg> Add Player
             </button>
-            <button onclick="openCsvModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-lg shadow-md transition">
+            <button onclick="openCsvModal()" class="btn flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition">
                 <svg class="icon w-4 h-4"><use href="#icon-upload"></use></svg> Import CSV
             </button>
         </div>
@@ -73,8 +73,8 @@
                 </select>
             </div>
             <div class="flex justify-end gap-3 pt-2">
-                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('playerModal')">Cancel</button>
-                <button type="submit" class="btn px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg">Save Player</button>
+                <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700" onclick="closeModal('playerModal')">Cancel</button>
+                <button type="submit" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg border border-slate-700 shadow-sm">Save Player</button>
             </div>
         </form>
     </div>
@@ -92,8 +92,8 @@
         </div>
 
         <div class="space-y-4 flex-1 overflow-y-auto pr-1">
-            <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center bg-slate-800/50 hover:border-purple-500 transition cursor-pointer" onclick="document.getElementById('csvFileInput').click()">
-                <svg class="icon w-8 h-8 text-purple-400 mx-auto mb-2"><use href="#icon-upload"></use></svg>
+            <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center bg-slate-800/50 hover:border-slate-500 transition cursor-pointer" onclick="document.getElementById('csvFileInput').click()">
+                <svg class="icon w-8 h-8 text-slate-400 mx-auto mb-2"><use href="#icon-upload"></use></svg>
                 <p class="text-sm font-semibold text-slate-200">Click to select CSV file</p>
                 <p class="text-xs text-slate-500 mt-1">Expected headers: Roll Number, Name, Grade, Section, Gender, Squad</p>
                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleCsvFileSelected(event)">
@@ -102,7 +102,7 @@
             <div id="csvPreviewContainer" class="hidden space-y-3">
                 <div class="flex items-center justify-between">
                     <h4 class="text-sm font-bold text-white">Validation Preview</h4>
-                    <span id="csvPreviewCountBadge" class="text-xs font-mono bg-purple-900/50 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700">0 records</span>
+                    <span id="csvPreviewCountBadge" class="text-xs font-mono bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">0 records</span>
                 </div>
 
                 <div id="csvValidationWarnings" class="space-y-1"></div>
@@ -126,8 +126,8 @@
         </div>
 
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
-            <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg" onclick="closeModal('csvModal')">Cancel</button>
-            <button id="commitCsvBtn" type="button" disabled onclick="commitCsvImport()" class="btn px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow">Commit Import</button>
+            <button type="button" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700" onclick="closeModal('csvModal')">Cancel</button>
+            <button id="commitCsvBtn" type="button" disabled onclick="commitCsvImport()" class="btn px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg border border-slate-700 shadow-sm">Commit Import</button>
         </div>
     </div>
 </div>
