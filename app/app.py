@@ -1517,8 +1517,10 @@ def auth_login():
     if supabase_client:
         try:
             res = supabase_client.auth.sign_in_with_password({"email": email, "password": password})
+            expires_in = getattr(res.session, 'expires_in', 21600) or 21600
             return jsonify({
                 "access_token": res.session.access_token,
+                "expires_in": expires_in,
                 "user": {"id": res.user.id, "email": res.user.email}
             })
         except Exception as e:
@@ -1527,6 +1529,7 @@ def auth_login():
         if email == "admin@scoreboard.com" and password == "admin123":
             return jsonify({
                 "access_token": "mock-admin-token",
+                "expires_in": 21600,
                 "user": {"id": "admin-id-123", "email": "admin@scoreboard.com"}
             })
         return jsonify({"error": "Invalid email or password"}), 401

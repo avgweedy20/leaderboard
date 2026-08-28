@@ -97,9 +97,10 @@ async function loadAllFixtures() {
         const res = await fetch('/api/matches');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allFixtures = await res.json();
+        matchesData = allFixtures;
         renderFixtureGroups(allFixtures);
     } catch (err) {
-        container.innerHTML = renderErrorState('Failed to load fixtures.', 'loadAllFixtures()');
+        container.innerHTML = renderSharedErrorState('Failed to load fixtures.', 'loadAllFixtures()');
     }
 }
 
@@ -109,6 +110,7 @@ async function reloadFixturesAfterUpdate() {
         const res = await fetch('/api/matches');
         if (!res.ok) return;
         allFixtures = await res.json();
+        matchesData = allFixtures;
         renderFixtureGroups(allFixtures);
     } catch(e) { /* silent */ }
 }
@@ -123,7 +125,7 @@ function renderFixtureGroups(fixtures) {
     if (activeFixtureStatus)  filtered = filtered.filter(m => m.status === activeFixtureStatus);
 
     if (filtered.length === 0) {
-        container.innerHTML = renderEmptyState(
+        container.innerHTML = renderSharedEmptyState(
             'No fixtures match your filters',
             'Try adjusting the sport or gender filters above.'
         );
@@ -261,29 +263,6 @@ function getHouseColor(houseId, housesObj) {
     return h ? h.color_hex : 'var(--border)';
 }
 
-// Reusable empty state HTML
-function renderEmptyState(title, desc) {
-    return `
-    <div class="card">
-        <div class="state-empty">
-            <svg class="state-empty-icon" width="40" height="40"><use href="#icon-empty"/></svg>
-            <p class="state-empty-title">${title}</p>
-            <p class="state-empty-desc">${desc}</p>
-        </div>
-    </div>`;
-}
-
-// Reusable error state HTML
-function renderErrorState(message, retryCall) {
-    return `
-    <div class="state-error">
-        <svg class="icon" width="20" height="20" style="color:#F87171;"><use href="#icon-alert"/></svg>
-        <p class="state-error-title">${message}</p>
-        <button class="btn btn-secondary" onclick="${retryCall}" style="margin-top:4px;">
-            <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
-            Try Again
-        </button>
-    </div>`;
 }
 </script>
 {% endblock %}

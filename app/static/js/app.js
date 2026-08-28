@@ -2,10 +2,10 @@
  * DSS Sports — Inter-House Sports Meet
  * Main application logic
  *
- * Bug fixes included:
- *  1. loadCurrentTabData was undefined → replaced with page-aware re-fetch
- *  2. GSAP stagger left cards at opacity:0 → removed, CSS fade-in used instead
- *  3. getTeamName resolves from Supabase nested join data when squadsData misses
+ * Implements:
+ *  1. Reusable Toast Notification System (replacing all alerts)
+ *  2. JWT Session Expiry: 6-hour duration, proactive expiry checks, auto-logout on expiry/401
+ *  3. Fixture Score Editing: reliable modal pre-population, score update, and instant live UI refresh
  */
 
 // ─── GLOBALS ───────────────────────────────────────────────────────────────
@@ -18,6 +18,9 @@ let matchesData    = [];
 let seederLogsData = [];
 let selectedSportId = '';
 let pendingCsvPlayers = [];
+
+// Session duration: 6 hours (in milliseconds)
+const SESSION_DURATION_MS = 6 * 60 * 60 * 1000; // 21,600,000 ms
 
 // House color map (keyed by lowercase house name, used as fallback)
 const HOUSE_COLORS = {
@@ -32,8 +35,214 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkAuthUI();
     checkDbHealth();
+    startSessionExpiryChecker();
 });
 
+// ─── TOAST NOTIFICATION SYSTEM ─────────────────────────────────────────────
+/**
+ * Show a toast notification
+ * @param {string} message - Toast text
+ * @param {'success'|'error'|'info'} type - Type of toast
+ * @param {Object} [options] - Options { title, duration, action: { label, onClick } }
+ */
+function showToast(message, type = 'info', options = {}) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', 'alert');
+
+    const iconId = type === 'success' ? 'icon-check'
+                 : type === 'error'   ? 'icon-alert'
+                 : 'icon-info';
+
+    const titleHtml = options.title ? `<div class="toast-title">${escapeHtml(options.title)}</div>` : '';
+    let actionHtml = '';
+    if (options.action && options.action.label && typeof options.action.onClick === 'function') {
+        actionHtml = `<button type="button" class="btn btn-secondary" style="height:24px; font-size:11px; padding:0 8px; margin-top:6px;" id="toast-action-btn">${escapeHtml(options.action.label)}</button>`;
+    }
+
+    toast.innerHTML = `
+        <svg class="toast-icon" width="16" height="16"><use href="#${iconId}"/></svg>
+        <div class="toast-content">
+            ${titleHtml}
+            <div class="toast-message">${escapeHtml(message)}</div>
+            ${actionHtml}
+        </div>
+        <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
+    `;
+
+    // Close button
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.onclick = () => dismissToast(toast);
+
+    // Action button
+    if (options.action && options.action.onClick) {
+        const actionBtn = toast.querySelector('#toast-action-btn');
+        if (actionBtn) {
+            actionBtn.onclick = () => {
+                options.action.onClick();
+                dismissToast(toast);
+            };
+        }
+    }
+
+    container.appendChild(toast);
+
+    // Auto-dismiss timing (errors stay slightly longer)
+    const duration = options.duration || (type === 'error' ? 6000 : 4000);
+    const timer = setTimeout(() => {
+        dismissToast(toast);
+    }, duration);
+
+    toast._dismissTimer = timer;
+    return toast;
+}
+
+function dismissToast(toast) {
+    if (!toast || toast.classList.contains('toast-closing')) return;
+    clearTimeout(toast._dismissTimer);
+    toast.classList.add('toast-closing');
+    setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 160);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// ─── JWT / SESSION EXPIRY MANAGEMENT ───────────────────────────────────────
+/**
+ * Parse expiration time from JWT token string if possible
+ */
+function parseJwtExp(token) {
+    if (!token || typeof token !== 'string') return null;
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload && payload.exp) {
+            return payload.exp * 1000; // in milliseconds
+        }
+    } catch (e) { /* not a standard JWT or decoding failed */ }
+    return null;
+}
+
+/**
+ * Returns true if the stored auth token is expired or invalid
+ */
+function isTokenExpired() {
+    if (!currentToken) return true;
+
+    // Check explicit expires_at timestamp stored at login
+    const storedExpiry = localStorage.getItem('sb_auth_expires_at');
+    if (storedExpiry) {
+        const expiryTime = parseInt(storedExpiry, 10);
+        if (!isNaN(expiryTime) && Date.now() >= expiryTime) {
+            return true;
+        }
+    }
+
+    // Check JWT payload exp claim if present
+    const jwtExp = parseJwtExp(currentToken);
+    if (jwtExp && Date.now() >= jwtExp) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Log out and clear session when token expires
+ */
+function handleSessionExpired() {
+    if (!currentToken) return;
+
+    currentToken = null;
+    localStorage.removeItem('sb_auth_token');
+    localStorage.removeItem('sb_auth_expires_at');
+    checkAuthUI();
+
+    showToast('Your session expired — please sign in again.', 'info', {
+        title: 'Session Expired',
+        duration: 7000
+    });
+
+    // If currently on an admin page, redirect home
+    if (window.location.pathname.startsWith('/admin')) {
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 1200);
+    }
+}
+
+/**
+ * Periodic session expiration checker (runs every 10s & on window focus)
+ */
+function startSessionExpiryChecker() {
+    // Immediate check on load
+    if (currentToken && isTokenExpired()) {
+        handleSessionExpired();
+    }
+
+    // Interval check
+    setInterval(() => {
+        if (currentToken && isTokenExpired()) {
+            handleSessionExpired();
+        }
+    }, 10000);
+
+    // Re-check on tab visibility change / focus
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && currentToken && isTokenExpired()) {
+            handleSessionExpired();
+        }
+    });
+    window.addEventListener('focus', () => {
+        if (currentToken && isTokenExpired()) {
+            handleSessionExpired();
+        }
+    });
+}
+
+/**
+ * Authenticated API fetch wrapper — handles Bearer header and 401 auto-logout
+ */
+async function fetchWithAuth(url, options = {}) {
+    if (currentToken && isTokenExpired()) {
+        handleSessionExpired();
+        throw new Error('Session expired');
+    }
+
+    const headers = options.headers ? { ...options.headers } : {};
+    if (currentToken) {
+        headers['Authorization'] = `Bearer ${currentToken}`;
+    }
+
+    const res = await fetch(url, { ...options, headers });
+
+    if (res.status === 401) {
+        handleSessionExpired();
+        throw new Error('Unauthorized — session expired');
+    }
+
+    return res;
+}
+
+// ─── HEALTH CHECK ──────────────────────────────────────────────────────────
 async function checkDbHealth() {
     const badge = document.getElementById('dbModeBadge');
     if (!badge) return;
@@ -67,21 +276,21 @@ function applyTheme(theme) {
     if (icon) icon.innerHTML = `<use href="#icon-${theme === 'dark' ? 'moon' : 'sun'}"/>`;
 }
 
-// ─── AUTH ──────────────────────────────────────────────────────────────────
+// ─── AUTH UI ───────────────────────────────────────────────────────────────
 function checkAuthUI() {
     const authBtnText = document.getElementById('authBtnText');
     const authIcon    = document.getElementById('authIcon');
     const adminTab    = document.getElementById('adminTabBtn');
 
-    if (currentToken) {
+    if (currentToken && !isTokenExpired()) {
         if (authBtnText) authBtnText.textContent = 'Sign Out';
         if (authIcon)    authIcon.innerHTML = `<use href="#icon-logout"/>`;
         if (adminTab)    adminTab.style.display = 'inline-flex';
     } else {
+        currentToken = null;
         if (authBtnText) authBtnText.textContent = 'Admin Login';
         if (authIcon)    authIcon.innerHTML = `<use href="#icon-login"/>`;
         if (adminTab)    adminTab.style.display = 'none';
-        // Redirect away from admin pages if not logged in
         if (window.location.pathname.startsWith('/admin')) {
             window.location.href = '/';
         }
@@ -89,11 +298,15 @@ function checkAuthUI() {
 }
 
 function openLoginModal() {
-    if (currentToken) {
+    if (currentToken && !isTokenExpired()) {
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
+        localStorage.removeItem('sb_auth_expires_at');
         checkAuthUI();
-        window.location.reload();
+        showToast('Signed out successfully', 'info');
+        if (window.location.pathname.startsWith('/admin')) {
+            window.location.href = '/';
+        }
     } else {
         openModal('loginModal');
     }
@@ -113,14 +326,21 @@ async function handleLogin(e) {
         if (res.ok && data.access_token) {
             currentToken = data.access_token;
             localStorage.setItem('sb_auth_token', currentToken);
+
+            // Compute 6-hour expiry (21,600 seconds)
+            const expiresInSec = data.expires_in || 21600;
+            const expiresAtMs  = Date.now() + (expiresInSec * 1000);
+            localStorage.setItem('sb_auth_expires_at', String(expiresAtMs));
+
             closeModal('loginModal');
             checkAuthUI();
+            showToast('Signed in successfully as Admin', 'success');
             window.location.href = '/admin';
         } else {
-            alert(data.error || 'Login failed');
+            showToast(data.error || 'Invalid credentials. Please try again.', 'error', { title: 'Sign In Failed' });
         }
     } catch (err) {
-        alert('Network error during login');
+        showToast('Network error during sign in. Check backend connection.', 'error', { title: 'Connection Error' });
     }
 }
 
@@ -162,13 +382,6 @@ async function fetchSquads() {
         const res = await fetch('/api/teams');
         squadsData = await res.json();
     } catch (e) { console.error('fetchSquads:', e); }
-}
-
-async function fetchPlayers() {
-    try {
-        const res = await fetch('/api/players');
-        playersData = await res.json();
-    } catch (e) { console.error('fetchPlayers:', e); }
 }
 
 async function fetchMatches() {
@@ -213,9 +426,7 @@ function selectSportChip(sportId, sportSlug) {
 // ─── PAGE LOADERS ──────────────────────────────────────────────────────────
 function loadHouseOverallStandingsPage() { loadHouseOverallStandings(); }
 function loadPerSportStandingsPage()     { loadPerSportStandings(); }
-function loadFixturesPage()              {
-    // fixtures.html manages its own state via loadAllFixtures()
-}
+function loadFixturesPage()              { /* fixtures.html manages its own state via loadAllFixtures() */ }
 function loadAdminCenterPage()           { loadAdminCenterData(); }
 
 // ─── 1. OVERALL HOUSE STANDINGS ────────────────────────────────────────────
@@ -234,7 +445,6 @@ async function loadHouseOverallStandings() {
         } else {
             heroEl.innerHTML = standings.map(h => {
                 const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
-                const sign  = h.total_score_difference > 0 ? '+' : '';
                 return `
                 <div class="house-hero-card fade-in" style="border-left-color:${color};">
                     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
@@ -258,9 +468,6 @@ async function loadHouseOverallStandings() {
                         <div style="text-align:right;">
                             <div class="stat-label">W &ndash; D &ndash; L</div>
                             <div class="stat-value-sm tabular">${h.total_wins}&ndash;${h.total_draws}&ndash;${h.total_losses}</div>
-                            <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;" class="tabular">
-                                Diff: ${sign}${h.total_score_difference}
-                            </div>
                         </div>
                     </div>
                 </div>`;
@@ -285,14 +492,12 @@ async function loadHouseOverallStandings() {
                         <th>W</th>
                         <th>D</th>
                         <th>L</th>
-                        <th>Diff</th>
                         <th style="text-align:right;">Points</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${standings.map(h => {
                         const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
-                        const sign  = h.total_score_difference > 0 ? '+' : '';
                         return `
                         <tr style="border-left:3px solid ${color};">
                             <td style="font-weight:700; color:${color};">#${h.rank}</td>
@@ -307,7 +512,6 @@ async function loadHouseOverallStandings() {
                             <td class="tabular" style="color:var(--c-karnali);">${h.total_wins}</td>
                             <td class="tabular" style="color:var(--text-secondary);">${h.total_draws}</td>
                             <td class="tabular" style="color:#F87171;">${h.total_losses}</td>
-                            <td class="tabular" style="color:var(--text-secondary);">${sign}${h.total_score_difference}</td>
                             <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${h.total_points}</td>
                         </tr>`;
                     }).join('')}
@@ -623,26 +827,44 @@ async function handleSquadSubmit(e) {
     const url    = squadId ? `/api/teams/${squadId}` : '/api/teams';
 
     try {
-        const res = await fetch(url, {
+        const res = await fetchWithAuth(url, {
             method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ house_id, sport_id, gender, squad_label })
         });
-        if (res.ok) { closeModal('squadModal'); await loadAdminCenterData(); }
-        else { const err = await res.json(); alert(err.error || 'Failed to save squad'); }
-    } catch (err) { alert('Network error'); }
+        if (res.ok) {
+            closeModal('squadModal');
+            await loadAdminCenterData();
+            showToast(squadId ? 'House squad updated successfully' : 'House squad created successfully', 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to save squad', 'error', { title: 'Squad Save Failed' });
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while saving squad', 'error');
+        }
+    }
 }
 
 async function deleteSquad(id) {
     if (!confirm('Delete this squad?')) return;
     try {
-        const res = await fetch(`/api/teams/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${currentToken}` }
+        const res = await fetchWithAuth(`/api/teams/${id}`, {
+            method: 'DELETE'
         });
-        if (res.ok) await loadAdminCenterData();
-        else alert('Failed to delete squad');
-    } catch (err) { alert('Network error'); }
+        if (res.ok) {
+            await loadAdminCenterData();
+            showToast('Squad deleted successfully', 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to delete squad', 'error');
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while deleting squad', 'error');
+        }
+    }
 }
 
 // ─── ADMIN CRUD: PLAYERS ───────────────────────────────────────────────────
@@ -687,26 +909,44 @@ async function handlePlayerSubmit(e) {
     const url    = playerId ? `/api/players/${playerId}` : '/api/players';
 
     try {
-        const res = await fetch(url, {
+        const res = await fetchWithAuth(url, {
             method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, roll_number, team_id, grade, section, gender })
         });
-        if (res.ok) { closeModal('playerModal'); await loadAdminCenterData(); }
-        else { const err = await res.json(); alert(err.error || 'Failed to save player'); }
-    } catch (err) { alert('Network error'); }
+        if (res.ok) {
+            closeModal('playerModal');
+            await loadAdminCenterData();
+            showToast(playerId ? 'Player updated successfully' : 'Player added successfully', 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to save player', 'error', { title: 'Player Save Failed' });
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while saving player', 'error');
+        }
+    }
 }
 
 async function deletePlayer(id) {
     if (!confirm('Delete this player?')) return;
     try {
-        const res = await fetch(`/api/players/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${currentToken}` }
+        const res = await fetchWithAuth(`/api/players/${id}`, {
+            method: 'DELETE'
         });
-        if (res.ok) await loadAdminCenterData();
-        else alert('Failed to delete player');
-    } catch (err) { alert('Network error'); }
+        if (res.ok) {
+            await loadAdminCenterData();
+            showToast('Player deleted successfully', 'success');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to delete player', 'error');
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while deleting player', 'error');
+        }
+    }
 }
 
 // ─── ADMIN CRUD: MATCHES ───────────────────────────────────────────────────
@@ -746,89 +986,151 @@ async function handleCreateMatchSubmit(e) {
     const round_info = document.getElementById('newMatchRoundInfo').value || 'League Game';
 
     if (!team_a_id || !team_b_id || team_a_id === team_b_id) {
-        alert('Please select two distinct teams.');
+        showToast('Please select two distinct teams for the fixture.', 'error', { title: 'Invalid Teams' });
         return;
     }
     try {
-        const res = await fetch('/api/matches', {
+        const res = await fetchWithAuth('/api/matches', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sport_id, gender, team_a_id, team_b_id, stage, round_info })
         });
         if (res.ok) {
             closeModal('createMatchModal');
             await loadAdminCenterData();
-            alert('Match created!');
+            showToast('Match fixture created successfully', 'success');
         } else {
-            const err = await res.json();
-            alert(err.error || 'Failed to create match');
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to create match', 'error', { title: 'Match Creation Failed' });
         }
-    } catch (err) { alert('Network error'); }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while creating fixture', 'error');
+        }
+    }
 }
 
-function openMatchModal(matchId) {
-    const match = matchesData.find(m => m.id === matchId);
-    if (!match) return;
+// ─── FIXTURE SCORE EDITING (TASK 3 FIX) ─────────────────────────────────────
+/**
+ * Opens the match score recording modal and pre-populates it with real data.
+ * Checks in-memory matches, local fixtures list, and falls back to API fetch.
+ */
+async function openMatchModal(matchId) {
+    if (!matchId) return;
 
-    document.getElementById('matchId').value = match.id;
+    // Ensure squad & house metadata is loaded for name resolution
+    if (!squadsData.length) await fetchSquads();
+    if (!housesData.length) await fetchHouses();
+
+    // 1. Look up in global matchesData
+    let match = matchesData.find(m => m.id === matchId);
+
+    // 2. Fall back to local fixtures on fixtures page
+    if (!match && typeof allFixtures !== 'undefined' && Array.isArray(allFixtures)) {
+        match = allFixtures.find(m => m.id === matchId);
+    }
+
+    // 3. Fall back to fetching matches from backend if still not found
+    if (!match) {
+        await fetchMatches();
+        match = matchesData.find(m => m.id === matchId);
+    }
+
+    if (!match) {
+        showToast('Could not load fixture details. Please refresh and try again.', 'error');
+        return;
+    }
+
+    // Pre-populate hidden match ID
+    const matchIdInput = document.getElementById('matchId');
+    if (matchIdInput) matchIdInput.value = match.id;
+
+    // Resolve team names
     const aName = getTeamName(match.team_a_id, match);
     const bName = getTeamName(match.team_b_id, match);
+
+    // Pre-populate modal labels and values
     const summary = document.getElementById('matchModalSummary');
     const aLabel  = document.getElementById('teamALabel');
     const bLabel  = document.getElementById('teamBLabel');
     if (summary) summary.textContent = `${aName} vs ${bName}`;
     if (aLabel)  aLabel.textContent  = `${aName} Score`;
     if (bLabel)  bLabel.textContent  = `${bName} Score`;
-    document.getElementById('matchScoreA').value = match.score_team_a ?? 0;
-    document.getElementById('matchScoreB').value = match.score_team_b ?? 0;
+
+    const scoreAInput = document.getElementById('matchScoreA');
+    const scoreBInput = document.getElementById('matchScoreB');
+    if (scoreAInput) scoreAInput.value = match.score_team_a ?? 0;
+    if (scoreBInput) scoreBInput.value = match.score_team_b ?? 0;
 
     openModal('matchModal');
 }
 
+/**
+ * Handles match score submission, updates backend, and re-renders current view
+ */
 async function handleMatchSubmit(e) {
     e.preventDefault();
     const matchId      = document.getElementById('matchId').value;
-    const score_team_a = document.getElementById('matchScoreA').value;
-    const score_team_b = document.getElementById('matchScoreB').value;
+    const scoreAVal    = document.getElementById('matchScoreA').value;
+    const scoreBVal    = document.getElementById('matchScoreB').value;
+
+    if (scoreAVal === '' || scoreBVal === '' || isNaN(scoreAVal) || isNaN(scoreBVal)) {
+        showToast('Scores must be valid numbers.', 'error', { title: 'Invalid Score' });
+        return;
+    }
+
+    const score_team_a = parseInt(scoreAVal, 10);
+    const score_team_b = parseInt(scoreBVal, 10);
+
+    if (score_team_a < 0 || score_team_b < 0) {
+        showToast('Scores cannot be negative numbers.', 'error', { title: 'Invalid Score' });
+        return;
+    }
 
     try {
-        const res = await fetch(`/api/matches/${matchId}`, {
+        const res = await fetchWithAuth(`/api/matches/${matchId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ score_team_a, score_team_b })
         });
 
         if (res.ok) {
             closeModal('matchModal');
+            showToast('Match score updated successfully', 'success');
 
-            // ── BUG 1 FIX: "loadCurrentTabData" was never defined.
-            // Now we do a targeted re-fetch based on which page is active.
+            // Page-aware live UI refresh without page reload
             const path = window.location.pathname;
 
             if (path === '/fixtures' || path === '/') {
-                // Re-fetch matches and re-render — no page reload needed
                 await fetchMatches();
-                // If fixtures page has its own reloader (it does), call it
                 if (typeof reloadFixturesAfterUpdate === 'function') {
                     await reloadFixturesAfterUpdate();
                 }
-                // Also update overall standings if on homepage
                 if (path === '/') {
                     loadHouseOverallStandings();
                 }
             } else if (path.startsWith('/standings')) {
                 loadPerSportStandings();
             } else if (path.startsWith('/admin')) {
-                // On admin page: re-render the fixtures management table
                 await fetchMatches();
                 renderAdminFixturesTable();
             }
         } else {
-            const err = await res.json();
-            alert(err.error || 'Failed to update score');
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'Failed to update score', 'error', {
+                title: 'Update Failed',
+                action: {
+                    label: 'Retry',
+                    onClick: () => handleMatchSubmit(e)
+                }
+            });
         }
     } catch (err) {
-        alert('Network error while updating match score');
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error while updating match score', 'error', {
+                title: 'Connection Error'
+            });
+        }
     }
 }
 
@@ -837,19 +1139,25 @@ async function triggerSeederRun() {
     const btn = document.getElementById('runSeederBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
     try {
-        const res = await fetch('/api/admin/run-seeder', {
+        const res = await fetchWithAuth('/api/admin/run-seeder', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }
+            headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
-        await loadAdminCenterData();
-        alert(`Seeder done. ${data.players_created||0} players, ${data.fixtures_created||0} fixtures.`);
+        if (res.ok) {
+            await loadAdminCenterData();
+            showToast(`Seeder completed successfully (${data.players_created || 0} players, ${data.fixtures_created || 0} fixtures)`, 'success');
+        } else {
+            showToast(data.details || data.error || 'Seeder run failed', 'error', { title: 'Seeder Failed' });
+        }
     } catch (e) {
-        alert(`Seeder failed: ${e.message}`);
+        if (!e.message.includes('Session expired')) {
+            showToast(`Seeder failed: ${e.message}`, 'error');
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<svg class="icon" width="14" height="14"><use href="#icon-play"/></svg> Run Seeder`;
+            btn.innerHTML = `<svg class="icon" width="14" height="14"><use href="#icon-play"/></svg> Run Seeder Now`;
         }
     }
 }
@@ -876,7 +1184,10 @@ function handleCsvFileSelected(e) {
 
 function parseAndPreviewCsv(csvText) {
     const lines = csvText.split(/\r\n|\n/).filter(l => l.trim());
-    if (lines.length < 2) { alert('CSV is empty or missing headers'); return; }
+    if (lines.length < 2) {
+        showToast('CSV file is empty or missing headers.', 'error', { title: 'Invalid CSV' });
+        return;
+    }
 
     const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
     const rows = [];
@@ -937,7 +1248,7 @@ function renderCsvPreviewTable(rows) {
             else if (sp.includes('basket')) { min=7;  max=10; }
             if (count < min || count > max) {
                 warnHtml += `<div style="padding:8px 12px; border:1px solid #92400E; border-radius:8px; background-color:#1C1200; color:#FCD34D; font-size:12px;">
-                    Warning: <strong>${squad.name}</strong> has ${count} players (recommended ${min}–${max}).
+                    Warning: <strong>${escapeHtml(squad.name)}</strong> has ${count} players (recommended ${min}–${max}).
                 </div>`;
             }
         }
@@ -947,11 +1258,11 @@ function renderCsvPreviewTable(rows) {
     if (tbody) {
         tbody.innerHTML = rows.map(r => `
         <tr>
-            <td class="tabular">${r.roll_number || '—'}</td>
-            <td style="font-weight:700;">${r.name}</td>
-            <td>${r.grade||'—'}${r.section ? ` (${r.section})`:''}</td>
-            <td>${r.gender}</td>
-            <td>${getTeamName(r.team_id)}</td>
+            <td class="tabular">${escapeHtml(r.roll_number || '—')}</td>
+            <td style="font-weight:700;">${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.grade||'—')}${r.section ? ` (${escapeHtml(r.section)})`:''}</td>
+            <td>${escapeHtml(r.gender)}</td>
+            <td>${escapeHtml(getTeamName(r.team_id))}</td>
             <td>
                 <span class="badge ${r.isUpdate ? '' : 'badge-status-completed'}"
                       style="${r.isUpdate ? 'background-color:#1C1200;color:#FCD34D;border-color:#92400E;' : ''}">
@@ -970,22 +1281,25 @@ async function commitCsvImport() {
     const btn = document.getElementById('commitCsvBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
     try {
-        const res = await fetch('/api/players/bulk', {
+        const res = await fetchWithAuth('/api/players/bulk', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(pendingCsvPlayers)
         });
         if (res.ok) {
             const data = await res.json();
-            alert(data.message || 'Import complete');
+            showToast(data.message || 'CSV player import completed successfully', 'success');
             closeModal('csvModal');
             await loadAdminCenterData();
         } else {
-            const err = await res.json();
-            alert(err.error || 'Import failed');
+            const err = await res.json().catch(() => ({}));
+            showToast(err.error || 'CSV import failed', 'error', { title: 'Import Failed' });
         }
-    } catch (err) { alert('Network error during import'); }
-    finally {
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast(err.message || 'Network error during CSV import', 'error');
+        }
+    } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Commit Import'; }
     }
 }
@@ -997,8 +1311,8 @@ function renderSharedEmptyState(title, desc) {
     <div class="card">
         <div class="state-empty">
             <svg class="state-empty-icon" width="40" height="40"><use href="#icon-empty"/></svg>
-            <p class="state-empty-title">${title}</p>
-            ${desc ? `<p class="state-empty-desc">${desc}</p>` : ''}
+            <p class="state-empty-title">${escapeHtml(title)}</p>
+            ${desc ? `<p class="state-empty-desc">${escapeHtml(desc)}</p>` : ''}
         </div>
     </div>`;
 }
@@ -1008,7 +1322,7 @@ function renderSharedErrorState(message, retryCall) {
     return `
     <div class="state-error">
         <svg class="icon" width="20" height="20" style="color:#F87171;"><use href="#icon-alert"/></svg>
-        <p class="state-error-title">${message}</p>
+        <p class="state-error-title">${escapeHtml(message)}</p>
         <button class="btn btn-secondary" onclick="${retryCall}" style="margin-top:8px;">
             <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
             Retry
@@ -1036,9 +1350,9 @@ function getTeamName(teamId, matchObj = null) {
 
     if (!t) return 'TBD';
 
-    const houseId  = t.house_id;
-    const sportId  = t.sport_id || (matchObj ? matchObj.sport_id : null);
-    const gender   = t.gender   || (matchObj ? matchObj.gender   : null);
+    const houseId   = t.house_id;
+    const sportId   = t.sport_id || (matchObj ? matchObj.sport_id : null);
+    const gender    = t.gender   || (matchObj ? matchObj.gender   : null);
     const houseName = (t.houses && t.houses.name) ? t.houses.name : getHouseName(houseId);
 
     // Show squad label suffix only when the house has multiple squads in same sport+gender
