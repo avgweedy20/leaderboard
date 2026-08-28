@@ -444,8 +444,8 @@ async function loadFixtures() {
         let html = '';
         matchesData.forEach(m => {
             const isCompleted = m.status === 'completed';
-            const teamAName = getTeamName(m.team_a_id);
-            const teamBName = getTeamName(m.team_b_id);
+            const teamAName = getTeamName(m.team_a_id, m);
+            const teamBName = getTeamName(m.team_b_id, m);
 
             html += `
                 <div class="card relative p-5 bg-slate-900/90 rounded-xl border border-slate-800 shadow-lg flex flex-col justify-between hover:border-slate-700 transition">
@@ -1213,9 +1213,31 @@ async function commitCsvImport() {
 }
 
 // HELPER RESOLVERS
-function getTeamName(teamId) {
-    const t = squadsData.find(item => item.id === teamId);
-    return t ? t.name : 'Squad';
+function getTeamName(teamId, matchObj = null) {
+    if (!teamId) return 'TBD';
+
+    let t = squadsData.find(item => item.id === teamId);
+    if (!t && matchObj) {
+        if (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
+        else if (matchObj.team_b_id === teamId && matchObj.team_b) t = matchObj.team_b;
+    }
+
+    if (!t) return 'TBD';
+
+    const houseId = t.house_id;
+    const sportId = t.sport_id || (matchObj ? matchObj.sport_id : null);
+    const gender = t.gender || (matchObj ? matchObj.gender : null);
+    const houseName = (t.houses && t.houses.name) ? t.houses.name : getHouseName(houseId);
+
+    if (houseId && sportId && gender) {
+        const houseSquadCount = squadsData.filter(sq =>
+            sq.house_id === houseId && sq.sport_id === sportId && sq.gender === gender
+        ).length;
+        if (houseSquadCount > 1) {
+            return `${houseName} ${t.squad_label || 'A'}`;
+        }
+    }
+    return houseName;
 }
 
 function getHouseName(houseId) {

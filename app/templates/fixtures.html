@@ -29,7 +29,9 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
+        await fetchHouses();
         await fetchSports();
+        await fetchSquads();
         populateFixtureSportFilter();
         loadFixturesPage();
     });
