@@ -196,11 +196,11 @@ class InterHouseSeeder:
                 s_name = sport_obj["name"]
                 for gender in ["Boys", "Girls"]:
                     count = SQUAD_COUNT_MATRIX.get(s_name, {}).get(h_name, {}).get(gender, 1)
-                    labels = ["A", "B"] if count == 2 else ["Single"]
+                    labels = ["A", "B"] if count == 2 else ["A"]
                     for squad_label in labels:
                         squad_key = f"{house_obj['id']}_{sport_obj['id']}_{gender}_{squad_label}"
                         if squad_key not in self.squads_map:
-                            if squad_label == "Single":
+                            if count == 1:
                                 squad_name = f"{house_obj['name']}"
                             else:
                                 squad_name = f"{house_obj['name']} {squad_label}"
@@ -635,12 +635,12 @@ class InterHouseSeeder:
     def resolve_squad(self, team_str: str, sport_id: str, gender: str) -> Optional[Dict[str, Any]]:
         for h_key, h_obj in self.houses_map.items():
             if h_key in team_str.lower():
-                squad_label = "B" if (" b" in team_str.lower() or "(b)" in team_str.lower()) else ("A" if (" a" in team_str.lower() or "(a)" in team_str.lower()) else "Single")
+                squad_label = "B" if (" b" in team_str.lower() or "(b)" in team_str.lower()) else "A"
                 squad_key = f"{h_obj['id']}_{sport_id}_{gender}_{squad_label}"
                 if squad_key in self.squads_map:
                     return self.squads_map[squad_key]
 
-                for label in ["Single", "A", "B"]:
+                for label in ["A", "B"]:
                     alt_key = f"{h_obj['id']}_{sport_id}_{gender}_{label}"
                     if alt_key in self.squads_map:
                         return self.squads_map[alt_key]
