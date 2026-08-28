@@ -15,7 +15,6 @@ let housesData = [];
 let squadsData = [];
 let playersData = [];
 let matchesData = [];
-let seederLogsData = [];
 let selectedSportId = '';
 let pendingCsvPlayers = [];
 
@@ -482,13 +481,6 @@ async function fetchMatches() {
     } catch (e) { console.error('fetchMatches:', e); }
 }
 
-async function fetchSeederLogs() {
-    try {
-        const res = await fetch('/api/admin/seeder-logs');
-        seederLogsData = await res.json();
-    } catch (e) { console.error('fetchSeederLogs:', e); }
-}
-
 // ─── SPORT FILTER CHIPS (standings page) ───────────────────────────────────
 function renderSportFilterChips() {
     const group = document.getElementById('sportChipGroup');
@@ -697,11 +689,9 @@ async function loadAdminCenterData() {
     await fetchSquads();
     await fetchPlayers();
     await fetchMatches();
-    await fetchSeederLogs();
 
     renderAdminSquadsTable();
     renderAdminPlayersTable();
-    renderAdminSeederLogs();
     renderAdminFixturesTable();
 }
 
@@ -1166,48 +1156,7 @@ async function bulkDeleteSelectedPlayers() {
     }
 }
 
-// ─── 3. SEEDER LOGS ────────────────────────────────────────────────────────
-function renderAdminSeederLogs() {
-    const container = document.getElementById('adminSeederLogsContainer');
-    if (!container) return;
-
-    if (!seederLogsData || seederLogsData.length === 0) {
-        container.innerHTML = `<p style="font-size:12px; color:var(--text-tertiary); padding:12px;">No seeder logs yet. Run the seeder to populate data.</p>`;
-        return;
-    }
-
-    const latest = seederLogsData[0];
-    const isOk = latest.status === 'success';
-
-    container.innerHTML = `
-    <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; padding:16px;">
-        <div>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                <span class="badge ${isOk ? 'badge-status-completed' : ''}" style="${isOk ? '' : 'background-color:#1C0505; color:#F87171; border-color:#7F1D1D;'}">
-                    ${latest.status.toUpperCase()}
-                </span>
-                <span style="font-size:11px; color:var(--text-tertiary);">${new Date(latest.created_at).toLocaleString()}</span>
-            </div>
-            <p style="font-size:13px; font-weight:700;">${latest.details || 'Seeder completed'}</p>
-        </div>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            ${[
-            ['Houses', latest.houses_created || 0, 'var(--c-karnali)'],
-            ['Sports', latest.sports_created || 0, 'var(--c-koshi)'],
-            ['Squads', latest.squads_created || 0, 'var(--c-mahakali)'],
-            ['Players', latest.players_created || 0, 'var(--c-mechi)'],
-            ['Fixtures', latest.fixtures_created || 0, 'var(--text-primary)'],
-        ].map(([label, val, color]) => `
-                <div style="text-align:center;">
-                    <div style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-tertiary);">${label}</div>
-                    <div style="font-size:20px; font-weight:700; color:${color}; font-variant-numeric:tabular-nums;">${val}</div>
-                </div>
-            `).join('')}
-        </div>
-    </div>`;
-}
-
-// ─── 4. FIXTURES MANAGEMENT (SORTABLE, MULTI-FILTER, PAGINATED, INLINE QUICK SCORE) ──
+// ─── 3. FIXTURES MANAGEMENT (SORTABLE, MULTI-FILTER, PAGINATED, INLINE QUICK SCORE) ──
 function renderAdminFixturesTable() {
     const container = document.getElementById('adminFixturesContainer');
     if (!container) return;
@@ -1775,34 +1724,6 @@ async function handleMatchSubmit(e) {
             showToast(err.message || 'Network error while updating match score', 'error', {
                 title: 'Connection Error'
             });
-        }
-    }
-}
-
-// ─── SEEDER ────────────────────────────────────────────────────────────────
-async function triggerSeederRun() {
-    const btn = document.getElementById('runSeederBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
-    try {
-        const res = await fetchWithAuth('/api/admin/run-seeder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        if (res.ok) {
-            await loadAdminCenterData();
-            showToast(`Seeder completed successfully (${data.players_created || 0} players, ${data.fixtures_created || 0} fixtures)`, 'success');
-        } else {
-            showToast(data.details || data.error || 'Seeder run failed', 'error', { title: 'Seeder Failed' });
-        }
-    } catch (e) {
-        if (!e.message.includes('Session expired')) {
-            showToast(`Seeder failed: ${e.message}`, 'error');
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = `<svg class="icon" width="14" height="14"><use href="#icon-play"/></svg> Run Seeder Now`;
         }
     }
 }

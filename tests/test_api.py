@@ -113,7 +113,7 @@ def test_team_crud_and_bulk(client):
     del_t = client.delete(f'/api/teams/{team_id}', headers=headers)
     assert del_t.status_code == 200
 
-def test_matches_and_seeder_logs(client):
+def test_matches_flow(client):
     headers = {"Authorization": "Bearer mock-admin-token"}
 
     # Create Match
@@ -135,11 +135,6 @@ def test_matches_and_seeder_logs(client):
     assert u_res.status_code == 200
     assert u_res.get_json()["winner_team_id"] == "t1"
     assert u_res.get_json()["score_summary"] == "3 - 1"
-
-    # Fetch Seeder Logs
-    logs_res = client.get('/api/admin/seeder-logs')
-    assert logs_res.status_code == 200
-    assert isinstance(logs_res.get_json(), list)
 
     # Delete Match
     del_res = client.delete(f'/api/matches/{match_id}', headers=headers)

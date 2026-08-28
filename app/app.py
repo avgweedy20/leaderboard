@@ -1423,22 +1423,7 @@ MOCK_DB = {
     "generic_results": [],
     "football_events": [],
     "basketball_quarters": [],
-    "players": [],
-    "seeder_logs": [
-        {
-            "id": "log-initial",
-            "created_at": "2025-01-01T00:00:00Z",
-            "houses_created": 4,
-            "sports_created": 3,
-            "squads_created": 4,
-            "players_created": 2,
-            "fixtures_created": 1,
-            "unplayed_fixtures": 0,
-            "unparseable_fixtures": 0,
-            "status": "success",
-            "details": "Initial seed complete"
-        }
-    ]
+    "players": []
 }
 
 def req_admin_auth(f):
@@ -1491,10 +1476,6 @@ def admin_squads_page():
 @app.route("/admin/players")
 def admin_players_page():
     return render_template("admin/players.html", active_page="admin_players", active_admin_sub="players")
-
-@app.route("/admin/seeder-log")
-def admin_seeder_log_page():
-    return render_template("admin/seeder_log.html", active_page="admin_seeder_log", active_admin_sub="seeder-log")
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
@@ -1987,70 +1968,6 @@ def delete_match(match_id):
 
     MOCK_DB["matches"] = [m for m in MOCK_DB["matches"] if m["id"] != match_id]
     return jsonify({"message": "Match deleted"})
-
-
-# SEEDER LOG ENDPOINTS
-@app.route("/api/admin/seeder-logs", methods=["GET"])
-def get_seeder_logs():
-    if supabase_client:
-        try:
-            res = supabase_client.table("seeder_logs").select("*").order("created_at", desc=True).limit(10).execute()
-            return jsonify(res.data)
-        except Exception as e:
-            # Fallback to mock log if table does not exist yet
-            pass
-    return jsonify(sorted(MOCK_DB.get("seeder_logs", []), key=lambda x: x.get("created_at", ""), reverse=True))
-
-@app.route("/api/admin/run-seeder", methods=["POST"])
-@req_admin_auth
-def run_seeder_endpoint():
-    try:
-        from seeder import InterHouseSeeder
-        import datetime
-
-        excel_path = "seed-data/interhouse_meet.xlsx"
-        seeder = InterHouseSeeder(excel_path, supabase_client)
-        seeder.run()
-
-        log_entry = {
-            "id": str(uuid.uuid4()),
-            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-            "houses_created": seeder.stats["houses"]["created"],
-            "sports_created": seeder.stats["sports"]["created"],
-            "squads_created": seeder.stats["squads"]["created"],
-            "players_created": seeder.stats["players"]["created"],
-            "fixtures_created": seeder.stats["fixtures"]["created"],
-            "unplayed_fixtures": seeder.stats["fixtures"]["unplayed"],
-            "unparseable_fixtures": seeder.stats["fixtures"]["unparseable"],
-            "status": "success",
-            "details": f"Processed {seeder.stats['players']['created']} players, {seeder.stats['fixtures']['created']} fixtures"
-        }
-
-        if supabase_client:
-            try:
-                supabase_client.table("seeder_logs").insert(log_entry).execute()
-            except Exception:
-                pass
-
-        MOCK_DB.setdefault("seeder_logs", []).append(log_entry)
-        return jsonify(log_entry), 200
-
-    except Exception as e:
-        error_entry = {
-            "id": str(uuid.uuid4()),
-            "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-            "houses_created": 0,
-            "sports_created": 0,
-            "squads_created": 0,
-            "players_created": 0,
-            "fixtures_created": 0,
-            "unplayed_fixtures": 0,
-            "unparseable_fixtures": 0,
-            "status": "error",
-            "details": str(e)
-        }
-        MOCK_DB.setdefault("seeder_logs", []).append(error_entry)
-        return jsonify(error_entry), 500
 
 
 # OVERALL HOUSE STANDINGS API

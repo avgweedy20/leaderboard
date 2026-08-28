@@ -8,7 +8,7 @@
     <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
         <div>
             <h1>Admin Control</h1>
-            <p style="margin-top:6px; font-size:14px;">Manage squads, players, match scores, and run the data seeder.</p>
+            <p style="margin-top:6px; font-size:14px;">Manage squads, players, and match scores.</p>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
             <button onclick="openCreateMatchModal()" class="btn">
@@ -27,10 +27,6 @@
                 <svg class="icon" width="14" height="14"><use href="#icon-upload"/></svg>
                 Import CSV
             </button>
-            <button id="runSeederBtn" onclick="triggerSeederRun()" class="btn btn-secondary">
-                <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
-                Run Seeder
-            </button>
         </div>
     </div>
 
@@ -39,11 +35,10 @@
         <a href="/admin"         class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
         <a href="/admin/squads"  class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
         <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
-        <a href="/admin/seeder-log" class="tab-btn {% if active_admin_sub == 'seeder-log' %}active{% endif %}">Seeder Log</a>
     </div>
 
-    <!-- Two-column grid: Squads + Players -->
-    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(400px, 1fr)); gap:20px; margin-bottom:20px;">
+    <!-- Full-width stacked cards: Squads + Players -->
+    <div style="display:grid; grid-template-columns:1fr; gap:20px; margin-bottom:20px;">
         <!-- Squads card -->
         <div class="admin-section">
             <div class="admin-section-header">
@@ -78,20 +73,6 @@
                     <div class="skeleton-table-row"></div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Seeder log card -->
-    <div class="admin-section" style="margin-bottom:20px;">
-        <div class="admin-section-header">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div class="dot-indicator" style="background-color:var(--text-tertiary);"></div>
-                <h3 style="margin:0;">Seeder Log</h3>
-            </div>
-            <a href="/admin/seeder-log" style="font-size:12px; color:var(--text-secondary);">Full history &rarr;</a>
-        </div>
-        <div id="adminSeederLogsContainer" style="padding:16px;">
-            <div class="skeleton-card" style="height:80px;"></div>
         </div>
     </div>
 
