@@ -156,7 +156,8 @@ def add_admin(email, password, role="admin"):
 
 
 def remove_admin(email):
-    """Remove an admin account and revoke all of its sessions immediately."""
+    """Remove an admin account entirely: drop the admins row, revoke all
+    sessions immediately, and delete the Supabase Auth user best-effort."""
     email = (email or "").strip().lower()
     client = _service_client()
     if not client:
@@ -166,6 +167,13 @@ def remove_admin(email):
     except Exception:
         pass
     _revoke_admin_sessions(email)
+    # Delete the underlying Auth account so the user can never sign in again.
+    user_id = _auth_user_id_by_email(email)
+    if user_id:
+        try:
+            client.auth.admin.delete_user(user_id)
+        except Exception:
+            pass
 
 
 def list_admins():

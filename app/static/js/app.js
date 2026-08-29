@@ -387,6 +387,50 @@ function checkAuthUI() {
     }
 }
 
+// ─── LOADING STATES ────────────────────────────────────────────────────────
+
+let _busyCount = 0;
+
+/** Toggle a loading state on a form submit button (spinner + busy label). */
+function setButtonLoading(btn, loading, label) {
+    if (!btn) return;
+    if (loading) {
+        btn.dataset.origLabel = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${escapeHtml(label || '')}`;
+    } else {
+        btn.disabled = false;
+        if (btn.dataset.origLabel) {
+            btn.textContent = btn.dataset.origLabel;
+            delete btn.dataset.origLabel;
+        }
+    }
+}
+
+/** Show a blocking overlay spinner (reference counted, pairs with hideBusy). */
+function showBusy(label = 'Working…') {
+    _busyCount++;
+    const overlay = document.getElementById('globalBusyOverlay');
+    if (overlay) {
+        const labelEl = overlay.querySelector('.global-busy-label');
+        if (labelEl) labelEl.textContent = label;
+        overlay.classList.remove('hidden');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+}
+
+function hideBusy() {
+    _busyCount = Math.max(0, _busyCount - 1);
+    if (_busyCount === 0) {
+        const overlay = document.getElementById('globalBusyOverlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+    }
+}
+
+// ─── AUTH / LOGIN ─────────────────────────────────────────────────────────
 function openLoginModal() {
     if (currentToken && !isTokenExpired()) {
         serverLogout(); // best-effort server-side token revocation
@@ -405,8 +449,10 @@ function openLoginModal() {
 
 async function handleLogin(e) {
     e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    setButtonLoading(submitBtn, true, 'Signing in…');
     try {
         const res = await fetch('/api/auth/login', {
             method: 'POST',
@@ -433,6 +479,8 @@ async function handleLogin(e) {
         }
     } catch (err) {
         showToast('Network error during sign in. Check backend connection.', 'error', { title: 'Connection Error' });
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
@@ -1260,6 +1308,7 @@ async function bulkDeleteSelectedPlayers() {
 
     if (!confirm(`Are you sure you want to delete ${ids.length} selected player(s)?`)) return;
 
+    showBusy(`Deleting ${ids.length} player(s)…`);
     try {
         const res = await fetchWithAuth('/api/players/bulk-delete', {
             method: 'POST',
@@ -1279,6 +1328,8 @@ async function bulkDeleteSelectedPlayers() {
         if (!e.message.includes('Session expired')) {
             showToast('Network error during bulk delete', 'error');
         }
+    } finally {
+        hideBusy();
     }
 }
 
@@ -1574,6 +1625,7 @@ async function handleAddAdminSubmit(e) {
 
 async function removeAdminAccount(email) {
     if (!confirm(`Remove ${email} from admin?`)) return;
+    showBusy('Removing account…');
     try {
         const res = await fetchWithAuth('/api/admin/remove', {
             method: 'POST',
@@ -1592,6 +1644,8 @@ async function removeAdminAccount(email) {
         if (!err.message.includes('Session expired')) {
             showToast('Network error while removing admin', 'error');
         }
+    } finally {
+        hideBusy();
     }
 }
 
@@ -1780,6 +1834,14 @@ async function saveInlineMatchScore(matchId) {
         return;
     }
 
+    const row = aInput.closest('tr');
+    const saveBtn = row ? row.querySelector('.inline-save-btn') : null;
+    const origHtml = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>Saving`;
+    }
+
     try {
         const res = await fetchWithAuth(`/api/matches/${matchId}`, {
             method: 'PUT',
@@ -1798,6 +1860,11 @@ async function saveInlineMatchScore(matchId) {
     } catch (err) {
         if (!err.message.includes('Session expired')) {
             showToast('Network error while saving score', 'error');
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = origHtml;
         }
     }
 }
@@ -1832,6 +1899,7 @@ function openSquadModal(squadId = null) {
 
 async function handleSquadSubmit(e) {
     e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     const squadId = document.getElementById('squadId').value;
     const house_id = document.getElementById('squadHouseId').value;
     const sport_id = document.getElementById('squadSportId').value;
@@ -1841,6 +1909,7 @@ async function handleSquadSubmit(e) {
     const method = squadId ? 'PUT' : 'POST';
     const url = squadId ? `/api/teams/${squadId}` : '/api/teams';
 
+    setButtonLoading(submitBtn, true, 'Saving…');
     try {
         const res = await fetchWithAuth(url, {
             method,
@@ -1859,11 +1928,14 @@ async function handleSquadSubmit(e) {
         if (!err.message.includes('Session expired')) {
             showToast(err.message || 'Network error while saving squad', 'error');
         }
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
 async function deleteSquad(id) {
     if (!confirm('Delete this squad?')) return;
+    showBusy('Deleting squad…');
     try {
         const res = await fetchWithAuth(`/api/teams/${id}`, {
             method: 'DELETE'
@@ -1879,6 +1951,8 @@ async function deleteSquad(id) {
         if (!err.message.includes('Session expired')) {
             showToast(err.message || 'Network error while deleting squad', 'error');
         }
+    } finally {
+        hideBusy();
     }
 }
 
@@ -1912,6 +1986,7 @@ function openPlayerModal(playerId = null) {
 
 async function handlePlayerSubmit(e) {
     e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     const playerId = document.getElementById('playerId').value;
     const name = document.getElementById('playerName').value;
     const roll_number = document.getElementById('playerRoll').value;
@@ -1923,6 +1998,7 @@ async function handlePlayerSubmit(e) {
     const method = playerId ? 'PUT' : 'POST';
     const url = playerId ? `/api/players/${playerId}` : '/api/players';
 
+    setButtonLoading(submitBtn, true, 'Saving…');
     try {
         const res = await fetchWithAuth(url, {
             method,
@@ -1941,11 +2017,14 @@ async function handlePlayerSubmit(e) {
         if (!err.message.includes('Session expired')) {
             showToast(err.message || 'Network error while saving player', 'error');
         }
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
 async function deletePlayer(id) {
     if (!confirm('Delete this player?')) return;
+    showBusy('Deleting player…');
     try {
         const res = await fetchWithAuth(`/api/players/${id}`, {
             method: 'DELETE'
@@ -1961,6 +2040,8 @@ async function deletePlayer(id) {
         if (!err.message.includes('Session expired')) {
             showToast(err.message || 'Network error while deleting player', 'error');
         }
+    } finally {
+        hideBusy();
     }
 }
 
@@ -1993,6 +2074,7 @@ function onNewMatchSportOrGenderChange() {
 
 async function handleCreateMatchSubmit(e) {
     e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     const sport_id = document.getElementById('newMatchSportId').value;
     const gender = document.getElementById('newMatchGender').value;
     const team_a_id = document.getElementById('newMatchTeamA').value;
@@ -2004,6 +2086,7 @@ async function handleCreateMatchSubmit(e) {
         showToast('Please select two distinct teams for the fixture.', 'error', { title: 'Invalid Teams' });
         return;
     }
+    setButtonLoading(submitBtn, true, 'Creating…');
     try {
         const res = await fetchWithAuth('/api/matches', {
             method: 'POST',
@@ -2022,6 +2105,8 @@ async function handleCreateMatchSubmit(e) {
         if (!err.message.includes('Session expired')) {
             showToast(err.message || 'Network error while creating fixture', 'error');
         }
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
@@ -2085,6 +2170,7 @@ async function openMatchModal(matchId) {
  */
 async function handleMatchSubmit(e) {
     e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     const matchId = document.getElementById('matchId').value;
     const scoreAVal = document.getElementById('matchScoreA').value;
     const scoreBVal = document.getElementById('matchScoreB').value;
@@ -2102,6 +2188,7 @@ async function handleMatchSubmit(e) {
         return;
     }
 
+    setButtonLoading(submitBtn, true, 'Saving…');
     try {
         const res = await fetchWithAuth(`/api/matches/${matchId}`, {
             method: 'PUT',
@@ -2146,6 +2233,8 @@ async function handleMatchSubmit(e) {
                 title: 'Connection Error'
             });
         }
+    } finally {
+        setButtonLoading(submitBtn, false);
     }
 }
 
