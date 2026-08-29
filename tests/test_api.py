@@ -555,6 +555,9 @@ def test_security_headers_present(client):
     assert 'no-referrer' in (rv.headers.get('Referrer-Policy') or '')
     assert "object-src 'none'" in rv.headers.get('Content-Security-Policy')
     assert 'frame-ancestors' in rv.headers.get('Content-Security-Policy')
+    csp = rv.headers.get('Content-Security-Policy')
+    assert 'https://va.vercel-scripts.com' in csp  # Speed Insights script + beacon
+    assert 'https://cdn.tailwindcss.com' in csp
 
 
 def test_api_responses_not_cached(client):
