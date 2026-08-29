@@ -1,8 +1,14 @@
 import os
 import csv
 import io
+import re
 import uuid
 import json
+import time
+import sqlite3
+import base64
+import hashlib
+import secrets
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
@@ -11,13 +17,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-CORS(app)
+
+# CORS is scoped to the API and locked to explicitly allowed origins.
+# The web frontend is served same-origin by Flask (no CORS needed); native
+# clients are unaffected. Set CORS_ALLOWED_ORIGINS to a comma-separated list
+# (or "*") only if you host the frontend on a separate origin.
+_cors_origins_raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+_cors_origins = []
+if _cors_origins_raw:
+    _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+CORS(app, resources={r"/api/*": {"origins": _cors_origins}})
 
 # Env config
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mock.supabase.co")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "mock-service-key")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "mock-anon-key")
 
+# Supabase client (None = in-memory mock DB mode)
 supabase_client = None
 if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE_ROLE_KEY:
     try:
@@ -1426,26 +1442,304 @@ MOCK_DB = {
     "players": []
 }
 
+# --- AUTH ------------------------------------------------------------------
+# Admin accounts live OUTSIDE the codebase and OUTSIDE the environment:
+#   * Supabase mode: admin accounts are real Supabase Auth users; an account
+#     is an admin while its email exists in the public.admins table.
+#   * Mock/dev mode: accounts are stored in a local SQLite database
+#     (data/admins.db — override with ADMIN_DB_PATH) using PBKDF2-HMAC-SHA256
+#     password hashing (600k iterations, per-account random salt).
+# Sessions are server-side opaque tokens in BOTH modes: random, expiring,
+# stored (SHA-256 hashed) in the SQLite store, revocable on logout, and
+# immediately invalidated when the account is removed. No static or JWT-based
+# shortcut is ever accepted.
+SESSION_TTL = 21600  # seconds (6h), synced with the frontend session length
+MAX_SESSIONS_PER_ADMIN = 5
+_PBKDF2_ITERATIONS = 600_000
+_PASSWORD_MIN_LENGTH = 12
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW_SECONDS = 900  # 15 minutes
+
+_login_failures = {}  # (ip, email) -> [failure timestamps]
+
+
+def _admin_db_path():
+    env_path = os.getenv("ADMIN_DB_PATH")
+    if env_path:
+        return env_path
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.normpath(os.path.join(here, "..", "data", "admins.db"))
+
+
+def _get_admin_db():
+    path = _admin_db_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            email         TEXT PRIMARY KEY COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            is_active     INTEGER NOT NULL DEFAULT 1,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token_hash TEXT PRIMARY KEY,
+            email      TEXT NOT NULL,
+            expires_at REAL NOT NULL
+        )
+    """)
+    return conn
+
+
+def _hash_password(password):
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    return "pbkdf2_sha256${}${}${}".format(
+        _PBKDF2_ITERATIONS,
+        base64.b64encode(salt).decode("ascii"),
+        base64.b64encode(digest).decode("ascii"),
+    )
+
+
+def _verify_password(password, stored):
+    try:
+        algorithm, iterations, salt_b64, hash_b64 = stored.split("$")
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(hash_b64)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations))
+        return secrets.compare_digest(actual, expected)
+    except Exception:
+        return False
+
+
+# Equalizes login timing for unknown emails (no user enumeration).
+_DUMMY_HASH = _hash_password("dummy-hash-for-timing-equalization")
+
+
+def _is_admin_email(email):
+    if not email:
+        return False
+    email = email.strip().lower()
+    if supabase_client:
+        try:
+            res = supabase_client.table("admins").select("email").eq("email", email).limit(1).execute()
+            return bool(res.data)
+        except Exception:
+            return False
+    conn = _get_admin_db()
+    try:
+        row = conn.execute(
+            "SELECT email FROM admins WHERE email = ? AND is_active = 1", (email,)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def _verify_admin_password(email, password):
+    conn = _get_admin_db()
+    try:
+        row = conn.execute(
+            "SELECT password_hash FROM admins WHERE email = ? AND is_active = 1", (email,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        _verify_password(password, _DUMMY_HASH)  # equalize timing
+        return False
+    return _verify_password(password, row["password_hash"])
+
+
+def add_admin(email, password):
+    """Create (or update) an admin account. Raises ValueError on bad input."""
+    email = (email or "").strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise ValueError("Invalid email address")
+    if not password or len(password) < _PASSWORD_MIN_LENGTH:
+        raise ValueError("Password must be at least %d characters" % _PASSWORD_MIN_LENGTH)
+    if password.lower() == email:
+        raise ValueError("Password must not be the email address")
+    if supabase_client:
+        try:
+            supabase_client.auth.admin.create_user({
+                "email": email, "password": password, "email_confirm": True
+            })
+        except Exception:
+            pass  # Auth user may already exist
+        supabase_client.table("admins").upsert({"email": email}, on_conflict="email").execute()
+        return
+    conn = _get_admin_db()
+    try:
+        conn.execute(
+            "INSERT INTO admins (email, password_hash, is_active) VALUES (?, ?, 1) "
+            "ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, "
+            "is_active = 1",
+            (email, _hash_password(password)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def remove_admin(email):
+    """Remove an admin account and revoke all of its sessions immediately."""
+    email = (email or "").strip().lower()
+    if supabase_client:
+        try:
+            supabase_client.table("admins").delete().eq("email", email).execute()
+        except Exception:
+            pass
+    else:
+        conn = _get_admin_db()
+        try:
+            conn.execute("DELETE FROM admins WHERE email = ?", (email,))
+            conn.commit()
+        finally:
+            conn.close()
+    _revoke_admin_sessions(email)
+
+
+def list_admins():
+    """List admin accounts. Mock mode returns dicts, Supabase mode returns emails."""
+    if supabase_client:
+        try:
+            res = supabase_client.table("admins").select("email").execute()
+            return [r["email"] for r in (res.data or [])]
+        except Exception:
+            return []
+    conn = _get_admin_db()
+    try:
+        rows = conn.execute("SELECT email, is_active FROM admins ORDER BY email").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _session_token_hash(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _cleanup_sessions():
+    conn = _get_admin_db()
+    try:
+        conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (time.time(),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _issue_session(email):
+    token = secrets.token_urlsafe(48)
+    conn = _get_admin_db()
+    try:
+        conn.execute(
+            "INSERT INTO sessions (token_hash, email, expires_at) VALUES (?, ?, ?)",
+            (_session_token_hash(token), email, time.time() + SESSION_TTL),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return token
+
+
+def _session_email(token):
+    _cleanup_sessions()
+    conn = _get_admin_db()
+    try:
+        row = conn.execute(
+            "SELECT email FROM sessions WHERE token_hash = ?", (_session_token_hash(token),)
+        ).fetchone()
+        return row["email"] if row else None
+    finally:
+        conn.close()
+
+
+def _revoke_session(token):
+    conn = _get_admin_db()
+    try:
+        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_session_token_hash(token),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _revoke_admin_sessions(email):
+    conn = _get_admin_db()
+    try:
+        conn.execute("DELETE FROM sessions WHERE email = ?", (email,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _clear_all_sessions():
+    conn = _get_admin_db()
+    try:
+        conn.execute("DELETE FROM sessions")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _active_session_count(email):
+    _cleanup_sessions()
+    conn = _get_admin_db()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM sessions WHERE email = ?", (email,)
+        ).fetchone()
+        return row["c"]
+    finally:
+        conn.close()
+
+
+def _validate_session(token):
+    email = _session_email(token)
+    if not email:
+        return None
+    if not _is_admin_email(email):
+        _revoke_session(token)
+        return None
+    return email
+
+
+def _login_failure_window(key):
+    now = time.time()
+    return [ts for ts in _login_failures.get(key, []) if now - ts < _LOGIN_WINDOW_SECONDS]
+
+
+def _clear_login_failures(key):
+    _login_failures.pop(key, None)
+
+
+def _record_login_failure(key):
+    timestamps = _login_failure_window(key)
+    timestamps.append(time.time())
+    _login_failures[key] = timestamps
+
+
+def _login_blocked(key):
+    return len(_login_failure_window(key)) >= _LOGIN_MAX_ATTEMPTS
+
+
 def req_admin_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
+        auth_header = request.headers.get("Authorization", "")
+        parts = auth_header.split(" ", 1)
+        if len(parts) != 2 or parts[0].strip() != "Bearer" or not parts[1].strip():
             return jsonify({"error": "Unauthorized admin access required"}), 401
-
-        token = auth_header.split(" ")[1]
-
-        if supabase_client:
-            try:
-                user = supabase_client.auth.get_user(token)
-                if not user:
-                    return jsonify({"error": "Invalid auth token"}), 401
-            except Exception as e:
-                return jsonify({"error": str(e)}), 401
-        else:
-            if token != "mock-admin-token":
-                return jsonify({"error": "Invalid dev auth token"}), 401
-
+        token = parts[1].strip()
+        if not _validate_session(token):
+            return jsonify({"error": "Invalid or expired auth token"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -1485,35 +1779,76 @@ def health_check():
         "mode": "supabase" if supabase_client else "mock_in_memory"
     })
 
-# AUTH ENDPOINT
+# AUTH ENDPOINTS
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
+    ip = request.remote_addr or "0.0.0.0"
     data = request.get_json() or {}
-    email = data.get("email")
-    password = data.get("password")
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
 
     if not email or not password:
         return jsonify({"error": "Email and password required"}), 400
 
+    cred_key = (ip, email)
+    if _login_blocked(cred_key):
+        return jsonify({"error": "Too many failed attempts. Try again later."}), 429
+
     if supabase_client:
         try:
             res = supabase_client.auth.sign_in_with_password({"email": email, "password": password})
-            expires_in = getattr(res.session, 'expires_in', 21600) or 21600
-            return jsonify({
-                "access_token": res.session.access_token,
-                "expires_in": expires_in,
-                "user": {"id": res.user.id, "email": res.user.email}
-            })
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
+            user_email = (getattr(res.user, "email", "") or "").lower()
+        except Exception:
+            _record_login_failure(cred_key)
+            return jsonify({"error": "Invalid email or password"}), 401
+        if user_email != email or not _is_admin_email(user_email):
+            _record_login_failure(cred_key)
+            return jsonify({"error": "Invalid email or password"}), 401
     else:
-        if email == "admin@scoreboard.com" and password == "admin123":
-            return jsonify({
-                "access_token": "mock-admin-token",
-                "expires_in": 21600,
-                "user": {"id": "admin-id-123", "email": "admin@scoreboard.com"}
-            })
-        return jsonify({"error": "Invalid email or password"}), 401
+        if not _verify_admin_password(email, password):
+            _record_login_failure(cred_key)
+            return jsonify({"error": "Invalid email or password"}), 401
+
+    active_sessions = _active_session_count(email)
+    if active_sessions >= MAX_SESSIONS_PER_ADMIN:
+        return jsonify({
+            "error": "Too many active sessions for this account. Sign out elsewhere first."
+        }), 429
+
+    _clear_login_failures(cred_key)
+    token = _issue_session(email)
+    return jsonify({
+        "access_token": token,
+        "expires_in": SESSION_TTL,
+        "user": {"id": email, "email": email}
+    })
+
+
+@app.route("/api/auth/me", methods=["GET"])
+@req_admin_auth
+def auth_me():
+    """Return the authenticated admin's identity for the current session."""
+    token = request.headers.get("Authorization", "").split(" ", 1)[1].strip()
+    return jsonify({"email": _session_email(token) or ""})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+@req_admin_auth
+def auth_logout():
+    """Revoke the current session server-side (both modes)."""
+    token = request.headers.get("Authorization", "").split(" ", 1)[1].strip()
+    _revoke_session(token)
+    return jsonify({"status": "logged_out"})
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
 
 
 # HOUSES ENDPOINTS
@@ -2172,4 +2507,10 @@ def get_version_info():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    _host = os.getenv("HOST", "0.0.0.0")
+    _port = int(os.getenv("PORT", "5000"))
+    _debug = os.getenv("FLASK_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
+    if _debug and _host in ("0.0.0.0", "::", "::1", ""):
+        print("WARNING: FLASK_DEBUG is enabled on a public bind address. The Werkzeug "
+              "debugger allows remote code execution — never enable it in production.")
+    app.run(host=_host, port=_port, debug=_debug, use_reloader=False)

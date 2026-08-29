@@ -365,7 +365,33 @@ ALTER TABLE public.generic_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tournament_brackets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.migration_logs ENABLE ROW LEVEL SECURITY;
 
--- Public Read Policies
+-- Admin registry: which Supabase Auth users are allowed to administer the app.
+-- Managed server-side only (via manage_admins.py using the service role key).
+-- No anon/authenticated policies exist here, so admin emails are not exposed.
+CREATE TABLE IF NOT EXISTS public.admins (
+    email      text PRIMARY KEY,
+    is_active  boolean NOT NULL DEFAULT TRUE,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+-- Admin check: true only for authenticated users whose email is present and
+-- active in public.admins. SECURITY DEFINER lets the policy read the admins
+-- table even though that table is not publicly readable.
+CREATE OR REPLACE FUNCTION public.app_is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.admins a
+    WHERE lower(a.email) = lower(auth.jwt() ->> 'email') AND a.is_active = TRUE
+  );
+$$;
+
+-- Public Read Policies (leaderboard data is intentionally public)
 CREATE POLICY "Public Read Houses" ON public.houses FOR SELECT USING (true);
 CREATE POLICY "Public Read Sports" ON public.sports FOR SELECT USING (true);
 CREATE POLICY "Public Read Groups" ON public.tournament_groups FOR SELECT USING (true);
@@ -378,19 +404,64 @@ CREATE POLICY "Public Read Football Events" ON public.football_events FOR SELECT
 CREATE POLICY "Public Read Basketball Quarters" ON public.basketball_quarters FOR SELECT USING (true);
 CREATE POLICY "Public Read Generic Results" ON public.generic_results FOR SELECT USING (true);
 CREATE POLICY "Public Read Brackets" ON public.tournament_brackets FOR SELECT USING (true);
-CREATE POLICY "Public Read Migration Logs" ON public.migration_logs FOR SELECT USING (true);
 
--- Admin Write Policies
-CREATE POLICY "Admin Write Houses" ON public.houses FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Sports" ON public.sports FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Groups" ON public.tournament_groups FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Teams" ON public.teams FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Players" ON public.players FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Matches" ON public.matches FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Cricket Innings" ON public.cricket_innings FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Cricket Overs" ON public.cricket_overs FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Football Events" ON public.football_events FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Basketball Quarters" ON public.basketball_quarters FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Generic Results" ON public.generic_results FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Brackets" ON public.tournament_brackets FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY "Admin Write Migration Logs" ON public.migration_logs FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+-- Admin Write Policies: restricted to admins registered in public.admins, and
+-- WITH CHECK constrains writes just like reads so nothing can be inserted or
+-- updated via a mismatched session. The Flask backend uses the service_role
+-- key, which bypasses RLS entirely, so the app is unaffected.
+-- NOTE: these REPLACE any older policies that trusted auth.role() =
+-- 'authenticated', which implicitly allowed ANY registered Supabase account
+-- to write directly through PostgREST without going through the app.
+DROP POLICY IF EXISTS "Admin Write Houses" ON public.houses;
+CREATE POLICY "Admin Write Houses" ON public.houses FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Sports" ON public.sports;
+CREATE POLICY "Admin Write Sports" ON public.sports FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Groups" ON public.tournament_groups;
+CREATE POLICY "Admin Write Groups" ON public.tournament_groups FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Teams" ON public.teams;
+CREATE POLICY "Admin Write Teams" ON public.teams FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Players" ON public.players;
+CREATE POLICY "Admin Write Players" ON public.players FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Matches" ON public.matches;
+CREATE POLICY "Admin Write Matches" ON public.matches FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Cricket Innings" ON public.cricket_innings;
+CREATE POLICY "Admin Write Cricket Innings" ON public.cricket_innings FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Cricket Overs" ON public.cricket_overs;
+CREATE POLICY "Admin Write Cricket Overs" ON public.cricket_overs FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Football Events" ON public.football_events;
+CREATE POLICY "Admin Write Football Events" ON public.football_events FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Basketball Quarters" ON public.basketball_quarters;
+CREATE POLICY "Admin Write Basketball Quarters" ON public.basketball_quarters FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Generic Results" ON public.generic_results;
+CREATE POLICY "Admin Write Generic Results" ON public.generic_results FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Brackets" ON public.tournament_brackets;
+CREATE POLICY "Admin Write Brackets" ON public.tournament_brackets FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+-- Migration logs are internal metadata; revoke the public read policy.
+DROP POLICY IF EXISTS "Public Read Migration Logs" ON public.migration_logs;
+DROP POLICY IF EXISTS "Admin Write Migration Logs" ON public.migration_logs;
+CREATE POLICY "Admin Write Migration Logs" ON public.migration_logs FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());

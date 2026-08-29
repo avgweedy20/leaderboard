@@ -33,6 +33,7 @@ const HOUSE_COLORS = {
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkAuthUI();
+    validateSession();
     checkDbHealth();
     startSessionExpiryChecker();
     initFooterTypewriter();
@@ -171,6 +172,7 @@ function isTokenExpired() {
 function handleSessionExpired() {
     if (!currentToken) return;
 
+    serverLogout(); // best-effort server-side token revocation
     currentToken = null;
     localStorage.removeItem('sb_auth_token');
     localStorage.removeItem('sb_auth_expires_at');
@@ -187,6 +189,36 @@ function handleSessionExpired() {
             window.location.href = '/';
         }, 1200);
     }
+}
+
+/**
+ * Best-effort server-side session revocation (revokes mock-mode tokens).
+ */
+async function serverLogout() {
+    if (!currentToken) return;
+    try {
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+    } catch (e) { /* best-effort */ }
+}
+
+/**
+ * Validate a locally stored token against the server on load. A locally
+ * forged or revoked token is rejected immediately instead of at the first
+ * admin API call.
+ */
+async function validateSession() {
+    if (!currentToken || isTokenExpired()) return;
+    try {
+        const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!res.ok) {
+            handleSessionExpired();
+        }
+    } catch (e) { /* transient network error — next authenticated call enforces */ }
 }
 
 /**
@@ -302,6 +334,7 @@ function checkAuthUI() {
 
 function openLoginModal() {
     if (currentToken && !isTokenExpired()) {
+        serverLogout(); // best-effort server-side token revocation
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
         localStorage.removeItem('sb_auth_expires_at');
@@ -492,7 +525,7 @@ function renderSportFilterChips() {
         const active = selectedSportId === s.id;
         const slug = s.name.toLowerCase();
         html += `<button class="chip ${active ? 'active' : ''}"
-                         onclick="selectSportChip('${s.id}','${slug}')">${s.name}</button>`;
+                         onclick="selectSportChip('${escapeHtml(s.id)}','${escapeHtml(slug)}')">${escapeHtml(s.name)}</button>`;
     });
     group.innerHTML = html;
 }
@@ -532,7 +565,7 @@ async function loadHouseOverallStandings() {
                 <div class="house-hero-card fade-in" style="border-left-color:${color};">
                     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
                         <div style="min-width:0;">
-                            <div class="house-name">${h.house_name}</div>
+                            <div class="house-name">${escapeHtml(h.house_name)}</div>
                             <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">
                                 ${h.total_squads} squad${h.total_squads !== 1 ? 's' : ''}
                             </div>
@@ -584,7 +617,7 @@ async function loadHouseOverallStandings() {
                             <td>
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <div style="width:8px; height:8px; border-radius:2px; background-color:${color}; flex-shrink:0;"></div>
-                                    <span style="font-weight:700;">${h.house_name}</span>
+                                    <span style="font-weight:700;">${escapeHtml(h.house_name)}</span>
                                 </div>
                             </td>
                             <td class="tabular">${h.total_squads}</td>
@@ -683,15 +716,15 @@ async function loadPerSportStandings() {
             return `
                         <tr style="border-left:3px solid ${color};">
                             <td style="font-weight:700;">#${s.rank}</td>
-                            <td style="font-weight:700;">${s.team_name}</td>
+                            <td style="font-weight:700;">${escapeHtml(s.team_name)}</td>
                             <td>
                                 <div style="display:flex; align-items:center; gap:6px;">
                                     <div style="width:6px; height:6px; border-radius:2px; background-color:${color}; flex-shrink:0;"></div>
-                                    <span style="color:${color}; font-weight:700;">${s.house_name}${squadLabel}</span>
+                                    <span style="color:${color}; font-weight:700;">${escapeHtml(s.house_name)}${escapeHtml(squadLabel)}</span>
                                 </div>
                             </td>
-                            <td style="color:var(--text-secondary);">${s.sport_name}</td>
-                            <td style="color:var(--text-secondary);">${s.gender}</td>
+                            <td style="color:var(--text-secondary);">${escapeHtml(s.sport_name)}</td>
+                            <td style="color:var(--text-secondary);">${escapeHtml(s.gender)}</td>
                             <td class="tabular">${s.played}</td>
                             <td class="tabular" style="color:var(--c-karnali);">${s.wins}</td>
                             <td class="tabular" style="color:var(--text-secondary);">${s.draws}</td>
@@ -832,12 +865,12 @@ function renderAdminSquadsTable() {
 
     // Build House filter options
     const houseOptions = housesData.map(h =>
-        `<option value="${h.id}" ${adminSquadsState.houseFilter === h.id ? 'selected' : ''}>${h.name}</option>`
+        `<option value="${h.id}" ${adminSquadsState.houseFilter === h.id ? 'selected' : ''}>${escapeHtml(h.name)}</option>`
     ).join('');
 
     // Build Sport filter options
     const sportOptions = sportsData.map(s =>
-        `<option value="${s.id}" ${adminSquadsState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+        `<option value="${s.id}" ${adminSquadsState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
 
     container.innerHTML = `
@@ -1014,12 +1047,12 @@ function renderAdminPlayersTable() {
 
     // Build House filter options
     const houseOptions = housesData.map(h =>
-        `<option value="${h.id}" ${adminPlayersState.houseFilter === h.id ? 'selected' : ''}>${h.name}</option>`
+        `<option value="${h.id}" ${adminPlayersState.houseFilter === h.id ? 'selected' : ''}>${escapeHtml(h.name)}</option>`
     ).join('');
 
     // Build Sport filter options
     const sportOptions = sportsData.map(s =>
-        `<option value="${s.id}" ${adminPlayersState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+        `<option value="${s.id}" ${adminPlayersState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
 
     const allCurrentSelected = pageItems.length > 0 && pageItems.every(p => adminPlayersState.selectedIds.has(p.id));
@@ -1248,7 +1281,7 @@ function renderAdminFixturesTable() {
 
     // Build Sport filter options
     const sportOptions = sportsData.map(s =>
-        `<option value="${s.id}" ${adminFixturesState.sportFilter === s.id ? 'selected' : ''}>${s.name}</option>`
+        `<option value="${s.id}" ${adminFixturesState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
 
     container.innerHTML = `
@@ -1414,8 +1447,8 @@ function openSquadModal(squadId = null) {
     const sSel = document.getElementById('squadSportId');
     if (!hSel || !sSel) return;
 
-    hSel.innerHTML = housesData.map(h => `<option value="${h.id}">${h.name}</option>`).join('');
-    sSel.innerHTML = sportsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    hSel.innerHTML = housesData.map(h => `<option value="${h.id}">${escapeHtml(h.name)}</option>`).join('');
+    sSel.innerHTML = sportsData.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
     const titleEl = document.getElementById('squadModalTitle');
     if (squadId) {
@@ -1492,7 +1525,7 @@ async function deleteSquad(id) {
 function openPlayerModal(playerId = null) {
     const teamSel = document.getElementById('playerTeamId');
     if (!teamSel) return;
-    teamSel.innerHTML = squadsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    teamSel.innerHTML = squadsData.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
     const titleEl = document.getElementById('playerModalTitle');
     if (playerId) {
@@ -1576,7 +1609,7 @@ async function openCreateMatchModal() {
     if (!sportSel) return;
     if (!sportsData.length) await fetchSports();
     if (!squadsData.length) await fetchSquads();
-    sportSel.innerHTML = sportsData.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    sportSel.innerHTML = sportsData.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
     onNewMatchSportOrGenderChange();
     openModal('createMatchModal');
 }
@@ -1593,8 +1626,8 @@ function onNewMatchSportOrGenderChange() {
         aSel.innerHTML = bSel.innerHTML = `<option value="">No squads available</option>`;
         return;
     }
-    aSel.innerHTML = matching.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    bSel.innerHTML = matching.map((s, i) => `<option value="${s.id}" ${i === 1 ? 'selected' : ''}>${s.name}</option>`).join('');
+    aSel.innerHTML = matching.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+    bSel.innerHTML = matching.map((s, i) => `<option value="${s.id}" ${i === 1 ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('');
 }
 
 async function handleCreateMatchSubmit(e) {

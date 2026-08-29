@@ -221,7 +221,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         const chipGroup = document.getElementById('fixtureFilterChips');
         let html = `<button class="chip active" id="chip-all" onclick="filterFixtures('', this)">All Sports</button>`;
         sportsData.forEach(s => {
-            html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${s.id}', this)">${s.name}</button>`;
+            html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${s.id}', this)">${escapeHtml(s.name)}</button>`;
         });
         chipGroup.innerHTML = html;
     }
@@ -318,7 +318,7 @@ Inter-House Sports Meet 2083.{% endblock %}
                 <svg class="icon" width="16" height="16" style="color:var(--text-secondary);">
                     <use href="#${sportIconId}"/>
                 </svg>
-                <span class="section-title">${g.sportName} — ${g.gender}</span>
+                <span class="section-title">${escapeHtml(g.sportName)} — ${escapeHtml(g.gender)}</span>
                 <span class="badge badge-stage">${completedCount}/${g.matches.length} played</span>
             </div>
             <div class="card-grid">`;
@@ -360,7 +360,7 @@ Inter-House Sports Meet 2083.{% endblock %}
             scoreSection = `
         <div class="fixture-score">
             <span class="score-label">Final Score</span>
-            <span class="score-text">${summary}</span>
+            <span class="score-text">${escapeHtml(summary)}</span>
         </div>`;
         } else if (!m.team_a_id || !m.team_b_id) {
             scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD — awaiting qualifiers</p>`;
@@ -382,11 +382,11 @@ Inter-House Sports Meet 2083.{% endblock %}
         <div class="fixture-matchup">
             <div style="display:flex; align-items:center; gap:8px;">
                 <div style="width:3px; height:28px; border-radius:2px; background-color:${colorA}; flex-shrink:0;"></div>
-                <span class="fixture-team">${teamAName}</span>
+                <span class="fixture-team">${escapeHtml(teamAName)}</span>
             </div>
             <span class="fixture-vs">VS</span>
             <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
-                <span class="fixture-team team-b">${teamBName}</span>
+                <span class="fixture-team team-b">${escapeHtml(teamBName)}</span>
                 <div style="width:3px; height:28px; border-radius:2px; background-color:${colorB}; flex-shrink:0;"></div>
             </div>
         </div>

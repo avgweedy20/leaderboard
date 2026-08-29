@@ -14,9 +14,13 @@ To maintain security while allowing Admin capabilities in both clients:
 
 2. **Admin Authentication in Web & Android:**
    - Both the Web frontend and native Android client log in via the backend endpoint `/api/auth/login` using email and password.
-   - Default credentials are NOT auto-filled in forms.
-   - Upon successful login, the backend issues an Auth JWT access token.
-   - The Android app and Web app send this Bearer token in the `Authorization` header (`Authorization: Bearer <jwt_token>`) for write actions (scoring matches, creating sports, generating brackets, bulk CSV imports).
+   - Multiple admin accounts are supported. Credentials are NEVER stored in code or environment variables:
+     - **Supabase mode:** admins are real Supabase Auth users whose email is registered in the `public.admins` table.
+     - **Mock (dev) mode:** admins are stored in a local SQLite store (`data/admins.db`) with PBKDF2-HMAC-SHA256-hashed passwords.
+     - Create/remove admins with the CLI: `python manage_admins.py add <email>`.
+   - Login is fail-closed (there is no default admin), throttled per IP + per email (5 tries / 15 min), and limited to 5 concurrent sessions per account.
+   - Successful logins receive a random, expiring (6-hour), server-side registered token that is revoked on logout and on account removal — no static token is ever accepted.
+   - The Android app and Web app send this Bearer token in the `Authorization` header (`Authorization: Bearer <token>`) for write actions (scoring matches, creating sports, generating brackets, bulk CSV imports).
 
 3. **Public Reads (Anon Key):**
    - Public users can view the live leaderboard, scheduled matches, and tournament brackets without logging in.
@@ -39,6 +43,21 @@ To maintain security while allowing Admin capabilities in both clients:
    ```
 
 3. Ensure `.env` is listed in your `.gitignore` (already configured in this repository).
+
+## 2b. Managing Admin Accounts
+
+Admin credentials are never placed in environment variables or code. Run the CLI on the server:
+
+```bash
+python manage_admins.py add admin1@school.edu     # prompts for a hidden password (min 12 chars)
+python manage_admins.py add admin2@school.edu --stdin   # scripted setups
+python manage_admins.py reset-password admin1@school.edu
+python manage_admins.py remove admin1@school.edu
+python manage_admins.py list
+```
+
+- In **mock/dev mode** this writes PBKDF2-hashed credentials to `data/admins.db` (see `ADMIN_DB_PATH`).
+- In **Supabase mode** (with `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` set) it creates the Supabase Auth user and registers the email in the `public.admins` table.
 
 ---
 
@@ -77,4 +96,4 @@ Both the Web frontend and Android app query the `/api/health` endpoint:
 ```
 
 - **Postgres Mode (`mode: "supabase"`):** Displays `"Connected: Postgres DB [DEBUG]"` in the app header/settings.
-- **Development Mock Mode (`mode: "mock_in_memory"`):** Displays `"Development: In-Memory Mock DB"` when running locally without a live Supabase connection.
+- **Development Mock Mode (`mode: "mock_in_memory"`):** Displays `"Development: In-Memory Mock DB"` when running locally without a live Supabase connection. Admin accounts still exist and are managed via `python manage_admins.py add <email>`.

@@ -1,13 +1,44 @@
+import os
+import tempfile
 import pytest
 import json
 import io
-from app.app import app, MOCK_DB
+
+# Isolate the admin account store to a temporary SQLite database.
+_ADMIN_TEST_DIR = tempfile.mkdtemp(prefix="scoreboard_admin_test_")
+os.environ["ADMIN_DB_PATH"] = os.path.join(_ADMIN_TEST_DIR, "admins.db")
+
+from app.app import app, MOCK_DB, add_admin, remove_admin, _clear_all_sessions, _login_failures
+
+ADMIN1 = "admin1@school.edu"
+ADMIN2 = "admin2@school.edu"
+ADMIN3 = "admin3@school.edu"
+ADMIN_PASSWORD = "Str0ng-Adm1n-Pass!42"
+
+@pytest.fixture(scope="session", autouse=True)
+def seed_admins():
+    add_admin(ADMIN1, ADMIN_PASSWORD)
+    add_admin(ADMIN2, ADMIN_PASSWORD)
+
+@pytest.fixture(autouse=True)
+def reset_auth_state():
+    _clear_all_sessions()
+    _login_failures.clear()
+    yield
+    _clear_all_sessions()
+    _login_failures.clear()
 
 @pytest.fixture
 def client():
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
+
+def _admin_headers(client, email=ADMIN1, password=ADMIN_PASSWORD):
+    rv = client.post('/api/auth/login', json={"email": email, "password": password})
+    assert rv.status_code == 200, rv.get_json()
+    token = rv.get_json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 def test_health_check(client):
     rv = client.get('/api/health')
@@ -32,7 +63,7 @@ def test_create_sport_unauthorized(client):
     assert rv.status_code == 401
 
 def test_create_sport_authorized(client):
-    headers = {"Authorization": "Bearer mock-admin-token"}
+    headers = _admin_headers(client)
     rv = client.post('/api/sports', json={
         "name": "Badminton",
         "type": "generic",
@@ -47,12 +78,116 @@ def test_create_sport_authorized(client):
 
 def test_auth_login(client):
     rv = client.post('/api/auth/login', json={
-        "email": "admin@scoreboard.com",
-        "password": "admin123"
+        "email": ADMIN1,
+        "password": ADMIN_PASSWORD
     })
     assert rv.status_code == 200
     json_data = rv.get_json()
     assert "access_token" in json_data
+    assert json_data["expires_in"] == 21600
+
+def test_auth_login_wrong_password(client):
+    rv = client.post('/api/auth/login', json={
+        "email": ADMIN1,
+        "password": "wrong-password"
+    })
+    assert rv.status_code == 401
+
+def test_auth_login_unknown_account(client):
+    rv = client.post('/api/auth/login', json={
+        "email": "noone@school.edu",
+        "password": ADMIN_PASSWORD
+    })
+    assert rv.status_code == 401
+
+def test_multiple_admins_can_login(client):
+    h1 = _admin_headers(client, ADMIN1)
+    h2 = _admin_headers(client, ADMIN2)
+    r1 = client.post('/api/sports', json={
+        "name": "Cricket2", "type": "generic", "level": "HS",
+        "point_win": 3, "point_draw": 1, "point_loss": 0
+    }, headers=h1)
+    r2 = client.post('/api/sports', json={
+        "name": "Volleyball", "type": "generic", "level": "HS",
+        "point_win": 3, "point_draw": 1, "point_loss": 0
+    }, headers=h2)
+    assert r1.status_code == 201
+    assert r2.status_code == 201
+
+def test_remove_admin_revokes_sessions(client):
+    add_admin(ADMIN3, ADMIN_PASSWORD)
+    headers = _admin_headers(client, ADMIN3)
+    assert client.post('/api/sports', json={
+        "name": "Athletics", "type": "generic", "level": "HS",
+        "point_win": 3, "point_draw": 1, "point_loss": 0
+    }, headers=headers).status_code == 201
+
+    remove_admin(ADMIN3)
+    # Sessions of that admin are revoked immediately.
+    assert client.post('/api/sports', json={
+        "name": "Athletics2", "type": "generic", "level": "HS",
+        "point_win": 3, "point_draw": 1, "point_loss": 0
+    }, headers=headers).status_code == 401
+    # And login no longer works.
+    assert client.post('/api/auth/login', json={
+        "email": ADMIN3, "password": ADMIN_PASSWORD
+    }).status_code == 401
+
+def test_add_admin_rejects_weak_password():
+    with pytest.raises(ValueError):
+        add_admin("weak@school.edu", "short")
+
+def test_forged_static_token_rejected(client):
+    """The old hardcoded 'mock-admin-token' must never be accepted again."""
+    headers = {"Authorization": "Bearer mock-admin-token"}
+    rv = client.post('/api/sports', json={"name": "Tennis"}, headers=headers)
+    assert rv.status_code == 401
+
+def test_random_token_rejected(client):
+    headers = {"Authorization": "Bearer definitely-not-issued-by-login"}
+    rv = client.post('/api/teams', json={}, headers=headers)
+    assert rv.status_code == 401
+
+def test_malformed_bearer_rejected(client):
+    rv = client.post('/api/sports', json={"name": "Tennis"}, headers={"Authorization": "Bearer"})
+    assert rv.status_code == 401
+    rv = client.post('/api/sports', json={"name": "Tennis"}, headers={"Authorization": "Basic abc"})
+    assert rv.status_code == 401
+
+def test_auth_me_and_logout(client):
+    headers = _admin_headers(client)
+    token = headers["Authorization"].split(" ")[1]
+
+    rv = client.get('/api/auth/me', headers=headers)
+    assert rv.status_code == 200
+    assert rv.get_json()["email"] == ADMIN1
+
+    rv = client.post('/api/auth/logout', headers=headers)
+    assert rv.status_code == 200
+    rv = client.post('/api/sports', json={"name": "Table Tennis"}, headers=headers)
+    assert rv.status_code == 401
+
+def test_session_cap_per_admin(client):
+    headers = []
+    for _ in range(5):
+        rv = client.post('/api/auth/login', json={
+            "email": ADMIN1, "password": ADMIN_PASSWORD
+        })
+        assert rv.status_code == 200
+        headers.append(rv.get_json()["access_token"])
+    # Sixth concurrent session for the same account is refused.
+    rv = client.post('/api/auth/login', json={
+        "email": ADMIN1, "password": ADMIN_PASSWORD
+    })
+    assert rv.status_code == 429
+
+def test_login_rate_limit_blocks_after_failures(client):
+    codes = []
+    for _ in range(6):
+        codes.append(client.post('/api/auth/login', json={
+            "email": ADMIN1, "password": "bad-password"
+        }).status_code)
+    assert codes == [401, 401, 401, 401, 401, 429]
 
 def test_get_house_overall_standings(client):
     rv = client.get('/api/leaderboard/overall')
@@ -73,7 +208,7 @@ def test_version_ota_endpoint(client):
     assert "version_code" in json_data
 
 def test_team_crud_and_bulk(client):
-    headers = {"Authorization": "Bearer mock-admin-token"}
+    headers = _admin_headers(client)
 
     # Create Team
     res = client.post('/api/teams', json={
@@ -114,7 +249,7 @@ def test_team_crud_and_bulk(client):
     assert del_t.status_code == 200
 
 def test_matches_flow(client):
-    headers = {"Authorization": "Bearer mock-admin-token"}
+    headers = _admin_headers(client)
 
     # Create Match
     m_res = client.post('/api/matches', json={
