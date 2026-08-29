@@ -1423,7 +1423,8 @@ async function loadAdminAccounts() {
             container.innerHTML = renderSharedErrorState(err.error || 'Failed to load admins.', 'loadAdminAccounts()');
             return;
         }
-        renderAdminAccounts(await res.json());
+        const data = await res.json();
+        renderAdminAccounts(Array.isArray(data) ? data : (data.admins || []));
     } catch (err) {
         if (!err.message.includes('Session expired')) {
             container.innerHTML = renderSharedErrorState('Failed to load admins.', 'loadAdminAccounts()');
@@ -1565,7 +1566,7 @@ async function handleResetPasswordSubmit(e) {
         const res = await fetchWithAuth('/api/admin/reset-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, new_password: password })
+            body: JSON.stringify({ email, password })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {

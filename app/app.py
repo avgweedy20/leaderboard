@@ -40,6 +40,29 @@ if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE
     except Exception as e:
         print(f"Warning: Could not initialize Supabase client: {e}")
 
+# A dedicated service-role client for authoritative data reads/writes.
+# `supabase_client.auth.sign_in_*` mutates the client's session to the signed-in
+# user's token, which RLS then filters out of the `admins` table. Using a
+# separate service-role client for admin lookups avoids that, so a valid login
+# is never rejected because the auth check was run under the user's own token.
+_SERVICE_CLIENT = None
+def _service_client():
+    global _SERVICE_CLIENT
+    client = supabase_client
+    if not client:
+        return None
+    # If the wired client is not a real supabase-py client (e.g. the test
+    # FakeSupabase stand-in), there is no separate service-role session to worry
+    # about, so just return it.
+    if type(client).__name__ != "Client":
+        return client
+    if _SERVICE_CLIENT is None:
+        try:
+            _SERVICE_CLIENT = __import__("supabase").create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        except Exception:
+            _SERVICE_CLIENT = client
+    return _SERVICE_CLIENT
+
 # AUTH ------------------------------------------------------------------
 # Admin accounts are real Supabase Auth users (managed with the service-role
 # client). An account is an "admin" while its email exists in public.admins.
@@ -60,10 +83,11 @@ def _is_admin_email(email):
     if not email:
         return False
     email = email.strip().lower()
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         return False
     try:
-        res = supabase_client.table("admins").select("email").eq("email", email).limit(1).execute()
+        res = client.table("admins").select("email").eq("email", email).limit(1).execute()
         return bool(res.data)
     except Exception:
         return False
@@ -71,10 +95,11 @@ def _is_admin_email(email):
 
 def _audit(action, actor_email=None, target_email=None, ip_address=None):
     """Append a row to public.admin_audit_log (best effort, never fatal)."""
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         return
     try:
-        supabase_client.table("admin_audit_log").insert({
+        client.table("admin_audit_log").insert({
             "action": action,
             "actor_email": (actor_email or "").lower(),
             "target_email": (target_email or "").lower(),
@@ -94,24 +119,25 @@ def add_admin(email, password):
         raise ValueError("Password must be at least %d characters" % _PASSWORD_MIN_LENGTH)
     if password.lower() == email:
         raise ValueError("Password must not be the email address")
-    if not supabase_client:
+    if not _service_client():
         raise RuntimeError("Supabase not configured")
     try:
-        supabase_client.auth.admin.create_user({
+        _service_client().auth.admin.create_user({
             "email": email, "password": password, "email_confirm": True
         })
     except Exception:
         pass  # Auth user may already exist
-    supabase_client.table("admins").upsert({"email": email}, on_conflict="email").execute()
+    _service_client().table("admins").upsert({"email": email}, on_conflict="email").execute()
 
 
 def remove_admin(email):
     """Remove an admin account and revoke all of its sessions immediately."""
     email = (email or "").strip().lower()
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         raise RuntimeError("Supabase not configured")
     try:
-        supabase_client.table("admins").delete().eq("email", email).execute()
+        client.table("admins").delete().eq("email", email).execute()
     except Exception:
         pass
     _revoke_admin_sessions(email)
@@ -119,10 +145,11 @@ def remove_admin(email):
 
 def list_admins():
     """List admin accounts as [{"email": ..., "created_at": ...}]."""
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         return []
     try:
-        res = supabase_client.table("admins").select("email, created_at").order("email").execute()
+        res = client.table("admins").select("email, created_at").order("email").execute()
         return [dict(r) for r in (res.data or [])]
     except Exception:
         return []
@@ -130,10 +157,11 @@ def list_admins():
 
 def _auth_user_id_by_email(email):
     """Resolve a Supabase Auth user id from an email (service-role client)."""
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         return None
     try:
-        users = supabase_client.auth.admin.list_users()
+        users = client.auth.admin.list_users()
         for u in users:
             if (getattr(u, "email", "") or "").lower() == email:
                 return getattr(u, "id", None)
@@ -147,20 +175,20 @@ def _session_token_hash(token):
 
 
 def _cleanup_sessions():
-    if not supabase_client:
+    if not _service_client():
         return
     try:
-        supabase_client.table("admin_sessions").delete().lt("expires_at", time.time()).execute()
+        _service_client().table("admin_sessions").delete().lt("expires_at", time.time()).execute()
     except Exception:
         pass
 
 
 def _issue_session(email):
     token = secrets.token_urlsafe(48)
-    if not supabase_client:
+    if not _service_client():
         return token
     try:
-        supabase_client.table("admin_sessions").insert({
+        _service_client().table("admin_sessions").insert({
             "token_hash": _session_token_hash(token),
             "email": email,
             "expires_at": time.time() + SESSION_TTL,
@@ -171,49 +199,50 @@ def _issue_session(email):
 
 
 def _session_email(token):
-    if not token or not supabase_client:
+    if not token or not _service_client():
         return None
     _cleanup_sessions()
     try:
-        res = supabase_client.table("admin_sessions").select("email").eq("token_hash", _session_token_hash(token)).maybe_single().execute()
+        res = _service_client().table("admin_sessions").select("email").eq("token_hash", _session_token_hash(token)).maybe_single().execute()
         return res.data.get("email") if isinstance(res.data, dict) else None
     except Exception:
         return None
 
 
 def _revoke_session(token):
-    if not token or not supabase_client:
+    if not token or not _service_client():
         return
     try:
-        supabase_client.table("admin_sessions").delete().eq("token_hash", _session_token_hash(token)).execute()
+        _service_client().table("admin_sessions").delete().eq("token_hash", _session_token_hash(token)).execute()
     except Exception:
         pass
 
 
 def _revoke_admin_sessions(email):
-    if not supabase_client:
+    if not _service_client():
         return
     try:
-        supabase_client.table("admin_sessions").delete().eq("email", email).execute()
+        _service_client().table("admin_sessions").delete().eq("email", email).execute()
     except Exception:
         pass
 
 
 def _clear_all_sessions():
-    if not supabase_client:
+    if not _service_client():
         return
     try:
-        supabase_client.table("admin_sessions").delete().neq("token_hash", "").execute()
+        _service_client().table("admin_sessions").delete().neq("token_hash", "").execute()
     except Exception:
         pass
 
 
 def _active_session_count(email):
-    if not supabase_client:
+    client = _service_client()
+    if not client:
         return 0
     _cleanup_sessions()
     try:
-        res = supabase_client.table("admin_sessions").select("token_hash", count="exact").eq("email", email).execute()
+        res = client.table("admin_sessions").select("token_hash", count="exact").eq("email", email).execute()
         return int(res.count or 0)
     except Exception:
         return 0
@@ -430,7 +459,7 @@ def api_admin_reset_password():
     if not user_id:
         return jsonify({"error": "Auth user not found"}), 404
     try:
-        supabase_client.auth.admin.update_user_by_id(user_id, {"password": password})
+        _service_client().auth.admin.update_user_by_id(user_id, {"password": password})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     _revoke_admin_sessions(email)
@@ -447,7 +476,7 @@ def api_admin_log():
     if not supabase_client:
         return jsonify({"error": "Supabase not configured"}), 503
     try:
-        res = supabase_client.table("admin_audit_log").select("*").order("created_at", desc=True).limit(50).execute()
+        res = _service_client().table("admin_audit_log").select("*").order("created_at", desc=True).limit(50).execute()
         return jsonify(res.data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -468,7 +497,7 @@ def add_security_headers(response):
 def get_houses():
     if supabase_client:
         try:
-            res = supabase_client.table("houses").select("*").order("name").execute()
+            res = _service_client().table("houses").select("*").order("name").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -480,7 +509,7 @@ def get_houses():
 def get_sports():
     if supabase_client:
         try:
-            res = supabase_client.table("sports").select("*").execute()
+            res = _service_client().table("sports").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -514,7 +543,7 @@ def create_sport():
 
     if supabase_client:
         try:
-            res = supabase_client.table("sports").insert(record).execute()
+            res = _service_client().table("sports").insert(record).execute()
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -531,7 +560,7 @@ def get_teams():
 
     if supabase_client:
         try:
-            query = supabase_client.table("teams").select("*, houses(name, color_hex, short_code), sports(name)")
+            query = _service_client().table("teams").select("*, houses(name, color_hex, short_code), sports(name)")
             if sport_id:
                 query = query.eq("sport_id", sport_id)
             if house_id:
@@ -564,10 +593,10 @@ def create_team():
         sport_name = "Sport"
         if supabase_client:
             try:
-                hr = supabase_client.table("houses").select("name").eq("id", house_id).maybe_single().execute()
+                hr = _service_client().table("houses").select("name").eq("id", house_id).maybe_single().execute()
                 if isinstance(hr.data, dict):
                     house_name = hr.data.get("name", house_name)
-                sr = supabase_client.table("sports").select("name").eq("id", sport_id).maybe_single().execute()
+                sr = _service_client().table("sports").select("name").eq("id", sport_id).maybe_single().execute()
                 if isinstance(sr.data, dict):
                     sport_name = sr.data.get("name", sport_name)
             except Exception:
@@ -586,7 +615,7 @@ def create_team():
 
     if supabase_client:
         try:
-            res = supabase_client.table("teams").insert(record).execute()
+            res = _service_client().table("teams").insert(record).execute()
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -599,7 +628,7 @@ def update_team(team_id):
     data = request.get_json() or {}
     if supabase_client:
         try:
-            res = supabase_client.table("teams").update(data).eq("id", team_id).execute()
+            res = _service_client().table("teams").update(data).eq("id", team_id).execute()
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -610,7 +639,7 @@ def update_team(team_id):
 def delete_team(team_id):
     if supabase_client:
         try:
-            supabase_client.table("teams").delete().eq("id", team_id).execute()
+            _service_client().table("teams").delete().eq("id", team_id).execute()
             return jsonify({"message": "Team deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -624,7 +653,7 @@ def get_players():
 
     if supabase_client:
         try:
-            query = supabase_client.table("players").select("*, teams(name, gender, squad_label, houses(name, color_hex))")
+            query = _service_client().table("players").select("*, teams(name, gender, squad_label, houses(name, color_hex))")
             if team_id:
                 query = query.eq("team_id", team_id)
             res = query.execute()
@@ -655,7 +684,7 @@ def create_player():
 
     if supabase_client:
         try:
-            res = supabase_client.table("players").insert(record).execute()
+            res = _service_client().table("players").insert(record).execute()
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -667,7 +696,7 @@ def update_player(player_id):
     data = request.get_json() or {}
     if supabase_client:
         try:
-            res = supabase_client.table("players").update(data).eq("id", player_id).execute()
+            res = _service_client().table("players").update(data).eq("id", player_id).execute()
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -678,7 +707,7 @@ def update_player(player_id):
 def delete_player(player_id):
     if supabase_client:
         try:
-            supabase_client.table("players").delete().eq("id", player_id).execute()
+            _service_client().table("players").delete().eq("id", player_id).execute()
             return jsonify({"message": "Player deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -694,7 +723,7 @@ def bulk_upsert_players():
     if supabase_client:
         try:
             # Upsert using roll_number on conflict
-            res = supabase_client.table("players").upsert(items, on_conflict="roll_number").execute()
+            res = _service_client().table("players").upsert(items, on_conflict="roll_number").execute()
             return jsonify({"message": f"Successfully processed {len(res.data or items)} players", "count": len(res.data or items)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -711,7 +740,7 @@ def bulk_delete_players():
 
     if supabase_client:
         try:
-            supabase_client.table("players").delete().in_("id", player_ids).execute()
+            _service_client().table("players").delete().in_("id", player_ids).execute()
             return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -727,7 +756,7 @@ def get_matches():
 
     if supabase_client:
         try:
-            query = supabase_client.table("matches").select(
+            query = _service_client().table("matches").select(
                 "*, sports(name, type), team_a:teams!matches_team_a_id_fkey(*, houses(name, color_hex, short_code)), team_b:teams!matches_team_b_id_fkey(*, houses(name, color_hex, short_code))"
             )
             if sport_id:
@@ -778,7 +807,7 @@ def create_match():
 
     if supabase_client:
         try:
-            res = supabase_client.table("matches").insert(record).execute()
+            res = _service_client().table("matches").insert(record).execute()
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -806,7 +835,7 @@ def update_match(match_id):
         if not team_a_id or not team_b_id:
             if supabase_client:
                 try:
-                    match_res = supabase_client.table("matches").select("team_a_id, team_b_id").eq("id", match_id).single().execute()
+                    match_res = _service_client().table("matches").select("team_a_id, team_b_id").eq("id", match_id).single().execute()
                     if match_res.data:
                         team_a_id = team_a_id or match_res.data.get("team_a_id")
                         team_b_id = team_b_id or match_res.data.get("team_b_id")
@@ -827,7 +856,7 @@ def update_match(match_id):
 
     if supabase_client:
         try:
-            res = supabase_client.table("matches").update(data).eq("id", match_id).execute()
+            res = _service_client().table("matches").update(data).eq("id", match_id).execute()
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -838,7 +867,7 @@ def update_match(match_id):
 def delete_match(match_id):
     if supabase_client:
         try:
-            supabase_client.table("matches").delete().eq("id", match_id).execute()
+            _service_client().table("matches").delete().eq("id", match_id).execute()
             return jsonify({"message": "Match deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -850,7 +879,7 @@ def delete_match(match_id):
 def get_house_overall_standings():
     if supabase_client:
         try:
-            res = supabase_client.table("house_overall_standings").select("*").execute()
+            res = _service_client().table("house_overall_standings").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -865,7 +894,7 @@ def get_leaderboard():
 
     if supabase_client:
         try:
-            query = supabase_client.table("leaderboard_view").select("*")
+            query = _service_client().table("leaderboard_view").select("*")
             if sport_id:
                 query = query.eq("sport_id", sport_id)
             if gender:
@@ -882,7 +911,7 @@ def get_leaderboard():
 def get_final_qualifiers():
     if supabase_client:
         try:
-            res = supabase_client.table("final_qualifiers_view").select("*").execute()
+            res = _service_client().table("final_qualifiers_view").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
