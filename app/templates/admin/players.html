@@ -186,8 +186,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        await fetchSquads();
-        await fetchPlayers();
+        await Promise.all([fetchSquads(), fetchSports(), fetchHouses(), fetchPlayers()]);
         renderAdminPlayersTable();
     });
 </script>

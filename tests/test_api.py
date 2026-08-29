@@ -544,6 +544,36 @@ def test_admin_page_renders_role_gated_markup(client):
         assert marker in html
 
 
+def test_admin_page_section_order(client):
+    html = client.get('/admin').get_data(as_text=True)
+    # Fixture Score Management sits above the roster and player sections.
+    assert html.find('Fixture Score Management') < html.find('House Squad Roster')
+    assert html.find('House Squad Roster') < html.find('Registered Players')
+
+
+def test_matches_pagination(client):
+    full = client.get('/api/matches').get_json()
+    total = len(full)
+    assert total > 5
+
+    rv = client.get('/api/matches?limit=5&offset=0')
+    assert rv.status_code == 200
+    first = rv.get_json()
+    assert len(first) == 5
+    assert int(rv.headers['X-Total-Count']) == total
+
+    # Chunks reassemble into the full set in the same order.
+    all_ids = []
+    offset = 0
+    while True:
+        r = client.get(f'/api/matches?limit=5&offset={offset}').get_json()
+        if not r:
+            break
+        all_ids.extend(m['id'] for m in r)
+        offset += 5
+    assert all_ids == [m['id'] for m in full]
+
+
 # ─── SECURITY REGRESSION TESTS ──────────────────────────────────────────────
 
 def test_security_headers_present(client):
@@ -575,8 +605,8 @@ def test_standings_slug_reflected_xss_blocked(client):
     assert rv.status_code == 200
     body = rv.get_data(as_text=True)
     # The payload must never survive to the page unescaped: the route rejects
-    # non-plain slugs, so the page falls back to "futsal" and no `alert` runs.
-    assert 'const currentSportSlug = "futsal";' in body
+    # non-plain slugs, so the page falls back to "all sports" and no `alert` runs.
+    assert 'const currentSportSlug = "";' in body
     assert 'alert(1)' not in body
 
 

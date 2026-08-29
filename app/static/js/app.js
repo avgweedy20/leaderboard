@@ -657,6 +657,8 @@ function selectSportChip(sportId, sportSlug) {
     renderSportFilterChips();
     if (sportSlug) {
         window.history.replaceState({}, '', `/standings/${encodeURIComponent(sportSlug)}`);
+    } else {
+        window.history.replaceState({}, '', '/standings');
     }
     loadPerSportStandings();
 }
@@ -869,15 +871,20 @@ async function loadPerSportStandings() {
 
 // ─── 3. ADMIN CENTER ───────────────────────────────────────────────────────
 async function loadAdminCenterData() {
-    await fetchSports();
-    await fetchHouses();
-    await fetchSquads();
-    await fetchPlayers();
-    await fetchMatches();
+    // Fetch every dataset in parallel instead of sequentially; renders are
+    // ordered by page layout so the top section (Fixture Score Management)
+    // fills in first.
+    await Promise.all([
+        fetchSports(),
+        fetchHouses(),
+        fetchSquads(),
+        fetchPlayers(),
+        fetchMatches()
+    ]);
 
+    renderAdminFixturesTable();
     renderAdminSquadsTable();
     renderAdminPlayersTable();
-    renderAdminFixturesTable();
 
     await ensureAdminRole();
     applyAdminRoleUI();
