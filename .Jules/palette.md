@@ -1,3 +1,0 @@
-## 2026-03-31 - Modal Close Button ARIA Labels and Explicit Form Label Associations
-**Learning:** Icon-only modal close buttons (`&times;`) lack accessible names for screen readers, and unassociated form `<label>` elements break assistive technology navigation and click-to-focus behavior. Furthermore, resetting box shadows and outlines globally can remove visual focus indicators for keyboard navigation unless `:focus-visible` styles are explicitly declared for interactive components (`.btn`, `.tab-btn`, `.chip`, `.close-btn`).
-**Action:** Always provide explicit `aria-label="Close modal"` on icon-only close buttons, link form `<label for="...">` with `<input id="...">`, and define prominent `:focus-visible` outlines for interactive controls.

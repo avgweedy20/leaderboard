@@ -579,8 +579,15 @@ def test_standings_slug_reflected_xss_blocked(client):
     body = rv.get_data(as_text=True)
     # The payload must never survive to the page unescaped: the route rejects
     # non-plain slugs, so the page falls back to "all sports" and no `alert` runs.
-    assert 'const currentSportSlug = "";' in body
+    assert 'data-sport-slug=""' in body
     assert 'alert(1)' not in body
+    assert '"futsal";alert(1)' not in body
+
+
+def test_standings_slug_preserved_for_valid_slugs(client):
+    rv = client.get('/standings/futsal')
+    assert rv.status_code == 200
+    assert 'data-sport-slug="futsal"' in rv.get_data(as_text=True)
 
 
 def test_update_team_mass_assignment_blocked(client):
