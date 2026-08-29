@@ -10,6 +10,7 @@
 
 // ─── GLOBALS ───────────────────────────────────────────────────────────────
 let currentToken = localStorage.getItem('sb_auth_token') || null;
+let currentAdminRole = null;
 let sportsData = [];
 let housesData = [];
 let squadsData = [];
@@ -188,6 +189,7 @@ function handleSessionExpired() {
 
     serverLogout(); // best-effort server-side token revocation
     currentToken = null;
+    currentAdminRole = null;
     localStorage.removeItem('sb_auth_token');
     localStorage.removeItem('sb_auth_expires_at');
     checkAuthUI();
@@ -231,8 +233,47 @@ async function validateSession() {
         });
         if (!res.ok) {
             handleSessionExpired();
+            return;
         }
+        const me = await res.json().catch(() => ({}));
+        currentAdminRole = me.role || 'admin';
+        applyAdminRoleUI();
     } catch (e) { /* transient network error — next authenticated call enforces */ }
+}
+
+/**
+ * True when the current session belongs to a super admin. Returns a promise so
+ * callers can await the role before deciding whether to render super-admin UI.
+ */
+async function ensureAdminRole() {
+    if (!currentToken) return null;
+    if (currentAdminRole) return currentAdminRole;
+    try {
+        const res = await fetchWithAuth('/api/auth/me');
+        if (res.ok) {
+            const me = await res.json();
+            currentAdminRole = me.role || 'admin';
+        }
+    } catch (e) { /* keep previous value */ }
+    applyAdminRoleUI();
+    return currentAdminRole;
+}
+
+/**
+ * Show/hide super-admin-only sections and the current admin's role badge.
+ * Sections carrying data-superadmin-only are hidden for plain admins.
+ */
+function applyAdminRoleUI() {
+    const allowed = currentAdminRole === 'superadmin';
+    document.querySelectorAll('[data-superadmin-only]').forEach(el => {
+        el.style.display = allowed ? '' : 'none';
+    });
+    document.querySelectorAll('[data-role-badge]').forEach(el => {
+        el.style.display = currentAdminRole ? 'inline-flex' : 'none';
+        if (currentAdminRole) {
+            el.textContent = allowed ? 'Super Admin' : 'Admin';
+        }
+    });
 }
 
 /**
@@ -375,6 +416,7 @@ async function handleLogin(e) {
         const data = await res.json();
         if (res.ok && data.access_token) {
             currentToken = data.access_token;
+            currentAdminRole = (data.user && data.user.role) || 'admin';
             localStorage.setItem('sb_auth_token', currentToken);
 
             // Compute 6-hour expiry (21,600 seconds)
@@ -557,7 +599,10 @@ function selectSportChip(sportId, sportSlug) {
 function loadHouseOverallStandingsPage() { loadHouseOverallStandings(); }
 function loadPerSportStandingsPage() { loadPerSportStandings(); }
 function loadFixturesPage() { /* fixtures.html manages its own state via loadAllFixtures() */ }
-function loadAdminCenterPage() { loadAdminCenterData(); }
+function loadAdminCenterPage() {
+    applyAdminRoleUI();
+    loadAdminCenterData();
+}
 
 // ─── 1. OVERALL HOUSE STANDINGS ────────────────────────────────────────────
 async function loadHouseOverallStandings() {
@@ -768,8 +813,12 @@ async function loadAdminCenterData() {
     renderAdminPlayersTable();
     renderAdminFixturesTable();
 
-    await loadAdminAccounts();
-    loadAdminAuditLog();
+    await ensureAdminRole();
+    applyAdminRoleUI();
+    if (currentAdminRole === 'superadmin') {
+        await loadAdminAccounts();
+        loadAdminAuditLog();
+    }
 }
 
 // ─── ADMIN TABLE STATE ─────────────────────────────────────────────────────
@@ -1447,6 +1496,7 @@ function renderAdminAccounts(admins) {
                 <thead>
                     <tr>
                         <th>Email</th>
+                        <th>Role</th>
                         <th>Added</th>
                         <th style="width:170px;"></th>
                     </tr>
@@ -1455,6 +1505,9 @@ function renderAdminAccounts(admins) {
                     ${admins.map(a => `
                         <tr>
                             <td style="font-weight:700;">${escapeHtml(a.email)}</td>
+                            <td>${(a.role === 'superadmin')
+                                ? '<span class="badge badge-status-completed">Super Admin</span>'
+                                : '<span class="badge badge-status-scheduled">Admin</span>'}</td>
                             <td style="color:var(--text-secondary);">${escapeHtml(a.created_at || '')}</td>
                             <td>
                                 <div style="display:flex; gap:6px; justify-content:flex-end;">
@@ -1483,6 +1536,7 @@ async function handleAddAdminSubmit(e) {
     const submitBtn = e.target.querySelector('button[type="submit"]');
     const email = document.getElementById('newAdminEmail').value.trim();
     const password = document.getElementById('newAdminPassword').value;
+    const role = (document.getElementById('newAdminRole') || {}).value || 'admin';
     if (!email || !password) {
         showToast('Email and password are required', 'error');
         return;
@@ -1495,12 +1549,12 @@ async function handleAddAdminSubmit(e) {
         const res = await fetchWithAuth('/api/admin/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, role })
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
             closeModal('addAdminModal');
-            showToast(`${email} added as admin`, 'success');
+            showToast(`${email} added as ${role === 'superadmin' ? 'super admin' : 'admin'}`, 'success');
             await loadAdminAccounts();
             loadAdminAuditLog();
         } else {
@@ -1588,19 +1642,85 @@ async function handleResetPasswordSubmit(e) {
     }
 }
 
+// ─── ADMIN AUDIT LOG (super-admin only, filterable) ────────────────────────
+const adminAuditState = {
+    action: '', actor: '', target: '', details: '', from: '', to: '',
+    limit: 50, offset: 0, total: 0
+};
+
+function applyAdminAuditFilters() {
+    const read = id => (document.getElementById(id) || {}).value || '';
+    adminAuditState.action = read('adminAuditFilterAction');
+    adminAuditState.actor = read('adminAuditFilterActor');
+    adminAuditState.target = read('adminAuditFilterTarget');
+    adminAuditState.details = read('adminAuditFilterDetails');
+    adminAuditState.from = read('adminAuditFilterFrom');
+    adminAuditState.to = read('adminAuditFilterTo');
+    adminAuditState.offset = 0;
+    loadAdminAuditLog();
+}
+
+function resetAdminAuditFilters() {
+    adminAuditState.action = adminAuditState.actor = adminAuditState.target = '';
+    adminAuditState.details = adminAuditState.from = adminAuditState.to = '';
+    adminAuditState.offset = 0;
+    ['adminAuditFilterAction', 'adminAuditFilterActor', 'adminAuditFilterTarget',
+     'adminAuditFilterDetails', 'adminAuditFilterFrom', 'adminAuditFilterTo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    loadAdminAuditLog();
+}
+
+function adminAuditPage(dir) {
+    const maxOffset = Math.max(0, adminAuditState.total - adminAuditState.limit);
+    adminAuditState.offset = Math.min(Math.max(0, adminAuditState.offset + dir * adminAuditState.limit), maxOffset);
+    loadAdminAuditLog();
+}
+
 async function loadAdminAuditLog() {
     const container = document.getElementById('adminAuditLogList');
+    const pager = document.getElementById('adminAuditLogPager');
     if (!container) return;
     try {
-        const res = await fetchWithAuth('/api/admin/log');
+        const params = new URLSearchParams({
+            limit: String(adminAuditState.limit),
+            offset: String(adminAuditState.offset)
+        });
+        if (adminAuditState.action) params.set('action', adminAuditState.action);
+        if (adminAuditState.actor) params.set('actor', adminAuditState.actor);
+        if (adminAuditState.target) params.set('target', adminAuditState.target);
+        if (adminAuditState.details) params.set('details', adminAuditState.details);
+        if (adminAuditState.from) params.set('from', new Date(adminAuditState.from).toISOString().slice(0, 19));
+        if (adminAuditState.to) params.set('to', new Date(adminAuditState.to).toISOString().slice(0, 19));
+        params.forEach((v, k) => { if (!v) params.delete(k); });
+
+        const res = await fetchWithAuth('/api/admin/log?' + params.toString());
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             container.innerHTML = renderSharedErrorState(err.error || 'Failed to load audit log.', 'loadAdminAuditLog()');
             return;
         }
-        const entries = await res.json();
+        const data = await res.json();
+        const entries = data.entries || [];
+        adminAuditState.total = data.total || 0;
+
+        if (pager) {
+            const totalPages = Math.max(1, Math.ceil(adminAuditState.total / adminAuditState.limit));
+            const curPage = Math.min(Math.floor(adminAuditState.offset / adminAuditState.limit) + 1, totalPages);
+            pager.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+                    <span class="badge badge-stage">${adminAuditState.total} event${adminAuditState.total !== 1 ? 's' : ''}</span>
+                    <span style="color:var(--text-secondary); font-size:12px;">Page ${curPage} / ${totalPages}</span>
+                    <button class="btn btn-secondary" style="height:26px; font-size:11px; padding:0 10px;"
+                        ${curPage <= 1 ? 'disabled' : ''} onclick="adminAuditPage(-1)">Prev</button>
+                    <button class="btn btn-secondary" style="height:26px; font-size:11px; padding:0 10px;"
+                        ${curPage >= totalPages ? 'disabled' : ''} onclick="adminAuditPage(1)">Next</button>
+                </div>`;
+        }
+
         if (!entries || entries.length === 0) {
-            container.innerHTML = renderSharedEmptyState('No audit events yet', '');
+            container.innerHTML = renderSharedEmptyState('No audit events match the current filters.', '');
             return;
         }
         container.innerHTML = `
@@ -1612,6 +1732,7 @@ async function loadAdminAuditLog() {
                             <th>Action</th>
                             <th>Actor</th>
                             <th>Target</th>
+                            <th>Details</th>
                             <th>IP</th>
                         </tr>
                     </thead>
@@ -1622,6 +1743,7 @@ async function loadAdminAuditLog() {
                                 <td><span class="badge badge-stage">${escapeHtml(x.action)}</span></td>
                                 <td>${escapeHtml(x.actor_email || '')}</td>
                                 <td style="color:var(--text-secondary);">${escapeHtml(x.target_email || '—')}</td>
+                                <td style="color:var(--text-secondary); white-space:normal; min-width:180px;">${escapeHtml(x.details || '—')}</td>
                                 <td style="color:var(--text-tertiary);">${escapeHtml(x.ip_address || '—')}</td>
                             </tr>`).join('')}
                     </tbody>

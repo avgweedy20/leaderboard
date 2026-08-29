@@ -15,8 +15,8 @@ To maintain security while allowing Admin capabilities in both clients:
 2. **Admin Authentication in Web & Android:**
    - Both the Web frontend and native Android client log in via the backend endpoint `/api/auth/login` using email and password.
    - Multiple admin accounts are supported. Credentials are NEVER stored in code or environment variables. Admins are real Supabase Auth users whose email is registered in the `public.admins` table.
-   - Create/remove admins with the CLI: `python manage_admins.py add <email>`.
-   - Login is fail-closed (there is no default admin), throttled per IP + per email (5 tries / 15 min), and limited to 5 concurrent sessions per account.
+   - Two roles exist: **admin** (manages squads, players, scores) and **superadmin** (also manages admin accounts and views/filters the audit log). Create/remove admins with the CLI: `python manage_admins.py add <email> [--role superadmin]`.
+   - Login is fail-closed (there is no default admin), throttled per IP + per email (5 tries / 5 min), and limited to 5 concurrent sessions per account.
    - Successful logins receive a random, expiring (6-hour), server-side registered token (stored in `public.admin_sessions`) that is revoked on logout and on account removal — no static token is ever accepted.
    - The Android app and Web app send this Bearer token in the `Authorization` header (`Authorization: Bearer <token>`) for write actions (scoring matches, creating sports, generating brackets, bulk CSV imports).
 
@@ -47,14 +47,16 @@ To maintain security while allowing Admin capabilities in both clients:
 Admin credentials are never placed in environment variables or code. Run the CLI on the server:
 
 ```bash
-python manage_admins.py add admin1@school.edu     # prompts for a hidden password (min 12 chars)
+python manage_admins.py add admin1@school.edu     # prompts for a hidden password (min 6 chars)
 python manage_admins.py add admin2@school.edu --stdin   # scripted setups
+python manage_admins.py add admin@sports.com --role superadmin   # grant/require super-admin
 python manage_admins.py reset-password admin1@school.edu
 python manage_admins.py remove admin1@school.edu
 python manage_admins.py list
 ```
 
 - Admin credentials are never placed in environment variables or code. The CLI operates against Supabase Auth + the `public.admins` table; admin sessions are stored server-side in `public.admin_sessions`, and all admin-management actions (login, add, remove, reset-password, view log) are recorded in `public.admin_audit_log`.
+- Roles: every account is `admin` or `superadmin`. Only superadmins can add/remove admins, reset other admins' passwords, and view/filter the audit log. A superadmin can never remove the last superadmin account. The first promotion is done by applying `supabase/migrations/002_super_admin_role.sql` (adds the `role` column + audit `details` column) and then either `UPDATE public.admins SET role='superadmin' WHERE email='...'` or `python manage_admins.py add <email> --role superadmin`.
 
 ---
 

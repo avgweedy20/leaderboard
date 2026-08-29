@@ -10,6 +10,7 @@
         <div>
             <h1>Admin Control</h1>
             <p style="margin-top:6px; font-size:14px;">Manage squads, players, and match scores.</p>
+            <span data-role-badge class="badge badge-stage" style="display:none; margin-top:10px;">Admin</span>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
             <button onclick="openCreateMatchModal()" class="btn">
@@ -178,7 +179,7 @@
         </div>
     </div>
 
-    <div class="admin-section">
+    <div class="admin-section" data-superadmin-only>
         <div class="admin-section-header">
             <div style="display:flex; align-items:center; gap:8px;">
                 <div class="dot-indicator" style="background-color:var(--c-mahakali);"></div>
@@ -216,11 +217,41 @@
         </div>
     </div>
 
-    <div class="admin-section">
+    <div class="admin-section" data-superadmin-only>
         <div class="admin-section-header">
             <div style="display:flex; align-items:center; gap:8px;">
                 <div class="dot-indicator" style="background-color:var(--text-tertiary);"></div>
                 <h3 style="margin:0;">Admin Audit Log</h3>
+            </div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin-bottom:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">Action</label>
+                <input type="text" id="adminAuditFilterAction" placeholder="match.update" style="width:140px; height:30px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">Actor</label>
+                <input type="text" id="adminAuditFilterActor" placeholder="admin@school.edu" style="width:150px; height:30px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">Target</label>
+                <input type="text" id="adminAuditFilterTarget" placeholder="target email" style="width:150px; height:30px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">Details</label>
+                <input type="text" id="adminAuditFilterDetails" placeholder="text in details" style="width:150px; height:30px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">From</label>
+                <input type="datetime-local" id="adminAuditFilterFrom" style="height:30px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="font-size:11px;">To</label>
+                <input type="datetime-local" id="adminAuditFilterTo" style="height:30px;">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" style="height:30px; font-size:11px; padding:0 12px;" onclick="applyAdminAuditFilters()">Apply</button>
+                <button class="btn btn-secondary" style="height:30px; font-size:11px; padding:0 12px;" onclick="resetAdminAuditFilters()">Reset</button>
             </div>
         </div>
         <div id="adminAuditLogList" style="overflow-x:auto;">
@@ -248,6 +279,7 @@
                 </div>
             </div>
         </div>
+        <div id="adminAuditLogPager" style="margin-top:12px; min-height:26px;"></div>
     </div>
 </section>
 
@@ -456,9 +488,16 @@
                 <input type="email" id="newAdminEmail" required placeholder="admin@example.com" style="width:100%;">
             </div>
             <div>
-                <label>Temporary Password (min 12 characters)</label>
-                <input type="password" id="newAdminPassword" required minlength="12"
-                    placeholder="Must be at least 12 characters" style="width:100%;">
+                <label>Temporary Password (min 6 characters)</label>
+                <input type="password" id="newAdminPassword" required minlength="6"
+                    placeholder="Must be at least 6 characters" style="width:100%;">
+            </div>
+            <div>
+                <label>Role</label>
+                <select id="newAdminRole" style="width:100%;">
+                    <option value="admin">Admin</option>
+                    <option value="superadmin">Super Admin</option>
+                </select>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('addAdminModal')">Cancel</button>
@@ -483,9 +522,9 @@
                 <input type="email" id="resetAdminEmailDisplay" disabled style="width:100%;">
             </div>
             <div>
-                <label>New Password (min 12 characters)</label>
-                <input type="password" id="resetAdminPassword" required minlength="12"
-                    placeholder="Must be at least 12 characters" style="width:100%;">
+                <label>New Password (min 6 characters)</label>
+                <input type="password" id="resetAdminPassword" required minlength="6"
+                    placeholder="Must be at least 6 characters" style="width:100%;">
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('resetPasswordModal')">Cancel</button>

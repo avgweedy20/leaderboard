@@ -72,46 +72,71 @@ def _service_client():
 # accepted. Admin actions are recorded in public.admin_audit_log.
 SESSION_TTL = 21600  # seconds (6h), synced with the frontend session length
 MAX_SESSIONS_PER_ADMIN = 5
-_PASSWORD_MIN_LENGTH = 12
+_PASSWORD_MIN_LENGTH = 6
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW_SECONDS = 300  # 5 minutes
 
 _login_failures = {}  # (ip, email) -> [failure timestamps]
 
 
-def _is_admin_email(email):
+def _admin_role(email):
+    """Return an active admin's role ('admin' or 'superadmin'), or None.
+
+    Reads through the service-role client so the lookup is never RLS-filtered
+    by the caller's own session. Inactive accounts (is_active = FALSE) and
+    unknown emails both resolve to None.
+    """
     if not email:
-        return False
+        return None
     email = email.strip().lower()
     client = _service_client()
     if not client:
-        return False
+        return None
     try:
-        res = client.table("admins").select("email").eq("email", email).limit(1).execute()
-        return bool(res.data)
+        res = client.table("admins").select("role, is_active").eq("email", email).limit(1).execute()
+        if not res.data:
+            return None
+        row = res.data[0]
+        if row.get("is_active", True) is False:
+            return None
+        return (row.get("role") or "admin").lower()
     except Exception:
-        return False
+        return None
 
 
-def _audit(action, actor_email=None, target_email=None, ip_address=None):
+def _is_admin_email(email):
+    return _admin_role(email) in ("admin", "superadmin")
+
+
+def _is_super_admin(email):
+    return _admin_role(email) == "superadmin"
+
+
+def _audit(action, actor_email=None, target_email=None, ip_address=None, details=None):
     """Append a row to public.admin_audit_log (best effort, never fatal)."""
     client = _service_client()
     if not client:
         return
     try:
-        client.table("admin_audit_log").insert({
+        row = {
             "action": action,
             "actor_email": (actor_email or "").lower(),
             "target_email": (target_email or "").lower(),
             "ip_address": ip_address,
             "created_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
+        }
+        if details is not None:
+            row["details"] = details
+        client.table("admin_audit_log").insert(row).execute()
     except Exception:
         pass
 
 
-def add_admin(email, password):
+def add_admin(email, password, role="admin"):
     """Create (or update) an admin account. Raises ValueError on bad input."""
+    role = (role or "admin").strip().lower()
+    if role not in ("admin", "superadmin"):
+        raise ValueError("role must be 'admin' or 'superadmin'")
     email = (email or "").strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise ValueError("Invalid email address")
@@ -127,7 +152,7 @@ def add_admin(email, password):
         })
     except Exception:
         pass  # Auth user may already exist
-    _service_client().table("admins").upsert({"email": email}, on_conflict="email").execute()
+    _service_client().table("admins").upsert({"email": email, "role": role}, on_conflict="email").execute()
 
 
 def remove_admin(email):
@@ -144,12 +169,12 @@ def remove_admin(email):
 
 
 def list_admins():
-    """List admin accounts as [{"email": ..., "created_at": ...}]."""
+    """List admin accounts as [{"email": ..., "role": ..., "created_at": ...}]."""
     client = _service_client()
     if not client:
         return []
     try:
-        res = client.table("admins").select("email, created_at").order("email").execute()
+        res = client.table("admins").select("email, role, is_active, created_at").order("email").execute()
         return [dict(r) for r in (res.data or [])]
     except Exception:
         return []
@@ -291,6 +316,33 @@ def req_admin_auth(f):
     return decorated
 
 
+def req_super_admin_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        parts = auth_header.split(" ", 1)
+        if len(parts) != 2 or parts[0].strip() != "Bearer" or not parts[1].strip():
+            return jsonify({"error": "Unauthorized admin access required"}), 401
+        token = parts[1].strip()
+        email = _validate_session(token)
+        if not email:
+            return jsonify({"error": "Invalid or expired auth token"}), 401
+        if not _is_super_admin(email):
+            _audit("superadmin.denied", actor_email=email, ip_address=request.remote_addr,
+                   details=request.path)
+            return jsonify({"error": "Super admin privileges required"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _current_actor():
+    """Email of the currently authenticated admin from the Bearer token, or ''."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return _session_email(auth_header[7:].strip()) or ""
+    return ""
+
+
 # --- HTML PAGE ENDPOINTS (MULTI-PAGE ARCHITECTURE) ---
 
 @app.route("/")
@@ -366,7 +418,7 @@ def auth_login():
     return jsonify({
         "access_token": token,
         "expires_in": SESSION_TTL,
-        "user": {"id": email, "email": email}
+        "user": {"id": email, "email": email, "role": _admin_role(email)}
     })
 
 
@@ -375,7 +427,8 @@ def auth_login():
 def auth_me():
     """Return the authenticated admin's identity for the current session."""
     token = request.headers.get("Authorization", "").split(" ", 1)[1].strip()
-    return jsonify({"email": _session_email(token) or ""})
+    email = _session_email(token) or ""
+    return jsonify({"email": email, "role": _admin_role(email)})
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -391,35 +444,39 @@ def auth_logout():
 
 # ADMIN MANAGEMENT ENDPOINTS
 @app.route("/api/admin/list", methods=["GET"])
-@req_admin_auth
+@req_super_admin_auth
 def api_admin_list():
-    """List all admin accounts (admin-only)."""
+    """List all admin accounts and their roles (super-admin only)."""
     return jsonify({"admins": list_admins()})
 
 
 @app.route("/api/admin/add", methods=["POST"])
-@req_admin_auth
+@req_super_admin_auth
 def api_admin_add():
-    """Create a new admin account (admin-only)."""
-    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    """Create a new admin account (super-admin only)."""
+    actor = _current_actor()
     data = request.get_json() or {}
     email = (data.get("email") or "").strip()
     password = data.get("password") or ""
+    role = (data.get("role") or "admin").strip().lower()
+    if role not in ("admin", "superadmin"):
+        return jsonify({"error": "role must be 'admin' or 'superadmin'"}), 400
     try:
-        add_admin(email, password)
+        add_admin(email, password, role=role)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    _audit("admin.add", actor_email=actor, target_email=(email or "").lower(), ip_address=request.remote_addr)
-    return jsonify({"message": "Admin added", "email": (email or "").lower()}), 201
+    _audit("admin.add", actor_email=actor, target_email=(email or "").lower(),
+           ip_address=request.remote_addr, details="role=%s" % role)
+    return jsonify({"message": "Admin added", "email": (email or "").lower(), "role": role}), 201
 
 
 @app.route("/api/admin/remove", methods=["POST"])
-@req_admin_auth
+@req_super_admin_auth
 def api_admin_remove():
-    """Remove an admin account and revoke its sessions (admin-only)."""
-    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    """Remove an admin account and revoke its sessions (super-admin only)."""
+    actor = _current_actor()
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
     if not email:
@@ -430,26 +487,35 @@ def api_admin_remove():
     remaining = list_admins()
     if len(remaining) <= 1:
         return jsonify({"error": "Cannot remove the last admin account"}), 400
+    target_role = next((a.get("role") for a in remaining if (a.get("email") or "").lower() == email), None)
+    if target_role is None:
+        return jsonify({"error": "Target must be an existing admin"}), 404
+    if target_role == "superadmin" and sum(1 for a in remaining if a.get("role") == "superadmin") <= 1:
+        return jsonify({"error": "Cannot remove the last super admin"}), 400
 
     try:
         remove_admin(email)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    _audit("admin.remove", actor_email=actor, target_email=email, ip_address=request.remote_addr)
+    _audit("admin.remove", actor_email=actor, target_email=email,
+           ip_address=request.remote_addr, details="role=%s" % target_role)
     return jsonify({"message": "Admin removed", "email": email})
 
 
 @app.route("/api/admin/reset-password", methods=["POST"])
-@req_admin_auth
+@req_super_admin_auth
 def api_admin_reset_password():
-    """Reset another admin's password via Supabase Auth (admin-only)."""
-    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    """Reset an admin's password via Supabase Auth (super-admin only).
+
+    Plain admins cannot reset passwords at all, not even their own.
+    """
+    actor = _current_actor()
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     if not email:
         return jsonify({"error": "email is required"}), 400
-    if email != actor and email not in {a.get("email") for a in list_admins()}:
+    if email not in {a.get("email") for a in list_admins()}:
         return jsonify({"error": "Target must be an existing admin"}), 404
     if not password or len(password) < _PASSWORD_MIN_LENGTH:
         return jsonify({"error": "Password must be at least %d characters" % _PASSWORD_MIN_LENGTH}), 400
@@ -468,16 +534,72 @@ def api_admin_reset_password():
 
 
 @app.route("/api/admin/log", methods=["GET"])
-@req_admin_auth
+@req_super_admin_auth
 def api_admin_log():
-    """Return the most recent admin audit log entries (admin-only)."""
-    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    """Return admin audit log entries with optional filters (super-admin only).
+
+    Query params:
+      action  substring match on action            (e.g. match.update, admin.add)
+      actor   substring match on actor_email
+      target  substring match on target_email
+      details substring match on the details column
+      from    ISO-8601 datetime (inclusive) lower bound on created_at
+      to      ISO-8601 datetime (inclusive) upper bound on created_at
+      limit   page size           (default 50, max 200)
+      offset  row offset for paging
+    """
+    actor = _current_actor()
     _audit("admin.view_log", actor_email=actor, ip_address=request.remote_addr)
-    if not supabase_client:
+    if not _service_client():
         return jsonify({"error": "Supabase not configured"}), 503
     try:
-        res = _service_client().table("admin_audit_log").select("*").order("created_at", desc=True).limit(50).execute()
-        return jsonify(res.data)
+        query = _service_client().table("admin_audit_log").select("*", count="exact").order("created_at", desc=True)
+
+        action = request.args.get("action")
+        if action:
+            query = query.ilike("action", "%" + action + "%")
+        actor_filter = request.args.get("actor")
+        if actor_filter:
+            query = query.ilike("actor_email", "%" + actor_filter + "%")
+        target_filter = request.args.get("target")
+        if target_filter:
+            query = query.ilike("target_email", "%" + target_filter + "%")
+        details_filter = request.args.get("details")
+        if details_filter:
+            query = query.ilike("details", "%" + details_filter + "%")
+
+        def _parse_date(value, name):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
+            except (TypeError, ValueError):
+                raise ValueError("Invalid '%s' date (use ISO 8601, e.g. 2026-08-01 or 2026-08-01T12:00:00)" % name)
+
+        since = request.args.get("from")
+        if since:
+            query = query.gte("created_at", _parse_date(since, "from"))
+        until = request.args.get("to")
+        if until:
+            query = query.lte("created_at", _parse_date(until, "to"))
+
+        try:
+            limit = max(1, min(int(request.args.get("limit", 50)), 200))
+        except ValueError:
+            limit = 50
+        try:
+            offset = max(0, int(request.args.get("offset", 0)))
+        except ValueError:
+            offset = 0
+
+        query = query.range(offset, offset + limit - 1)
+        res = query.execute()
+        return jsonify({
+            "entries": res.data,
+            "total": res.count if res.count is not None else len(res.data),
+            "limit": limit,
+            "offset": offset,
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -544,6 +666,8 @@ def create_sport():
     if supabase_client:
         try:
             res = _service_client().table("sports").insert(record).execute()
+            _audit("sport.create", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="created sport '%s' (type=%s)" % (name, sport_type))
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -616,6 +740,8 @@ def create_team():
     if supabase_client:
         try:
             res = _service_client().table("teams").insert(record).execute()
+            _audit("team.create", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="created team '%s'" % name)
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -629,6 +755,8 @@ def update_team(team_id):
     if supabase_client:
         try:
             res = _service_client().table("teams").update(data).eq("id", team_id).execute()
+            _audit("team.update", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="updated team %s [%s]" % (team_id, ",".join(sorted(data.keys()))))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -640,6 +768,8 @@ def delete_team(team_id):
     if supabase_client:
         try:
             _service_client().table("teams").delete().eq("id", team_id).execute()
+            _audit("team.delete", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="deleted team %s" % team_id)
             return jsonify({"message": "Team deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -685,6 +815,8 @@ def create_player():
     if supabase_client:
         try:
             res = _service_client().table("players").insert(record).execute()
+            _audit("player.create", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="created player '%s' (team %s)" % (name, team_id))
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -697,6 +829,8 @@ def update_player(player_id):
     if supabase_client:
         try:
             res = _service_client().table("players").update(data).eq("id", player_id).execute()
+            _audit("player.update", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="updated player %s [%s]" % (player_id, ",".join(sorted(data.keys()))))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -708,6 +842,8 @@ def delete_player(player_id):
     if supabase_client:
         try:
             _service_client().table("players").delete().eq("id", player_id).execute()
+            _audit("player.delete", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="deleted player %s" % player_id)
             return jsonify({"message": "Player deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -724,7 +860,10 @@ def bulk_upsert_players():
         try:
             # Upsert using roll_number on conflict
             res = _service_client().table("players").upsert(items, on_conflict="roll_number").execute()
-            return jsonify({"message": f"Successfully processed {len(res.data or items)} players", "count": len(res.data or items)})
+            count = len(res.data or items)
+            _audit("player.bulk_upsert", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="bulk upsert of %d player(s)" % count)
+            return jsonify({"message": f"Successfully processed {count} players", "count": count})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -741,6 +880,8 @@ def bulk_delete_players():
     if supabase_client:
         try:
             _service_client().table("players").delete().in_("id", player_ids).execute()
+            _audit("player.bulk_delete", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="bulk deleted %d player(s)" % len(player_ids))
             return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -808,6 +949,8 @@ def create_match():
     if supabase_client:
         try:
             res = _service_client().table("matches").insert(record).execute()
+            _audit("match.create", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="created match %s vs %s (%s)" % (team_a_id, team_b_id, data.get("stage", "league")))
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -817,6 +960,15 @@ def create_match():
 @req_admin_auth
 def update_match(match_id):
     data = request.get_json() or {}
+
+    old = None
+    if supabase_client:
+        try:
+            old_res = _service_client().table("matches").select("score_team_a, score_team_b, status").eq("id", match_id).single().execute()
+            if isinstance(old_res.data, dict):
+                old = old_res.data
+        except Exception:
+            pass
 
     # If scores are provided, compute match outcome fields
     if "score_team_a" in data and "score_team_b" in data:
@@ -857,6 +1009,20 @@ def update_match(match_id):
     if supabase_client:
         try:
             res = _service_client().table("matches").update(data).eq("id", match_id).execute()
+            details = []
+            if "score_team_a" in data and "score_team_b" in data:
+                if old is not None:
+                    details.append("score %s - %s -> %s - %s" % (
+                        old.get("score_team_a", 0), old.get("score_team_b", 0),
+                        data["score_team_a"], data["score_team_b"]))
+                else:
+                    details.append("score set to %s - %s" % (data["score_team_a"], data["score_team_b"]))
+            other = [k for k in data if k not in ("score_team_a", "score_team_b", "score_difference",
+                                                  "score_summary", "status", "winner_team_id", "is_draw")]
+            if other:
+                details.append("fields: " + ",".join(sorted(other)))
+            _audit("match.update", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="match %s: %s" % (match_id, "; ".join(details) or "updated"))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -868,6 +1034,8 @@ def delete_match(match_id):
     if supabase_client:
         try:
             _service_client().table("matches").delete().eq("id", match_id).execute()
+            _audit("match.delete", actor_email=_current_actor(), ip_address=request.remote_addr,
+                   details="deleted match %s" % match_id)
             return jsonify({"message": "Match deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

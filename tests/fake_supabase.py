@@ -45,6 +45,7 @@ class FakeQuery:
         self._filters = []
         self._orders = []
         self._limit = None
+        self._range = None
         self._single_mode = False
         self._maybe_single_mode = False
         self._write = None  # ('insert'|'upsert'|'update'|'delete', arg)
@@ -62,6 +63,14 @@ class FakeQuery:
 
     def neq(self, col, val):
         self._filters.append(('neq', col, val))
+        return self
+
+    def ilike(self, col, pattern):
+        self._filters.append(('ilike', col, pattern))
+        return self
+
+    def range(self, start, end):
+        self._range = (start, end)
         return self
 
     def lt(self, col, val):
@@ -163,6 +172,10 @@ class FakeQuery:
                 if rows and col not in rows[0]:
                     raise FakeAuthError(f"column {col} does not exist")
                 rows.sort(key=lambda r: r.get(col) if col in r else 0, reverse=desc)
+
+        if self._range is not None:
+            start, end = self._range
+            rows = rows[start:end + 1]
 
         if self._limit is not None:
             rows = rows[: self._limit]
@@ -307,6 +320,14 @@ class FakeSupabase:
                         break
                 elif op == 'in':
                     if got not in val:
+                        keep = False
+                        break
+                elif op == 'ilike':
+                    hay = str(got) if got is not None else ''
+                    needle = str(val)
+                    if needle.startswith('%') and needle.endswith('%') and len(needle) >= 2:
+                        needle = needle[1:-1]
+                    if needle.lower() not in hay.lower():
                         keep = False
                         break
             if keep:

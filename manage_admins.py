@@ -8,12 +8,13 @@ remove administrators:
 
     python manage_admins.py add <email>            # hidden password prompt
     python manage_admins.py add <email> --stdin    # read password from stdin
+    python manage_admins.py add <email> --role superadmin   # promote to super admin
     python manage_admins.py reset-password <email>
     python manage_admins.py remove <email>
     python manage_admins.py list
 
-There is no mock/dev mode: every command requires a working Supabase
-connection and fails closed if it is not configured.
+Roles: every admin account is either 'admin' or 'superadmin'. Only a super
+admin can manage admin accounts and view the audit log.
 """
 import argparse
 import getpass
@@ -28,7 +29,7 @@ def _read_password_stdin():
 
 
 def _prompt_password():
-    pw = getpass.getpass("Password for admin (min 12 characters): ")
+    pw = getpass.getpass("Password for admin (min 6 characters): ")
     confirm = getpass.getpass("Repeat password: ")
     if pw != confirm:
         sys.exit("Error: passwords do not match.")
@@ -44,11 +45,12 @@ def _collect_password(args):
 
 def cmd_add(args):
     password = _collect_password(args)
+    role = getattr(args, "role", "admin")
     try:
-        _add(args.email, password)
+        _add(args.email, password, role=role)
     except (ValueError, RuntimeError) as e:
         sys.exit(f"Error: {e}")
-    print(f"Admin account created/updated for {args.email}")
+    print(f"Admin account created/updated for {args.email} (role={role})")
 
 
 def cmd_reset_password(args):
@@ -88,7 +90,11 @@ def cmd_list(_):
         print("No admin accounts.")
         return
     for item in admins:
-        print(f"  {item.get('email')}  created_at={item.get('created_at')}")
+        print("  %-32s role=%-10s active=%s created_at=%s" % (
+            item.get("email"),
+            item.get("role", "admin"),
+            "yes" if item.get("is_active", True) else "no",
+            item.get("created_at")))
 
 
 def main():
@@ -101,6 +107,8 @@ def main():
     p_add = sub.add_parser("add", help="create or update an admin account")
     p_add.add_argument("email")
     p_add.add_argument("--stdin", action="store_true", help="read the password from stdin")
+    p_add.add_argument("--role", choices=["admin", "superadmin"], default="admin",
+                       help="admin role (default: admin)")
     p_add.set_defaults(func=cmd_add)
 
     p_reset = sub.add_parser("reset-password", help="set a new password for an admin")

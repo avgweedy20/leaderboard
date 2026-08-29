@@ -19,7 +19,8 @@ ADMIN_PASSWORD = "Str0ng-Adm1n-Pass!42"
 
 @pytest.fixture(scope="session", autouse=True)
 def seed_admins():
-    add_admin(ADMIN1, ADMIN_PASSWORD)
+    # ADMIN1 is the super admin; ADMIN2 is a plain admin.
+    add_admin(ADMIN1, ADMIN_PASSWORD, role="superadmin")
     add_admin(ADMIN2, ADMIN_PASSWORD)
 
 @pytest.fixture(autouse=True)
@@ -405,6 +406,130 @@ def test_admin_audit_log_accessible(client):
     headers = _admin_headers(client)
     rv = client.get('/api/admin/log', headers=headers)
     assert rv.status_code == 200
-    assert isinstance(rv.get_json(), list)
-    actions = {row["action"] for row in rv.get_json()}
+    data = rv.get_json()
+    assert isinstance(data.get("entries"), list)
+    assert data["total"] >= 1
+    actions = {row["action"] for row in data["entries"]}
     assert "login" in actions
+
+
+def test_admin_audit_log_filterable(client):
+    headers = _admin_headers(client)
+    rv = client.get('/api/admin/log?action=login', headers=headers)
+    assert rv.status_code == 200
+    data = rv.get_json()
+    assert data["total"] >= 1
+    assert all(row["action"] == "login" for row in data["entries"])
+
+    rv = client.get('/api/admin/log?action=match.create&actor=nobody@nowhere.invalid', headers=headers)
+    assert rv.status_code == 200
+    assert rv.get_json()["total"] == 0
+
+    rv = client.get('/api/admin/log?from=not-a-date', headers=headers)
+    assert rv.status_code == 400
+
+
+def test_mutations_are_audited(client):
+    headers = _admin_headers(client)
+    assert client.post('/api/sports', json={
+        "name": "AuditedSport", "type": "generic", "level": "HS",
+        "point_win": 3, "point_draw": 1, "point_loss": 0
+    }, headers=headers).status_code == 201
+    rv = client.get('/api/admin/log?action=sport.create&details=AuditedSport', headers=headers)
+    assert rv.status_code == 200
+    assert rv.get_json()["total"] >= 1
+    assert all(("AuditedSport" in (e.get("details") or "")) for e in rv.get_json()["entries"])
+
+
+def test_plain_admin_cannot_access_superadmin_endpoints(client):
+    headers = _admin_headers(client, ADMIN2)
+
+    assert client.get('/api/admin/list', headers=headers).status_code == 403
+    assert client.post('/api/admin/add', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD, "role": "admin"
+    }, headers=headers).status_code == 403
+    assert client.post('/api/admin/remove', json={"email": ADMIN1}, headers=headers).status_code == 403
+    assert client.get('/api/admin/log', headers=headers).status_code == 403
+
+    # Plain admins cannot reset passwords at all — not someone else's...
+    rv = client.post('/api/admin/reset-password', json={
+        "email": ADMIN1, "password": ADMIN_PASSWORD
+    }, headers=headers)
+    assert rv.status_code == 403
+    # ...and not even their own.
+    rv = client.post('/api/admin/reset-password', json={
+        "email": ADMIN2, "password": ADMIN_PASSWORD
+    }, headers=headers)
+    assert rv.status_code == 403
+
+
+def test_login_returns_role(client):
+    rv = client.post('/api/auth/login', json={
+        "email": ADMIN1, "password": ADMIN_PASSWORD
+    })
+    assert rv.status_code == 200
+    user = rv.get_json()["user"]
+    assert user["role"] == "superadmin"
+
+    # ADMIN2's sessions from _admin_headers in other tests are cleared by the
+    # autouse reset fixture; a fresh login here must not exceed the cap.
+    _clear_all_sessions()
+    rv = client.post('/api/auth/login', json={
+        "email": ADMIN2, "password": ADMIN_PASSWORD
+    })
+    assert rv.status_code == 200
+    assert rv.get_json()["user"]["role"] == "admin"
+
+
+def test_superadmin_add_remove_superadmin(client):
+    headers = _admin_headers(client)  # ADMIN1 (super admin)
+    rv = client.post('/api/admin/add', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD, "role": "superadmin"
+    }, headers=headers)
+    assert rv.status_code == 201
+
+    rv = client.get('/api/admin/list', headers=headers)
+    assert rv.status_code == 200
+    roles = {a["email"]: a.get("role") for a in rv.get_json()["admins"]}
+    assert roles[ADMIN4.lower()] == "superadmin"
+    assert roles[ADMIN1.lower()] == "superadmin"
+    assert roles[ADMIN2.lower()] == "admin"
+
+    # Two super admins exist: removing one is fine.
+    rv = client.post('/api/admin/remove', json={"email": ADMIN4}, headers=headers)
+    assert rv.status_code == 200
+
+
+def test_invalid_role_rejected(client):
+    headers = _admin_headers(client)
+    rv = client.post('/api/admin/add', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD, "role": "root"
+    }, headers=headers)
+    assert rv.status_code == 400
+
+
+def test_auth_me_returns_role(client):
+    headers = _admin_headers(client)
+    rv = client.get('/api/auth/me', headers=headers)
+    assert rv.status_code == 200
+    assert rv.get_json()["role"] == "superadmin"
+
+
+def test_list_admins_includes_role(client):
+    headers = _admin_headers(client)
+    rv = client.get('/api/admin/list', headers=headers)
+    assert rv.status_code == 200
+    roles = {a["email"]: a["role"] for a in rv.get_json()["admins"]}
+    assert roles[ADMIN1.lower()] == "superadmin"
+    assert roles[ADMIN2.lower()] == "admin"
+
+
+def test_admin_page_renders_role_gated_markup(client):
+    rv = client.get('/admin')
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    for marker in ('data-superadmin-only', 'adminAuditFilterAction', 'adminAuditFilterActor',
+                   'adminAuditFilterTarget', 'adminAuditFilterDetails', 'adminAuditFilterFrom',
+                   'adminAuditFilterTo', 'adminAuditLogPager', 'newAdminRole', 'data-role-badge',
+                   'addAdminModal', 'resetPasswordModal'):
+        assert marker in html
