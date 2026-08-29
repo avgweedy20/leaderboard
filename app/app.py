@@ -1,4 +1,4 @@
-import os
+﻿import os
 import re
 import uuid
 import time
@@ -75,8 +75,37 @@ MAX_SESSIONS_PER_ADMIN = 5
 _PASSWORD_MIN_LENGTH = 6
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW_SECONDS = 300  # 5 minutes
+_LOGIN_MAX_IP_ATTEMPTS = 20  # per-IP ceiling to blunt password spraying
 
 _login_failures = {}  # (ip, email) -> [failure timestamps]
+_login_failures_ip = {}  # ip -> [failure timestamps]
+
+
+def _internal_error(exc):
+    """Log an unexpected exception and return a generic client-facing message.
+
+    Never leak internal exception details (DB/supabase internals, stack traces)
+    to the client.
+    """
+    app.logger.error("Internal error: %s", exc, exc_info=True)
+    return "An internal error occurred. Please try again."
+
+
+# Columns admins are allowed to mutate per resource. Anything else in the
+# request body is dropped, preventing mass-assignment of unrelated columns.
+_ALLOWED_TEAM_FIELDS = {"name", "house_id", "sport_id", "gender", "squad_label", "level"}
+_ALLOWED_PLAYER_FIELDS = {"name", "team_id", "roll_number", "grade", "section", "gender", "level"}
+_ALLOWED_MATCH_FIELDS = {
+    "sport_id", "team_a_id", "team_b_id", "gender", "stage", "level", "status",
+    "round_info", "winner_team_id", "is_draw", "score_team_a", "score_team_b",
+    "score_difference", "score_summary",
+}
+
+
+def _whitelist_fields(data, allowed):
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if k in allowed}
 
 
 def _admin_role(email):
@@ -296,6 +325,11 @@ def _login_failure_window(key):
     return [ts for ts in _login_failures.get(key, []) if now - ts < _LOGIN_WINDOW_SECONDS]
 
 
+def _login_failure_window_ip(ip):
+    now = time.time()
+    return [ts for ts in _login_failures_ip.get(ip, []) if now - ts < _LOGIN_WINDOW_SECONDS]
+
+
 def _clear_login_failures(key):
     _login_failures.pop(key, None)
 
@@ -304,10 +338,18 @@ def _record_login_failure(key):
     timestamps = _login_failure_window(key)
     timestamps.append(time.time())
     _login_failures[key] = timestamps
+    ip = key[0] if isinstance(key, tuple) and key else ""
+    if ip:
+        ip_ts = _login_failure_window_ip(ip)
+        ip_ts.append(time.time())
+        _login_failures_ip[ip] = ip_ts
 
 
 def _login_blocked(key):
-    return len(_login_failure_window(key)) >= _LOGIN_MAX_ATTEMPTS
+    if len(_login_failure_window(key)) >= _LOGIN_MAX_ATTEMPTS:
+        return True
+    ip = key[0] if isinstance(key, tuple) and key else ""
+    return bool(ip) and len(_login_failure_window_ip(ip)) >= _LOGIN_MAX_IP_ATTEMPTS
 
 
 def req_admin_auth(f):
@@ -360,6 +402,10 @@ def index_page():
 @app.route("/standings")
 @app.route("/standings/<sport_slug>")
 def standings_page(sport_slug="futsal"):
+    # Slugs are echoed into an inline <script> (JS-encoded via |tojson) on the
+    # page; additionally restrict to a plain-safe charset as defense-in-depth.
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,80}", sport_slug):
+        sport_slug = "futsal"
     return render_template("standings.html", active_page="standings", sport_slug=sport_slug)
 
 @app.route("/fixtures")
@@ -474,7 +520,7 @@ def api_admin_add():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _internal_error(e)}), 500
     _audit("admin.add", actor_email=actor, target_email=(email or "").lower(),
            ip_address=request.remote_addr, details="role=%s" % role)
     return jsonify({"message": "Admin added", "email": (email or "").lower(), "role": role}), 201
@@ -504,7 +550,7 @@ def api_admin_remove():
     try:
         remove_admin(email)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _internal_error(e)}), 500
     _audit("admin.remove", actor_email=actor, target_email=email,
            ip_address=request.remote_addr, details="role=%s" % target_role)
     return jsonify({"message": "Admin removed", "email": email})
@@ -535,7 +581,7 @@ def api_admin_reset_password():
     try:
         _service_client().auth.admin.update_user_by_id(user_id, {"password": password})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _internal_error(e)}), 500
     _revoke_admin_sessions(email)
     _audit("admin.reset_password", actor_email=actor, target_email=email, ip_address=request.remote_addr)
     return jsonify({"message": "Password updated"})
@@ -609,7 +655,7 @@ def api_admin_log():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _internal_error(e)}), 500
 
 
 @app.after_request
@@ -617,6 +663,22 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+    # Defense-in-depth. The app relies on Tailwind's CDN and inline scripts &
+    # handlers, so 'unsafe-inline' stays for script/style; the policy still
+    # blocks object/embed/plugin execution, base-URI hijacking, form action
+    # redirection, and framing from other origins.
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "img-src 'self' data:; font-src 'self'; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; "
+        "connect-src 'self'",
+    )
+    if request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     if request.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
@@ -630,7 +692,7 @@ def get_houses():
             res = _service_client().table("houses").select("*").order("name").execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -642,7 +704,7 @@ def get_sports():
             res = _service_client().table("sports").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/sports", methods=["POST"])
@@ -678,7 +740,7 @@ def create_sport():
                    details="created sport '%s' (type=%s)" % (name, sport_type))
             return jsonify(res.data[0]), 201
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
 
     return jsonify({"error": "Supabase not configured"}), 503
 
@@ -702,7 +764,7 @@ def get_teams():
             res = query.execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
 
     return jsonify({"error": "Supabase not configured"}), 503
 
@@ -752,14 +814,14 @@ def create_team():
                    details="created team '%s'" % name)
             return jsonify(res.data[0]), 201
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
 
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/teams/<team_id>", methods=["PUT"])
 @req_admin_auth
 def update_team(team_id):
-    data = request.get_json() or {}
+    data = _whitelist_fields(request.get_json() or {}, _ALLOWED_TEAM_FIELDS)
     if supabase_client:
         try:
             res = _service_client().table("teams").update(data).eq("id", team_id).execute()
@@ -767,7 +829,7 @@ def update_team(team_id):
                    details="updated team %s [%s]" % (team_id, ",".join(sorted(data.keys()))))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/teams/<team_id>", methods=["DELETE"])
@@ -780,7 +842,7 @@ def delete_team(team_id):
                    details="deleted team %s" % team_id)
             return jsonify({"message": "Team deleted"})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -797,7 +859,7 @@ def get_players():
             res = query.execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players", methods=["POST"])
@@ -827,13 +889,13 @@ def create_player():
                    details="created player '%s' (team %s)" % (name, team_id))
             return jsonify(res.data[0]), 201
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/<player_id>", methods=["PUT"])
 @req_admin_auth
 def update_player(player_id):
-    data = request.get_json() or {}
+    data = _whitelist_fields(request.get_json() or {}, _ALLOWED_PLAYER_FIELDS)
     if supabase_client:
         try:
             res = _service_client().table("players").update(data).eq("id", player_id).execute()
@@ -841,7 +903,7 @@ def update_player(player_id):
                    details="updated player %s [%s]" % (player_id, ",".join(sorted(data.keys()))))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/<player_id>", methods=["DELETE"])
@@ -854,7 +916,7 @@ def delete_player(player_id):
                    details="deleted player %s" % player_id)
             return jsonify({"message": "Player deleted"})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/bulk", methods=["POST"])
@@ -863,6 +925,8 @@ def bulk_upsert_players():
     items = request.get_json() or []
     if not isinstance(items, list):
         return jsonify({"error": "Expected a list of player objects"}), 400
+    items = [_whitelist_fields(i, _ALLOWED_PLAYER_FIELDS) for i in items]
+    items = [i for i in items if i.get("name") and i.get("team_id")]
 
     if supabase_client:
         try:
@@ -873,7 +937,7 @@ def bulk_upsert_players():
                    details="bulk upsert of %d player(s)" % count)
             return jsonify({"message": f"Successfully processed {count} players", "count": count})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
 
     return jsonify({"error": "Supabase not configured"}), 503
 
@@ -892,7 +956,7 @@ def bulk_delete_players():
                    details="bulk deleted %d player(s)" % len(player_ids))
             return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -923,7 +987,7 @@ def get_matches():
                     res = query.execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches", methods=["POST"])
@@ -961,13 +1025,16 @@ def create_match():
                    details="created match %s vs %s (%s)" % (team_a_id, team_b_id, data.get("stage", "league")))
             return jsonify(res.data[0]), 201
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches/<match_id>", methods=["PUT"])
 @req_admin_auth
 def update_match(match_id):
     data = request.get_json() or {}
+    if not isinstance(data, dict):
+        data = {}
+    data = _whitelist_fields(data, _ALLOWED_MATCH_FIELDS)
 
     old = None
     if supabase_client:
@@ -1033,7 +1100,7 @@ def update_match(match_id):
                    details="match %s: %s" % (match_id, "; ".join(details) or "updated"))
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches/<match_id>", methods=["DELETE"])
@@ -1046,7 +1113,7 @@ def delete_match(match_id):
                    details="deleted match %s" % match_id)
             return jsonify({"message": "Match deleted"})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -1058,7 +1125,7 @@ def get_house_overall_standings():
             res = _service_client().table("house_overall_standings").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -1078,7 +1145,7 @@ def get_leaderboard():
             res = query.execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -1090,7 +1157,7 @@ def get_final_qualifiers():
             res = _service_client().table("final_qualifiers_view").select("*").execute()
             return jsonify(res.data)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503
 
 
@@ -1113,5 +1180,5 @@ if __name__ == "__main__":
     _debug = os.getenv("FLASK_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
     if _debug and _host in ("0.0.0.0", "::", "::1", ""):
         print("WARNING: FLASK_DEBUG is enabled on a public bind address. The Werkzeug "
-              "debugger allows remote code execution — never enable it in production.")
+              "debugger allows remote code execution â€” never enable it in production.")
     app.run(host=_host, port=_port, debug=_debug, use_reloader=False)

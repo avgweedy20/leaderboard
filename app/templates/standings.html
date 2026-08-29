@@ -112,7 +112,7 @@ Sports Meet 2083.{% endblock %}
 
 {% block scripts %}
 <script>
-    const currentSportSlug = "{{ sport_slug }}";
+    const currentSportSlug = {{ sport_slug | tojson }};
     document.addEventListener('DOMContentLoaded', async () => {
         await fetchSports();
         if (currentSportSlug) {

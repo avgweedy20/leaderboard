@@ -221,7 +221,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         const chipGroup = document.getElementById('fixtureFilterChips');
         let html = `<button class="chip active" id="chip-all" onclick="filterFixtures('', this)">All Sports</button>`;
         sportsData.forEach(s => {
-            html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${s.id}', this)">${escapeHtml(s.name)}</button>`;
+            html += `<button class="chip" id="chip-${s.id}" onclick="filterFixtures('${jsStrLiteral(s.id)}', this)">${escapeHtml(s.name)}</button>`;
         });
         chipGroup.innerHTML = html;
     }
@@ -350,7 +350,7 @@ Inter-House Sports Meet 2083.{% endblock %}
                 : 'League';
 
         const editBtn = currentToken && m.team_a_id && m.team_b_id ? `
-        <button onclick="openMatchModal('${m.id}')" class="btn btn-secondary btn-icon" title="Edit score" style="height:26px; width:26px; border-radius:6px;">
+        <button onclick="openMatchModal('${jsStrLiteral(m.id)}')" class="btn btn-secondary btn-icon" title="Edit score" style="height:26px; width:26px; border-radius:6px;">
             <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
         </button>` : '';
 
@@ -407,9 +407,9 @@ Inter-House Sports Meet 2083.{% endblock %}
 
     // Get house color from house_id, checking nested houses object first
     function getHouseColor(houseId, housesObj) {
-        if (housesObj && housesObj.color_hex) return housesObj.color_hex;
+        if (housesObj && housesObj.color_hex) return cssColor(housesObj.color_hex) || 'var(--border)';
         const h = housesData.find(x => x.id === houseId);
-        return h ? h.color_hex : 'var(--border)';
+        return h ? (cssColor(h.color_hex) || 'var(--border)') : 'var(--border)';
     }
 </script>
 {% endblock %}

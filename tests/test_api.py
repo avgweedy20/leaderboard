@@ -1,6 +1,7 @@
 import pytest
 import json
 import io
+import requests
 
 from app.app import (
     app,
@@ -10,6 +11,8 @@ from app.app import (
     _auth_user_id_by_email,
     _clear_all_sessions,
     _login_failures,
+    _login_failures_ip,
+    _LOGIN_MAX_IP_ATTEMPTS,
 )
 
 ADMIN1 = "admin1@school.edu"
@@ -28,9 +31,11 @@ def seed_admins():
 def reset_auth_state():
     _clear_all_sessions()
     _login_failures.clear()
+    _login_failures_ip.clear()
     yield
     _clear_all_sessions()
     _login_failures.clear()
+    _login_failures_ip.clear()
 
 @pytest.fixture
 def client():
@@ -537,3 +542,79 @@ def test_admin_page_renders_role_gated_markup(client):
                    'adminAuditFilterTo', 'adminAuditLogPager', 'newAdminRole', 'data-role-badge',
                    'addAdminModal', 'resetPasswordModal'):
         assert marker in html
+
+
+# ─── SECURITY REGRESSION TESTS ──────────────────────────────────────────────
+
+def test_security_headers_present(client):
+    rv = client.get('/')
+    assert rv.status_code == 200
+    assert rv.headers.get('Content-Security-Policy')
+    assert rv.headers.get('X-Content-Type-Options') == 'nosniff'
+    assert rv.headers.get('X-Frame-Options') == 'DENY'
+    assert 'no-referrer' in (rv.headers.get('Referrer-Policy') or '')
+    assert "object-src 'none'" in rv.headers.get('Content-Security-Policy')
+    assert 'frame-ancestors' in rv.headers.get('Content-Security-Policy')
+
+
+def test_api_responses_not_cached(client):
+    rv = client.get('/api/health')
+    assert rv.headers.get('Cache-Control') == 'no-store'
+
+
+def test_hsts_only_over_https(client):
+    rv_http = client.get('/')
+    assert not rv_http.headers.get('Strict-Transport-Security')
+    rv_https = client.get('/', environ_overrides={'wsgi.url_scheme': 'https'})
+    assert (rv_https.headers.get('Strict-Transport-Security') or '').startswith('max-age=')
+
+
+def test_standings_slug_reflected_xss_blocked(client):
+    payload = 'futsal";alert(1)'
+    rv = client.get('/standings/' + requests.utils.quote(payload, safe=''))
+    assert rv.status_code == 200
+    body = rv.get_data(as_text=True)
+    # The payload must never survive to the page unescaped: the route rejects
+    # non-plain slugs, so the page falls back to "futsal" and no `alert` runs.
+    assert 'const currentSportSlug = "futsal";' in body
+    assert 'alert(1)' not in body
+
+
+def test_update_team_mass_assignment_blocked(client):
+    headers = _admin_headers(client)
+    rv = client.post('/api/teams', json={
+        "house_id": "h1",
+        "sport_id": "11111111-1111-1111-1111-111111111111",
+        "gender": "Boys",
+        "squad_label": "A"
+    }, headers=headers)
+    assert rv.status_code == 201
+    team_id = rv.get_json()["id"]
+
+    # An admin can rename the squad, but cannot overwrite the server-generated
+    # row id with an arbitrary value (mass-assignment is blocked).
+    rv = client.put(f'/api/teams/{team_id}', json={
+        "name": "Renamed",
+        "id": "attacker-controlled-id",
+        "squad_label": "Z"
+    }, headers=headers)
+    assert rv.status_code == 200
+
+    teams = client.get('/api/teams').get_json()
+    updated = next(t for t in teams if t["id"] == team_id)
+    assert updated["name"] == "Renamed"
+    assert updated["squad_label"] == "Z"
+    assert updated["id"] == team_id
+
+    # Clean up so shared seed data stays untouched for later test files.
+    assert client.delete(f'/api/teams/{team_id}', headers=headers).status_code == 200
+
+
+def test_login_blocked_by_ip_spraying(client):
+    codes = []
+    for _ in range(_LOGIN_MAX_IP_ATTEMPTS + 1):
+        codes.append(client.post('/api/auth/login', json={
+            "email": "spray%02d@school.edu" % _, "password": "bad-password"
+        }).status_code)
+    assert codes[:20].count(401) == 20
+    assert codes[20] == 429

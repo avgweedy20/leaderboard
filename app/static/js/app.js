@@ -140,6 +140,24 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+/** JS-string + HTML-attribute safe encoding for values embedded inside an
+ *  inline `onclick="fn('...')"` handler. Escape order matters: backslash and
+ *  single-quote are escaped for the JS layer FIRST, then HTML-escaped; the
+ *  browser decodes entities before the JS engine runs, so `\'` survives and
+ *  no quote breakout is possible. Newlines are collapsed (attribute-hostile). */
+function jsStrLiteral(str) {
+    if (str === null || str === undefined) return '';
+    return escapeHtml(String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' '));
+}
+
+/** CSS-safe hex color. Accepts only `#rgb`, `#rrggbb`, `#rgba`, `#rrggbbaa`
+ *  shapes (with or without `#`); anything else returns '' so callers can
+ *  fall back. Blocks CSS/HTML injection through color_hex-like values. */
+function cssColor(str) {
+    const s = String(str || '').trim();
+    return /^#?[0-9a-fA-F]{3,8}$/.test(s) ? s : '';
+}
+
 // ─── JWT / SESSION EXPIRY MANAGEMENT ───────────────────────────────────────
 /**
  * Parse expiration time from JWT token string if possible
@@ -629,7 +647,7 @@ function renderSportFilterChips() {
         const active = selectedSportId === s.id;
         const slug = s.name.toLowerCase();
         html += `<button class="chip ${active ? 'active' : ''}"
-                         onclick="selectSportChip('${escapeHtml(s.id)}','${escapeHtml(slug)}')">${escapeHtml(s.name)}</button>`;
+                         onclick="selectSportChip('${jsStrLiteral(s.id)}','${jsStrLiteral(slug)}')">${escapeHtml(s.name)}</button>`;
     });
     group.innerHTML = html;
 }
@@ -638,7 +656,7 @@ function selectSportChip(sportId, sportSlug) {
     selectedSportId = sportId;
     renderSportFilterChips();
     if (sportSlug) {
-        window.history.replaceState({}, '', `/standings/${sportSlug}`);
+        window.history.replaceState({}, '', `/standings/${encodeURIComponent(sportSlug)}`);
     }
     loadPerSportStandings();
 }
@@ -667,7 +685,7 @@ async function loadHouseOverallStandings() {
             heroEl.innerHTML = renderSharedEmptyState('No standings data yet.', '');
         } else {
             heroEl.innerHTML = standings.map(h => {
-                const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
+                const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
                 return `
                 <div class="house-hero-card fade-in" style="border-left-color:${color};">
                     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
@@ -717,7 +735,7 @@ async function loadHouseOverallStandings() {
                 </thead>
                 <tbody>
                     ${standings.map(h => {
-            const color = h.color_hex || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
+            const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
             return `
                         <tr style="border-left:3px solid ${color};">
                             <td style="font-weight:700; color:${color};">#${h.rank}</td>
@@ -817,7 +835,7 @@ async function loadPerSportStandings() {
                 </thead>
                 <tbody>
                     ${standings.map(s => {
-            const color = s.house_color || HOUSE_COLORS[(s.house_name || '').toLowerCase()] || '#10B981';
+            const color = cssColor(s.house_color) || HOUSE_COLORS[(s.house_name || '').toLowerCase()] || '#10B981';
             const sign = s.score_difference > 0 ? '+' : '';
             const squadLabel = s.squad_label ? ` ${s.squad_label}` : '';
             return `
@@ -1030,7 +1048,7 @@ function renderAdminSquadsTable() {
                 ${pageItems.map(s => {
         const hName = (s.houses || {}).name || getHouseName(s.house_id);
         const sName = (s.sports || {}).name || getSportName(s.sport_id);
-        const color = (s.houses || {}).color_hex || HOUSE_COLORS[(hName || '').toLowerCase()] || '#10B981';
+        const color = cssColor((s.houses || {}).color_hex) || HOUSE_COLORS[(hName || '').toLowerCase()] || '#10B981';
         return `
                     <tr style="border-left:3px solid ${color};">
                         <td style="font-weight:700;">${escapeHtml(s.name)}</td>
@@ -1038,10 +1056,10 @@ function renderAdminSquadsTable() {
                         <td style="color:var(--text-secondary);">${escapeHtml(sName)}</td>
                         <td style="color:var(--text-secondary);">${escapeHtml(s.gender)} (${escapeHtml(s.squad_label || 'A')})</td>
                         <td style="text-align:right;">
-                            <button onclick="openSquadModal('${s.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
+                            <button onclick="openSquadModal('${jsStrLiteral(s.id)}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
                             </button>
-                            <button onclick="deleteSquad('${s.id}')" class="btn btn-secondary btn-icon" title="Delete"
+                            <button onclick="deleteSquad('${jsStrLiteral(s.id)}')" class="btn btn-secondary btn-icon" title="Delete"
                                     style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
                             </button>
@@ -1220,7 +1238,7 @@ function renderAdminPlayersTable() {
             <thead>
                 <tr>
                     <th style="width:36px; text-align:center;">
-                        <input type="checkbox" ${allCurrentSelected ? 'checked' : ''} onchange="toggleSelectAllPlayers(this.checked, ${JSON.stringify(pageItems.map(p => p.id))})">
+                        <input type="checkbox" ${allCurrentSelected ? 'checked' : ''} onchange="toggleSelectAllPlayers(this.checked)">
                     </th>
                     <th class="th-sortable" style="width:64px;" onclick="togglePlayersSort('roll')">Roll ${getSortIcon(adminPlayersState.sortCol, 'roll', adminPlayersState.sortDir)}</th>
                     <th class="th-sortable" onclick="togglePlayersSort('name')">Name ${getSortIcon(adminPlayersState.sortCol, 'name', adminPlayersState.sortDir)}</th>
@@ -1237,17 +1255,17 @@ function renderAdminPlayersTable() {
         return `
                     <tr style="${isSelected ? 'background-color: var(--bg-surface-3);' : ''}">
                         <td style="text-align:center;">
-                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectPlayer('${p.id}', this.checked)">
+                            <input type="checkbox" class="player-select" data-player-id="${jsStrLiteral(p.id)}" ${isSelected ? 'checked' : ''} onchange="toggleSelectPlayer('${jsStrLiteral(p.id)}', this.checked)">
                         </td>
                         <td style="font-variant-numeric:tabular-nums; color:var(--text-secondary);">${escapeHtml(p.roll_number || '—')}</td>
                         <td style="font-weight:700;">${escapeHtml(p.name)}</td>
                         <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(teamName)}</td>
                         <td style="color:var(--text-secondary);">${escapeHtml(p.grade || '—')}${p.section ? ` (${escapeHtml(p.section)})` : ''}</td>
                         <td style="text-align:right;">
-                            <button onclick="openPlayerModal('${p.id}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
+                            <button onclick="openPlayerModal('${jsStrLiteral(p.id)}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
                             </button>
-                            <button onclick="deletePlayer('${p.id}')" class="btn btn-secondary btn-icon" title="Delete"
+                            <button onclick="deletePlayer('${jsStrLiteral(p.id)}')" class="btn btn-secondary btn-icon" title="Delete"
                                     style="height:26px; width:26px; color:#F87171; border-color:#7F1D1D;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-trash"/></svg>
                             </button>
@@ -1293,7 +1311,11 @@ function toggleSelectPlayer(id, checked) {
     renderAdminPlayersTable();
 }
 
-function toggleSelectAllPlayers(checked, pageIds) {
+function toggleSelectAllPlayers(checked) {
+    // Read the currently rendered page's ids from the DOM instead of embedding
+    // a JSON array into an inline handler attribute.
+    const boxes = document.querySelectorAll('.player-select');
+    const pageIds = Array.from(boxes).map(b => b.getAttribute('data-player-id')).filter(Boolean);
     if (checked) {
         pageIds.forEach(id => adminPlayersState.selectedIds.add(id));
     } else {
@@ -1470,11 +1492,11 @@ function renderAdminFixturesTable() {
                                 <input type="number" min="0" class="inline-score-input" id="inline_a_${m.id}" value="${scoreA}" placeholder="0" aria-label="${escapeHtml(aName)} score">
                                 <span style="font-size:11px; color:var(--text-tertiary);">&ndash;</span>
                                 <input type="number" min="0" class="inline-score-input" id="inline_b_${m.id}" value="${scoreB}" placeholder="0" aria-label="${escapeHtml(bName)} score">
-                                <button class="inline-save-btn" onclick="saveInlineMatchScore('${m.id}')" title="Quick Save Score">Save</button>
+                                <button class="inline-save-btn" onclick="saveInlineMatchScore('${jsStrLiteral(m.id)}')" title="Quick Save Score">Save</button>
                             </div>
                         </td>
                         <td style="text-align:right;">
-                            <button onclick="openMatchModal('${m.id}')" class="btn btn-secondary btn-icon" title="Full Edit" style="height:26px; width:26px;">
+                            <button onclick="openMatchModal('${jsStrLiteral(m.id)}')" class="btn btn-secondary btn-icon" title="Full Edit" style="height:26px; width:26px;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
                             </button>
                         </td>
@@ -1563,9 +1585,9 @@ function renderAdminAccounts(admins) {
                             <td>
                                 <div style="display:flex; gap:6px; justify-content:flex-end;">
                                     <button class="btn btn-secondary" style="height:26px; font-size:11px; padding:0 8px;"
-                                        onclick="openResetPasswordModal('${escapeHtml(a.email).replace(/'/g, "\\'")}')">Reset Password</button>
+                                        onclick="openResetPasswordModal('${jsStrLiteral(a.email)}')">Reset Password</button>
                                     <button class="btn btn-danger" style="height:26px; font-size:11px; padding:0 8px;"
-                                        onclick="removeAdminAccount('${escapeHtml(a.email).replace(/'/g, "\\'")}')">Remove</button>
+                                        onclick="removeAdminAccount('${jsStrLiteral(a.email)}')">Remove</button>
                                 </div>
                             </td>
                         </tr>`).join('')}
@@ -2449,9 +2471,9 @@ function getHouseName(houseId) {
 }
 
 function getHouseColor(houseId, housesObj) {
-    if (housesObj && housesObj.color_hex) return housesObj.color_hex;
+    if (housesObj && housesObj.color_hex) return cssColor(housesObj.color_hex) || 'var(--border)';
     const h = housesData.find(x => x.id === houseId);
-    return h ? h.color_hex : 'var(--border)';
+    return h ? (cssColor(h.color_hex) || 'var(--border)') : 'var(--border)';
 }
 
 function getSportName(sportId) {
