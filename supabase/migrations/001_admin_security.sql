@@ -138,7 +138,36 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- 6. PUBLIC READS + ADMIN-ONLY WRITES
+-- DROP-IF-EXISTS first so re-runs over a database that already has these
+-- policies (e.g. schema.sql was applied earlier) never hit 42710.
 -- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Public Read Houses" ON public.houses;
+DROP POLICY IF EXISTS "Public Read Sports" ON public.sports;
+DROP POLICY IF EXISTS "Public Read Groups" ON public.tournament_groups;
+DROP POLICY IF EXISTS "Public Read Teams" ON public.teams;
+DROP POLICY IF EXISTS "Public Read Players" ON public.players;
+DROP POLICY IF EXISTS "Public Read Matches" ON public.matches;
+DROP POLICY IF EXISTS "Public Read Cricket Innings" ON public.cricket_innings;
+DROP POLICY IF EXISTS "Public Read Cricket Overs" ON public.cricket_overs;
+DROP POLICY IF EXISTS "Public Read Football Events" ON public.football_events;
+DROP POLICY IF EXISTS "Public Read Basketball Quarters" ON public.basketball_quarters;
+DROP POLICY IF EXISTS "Public Read Generic Results" ON public.generic_results;
+DROP POLICY IF EXISTS "Public Read Brackets" ON public.tournament_brackets;
+
+DROP POLICY IF EXISTS "Admin Write Houses" ON public.houses;
+DROP POLICY IF EXISTS "Admin Write Sports" ON public.sports;
+DROP POLICY IF EXISTS "Admin Write Groups" ON public.tournament_groups;
+DROP POLICY IF EXISTS "Admin Write Teams" ON public.teams;
+DROP POLICY IF EXISTS "Admin Write Players" ON public.players;
+DROP POLICY IF EXISTS "Admin Write Matches" ON public.matches;
+DROP POLICY IF EXISTS "Admin Write Cricket Innings" ON public.cricket_innings;
+DROP POLICY IF EXISTS "Admin Write Cricket Overs" ON public.cricket_overs;
+DROP POLICY IF EXISTS "Admin Write Football Events" ON public.football_events;
+DROP POLICY IF EXISTS "Admin Write Basketball Quarters" ON public.basketball_quarters;
+DROP POLICY IF EXISTS "Admin Write Generic Results" ON public.generic_results;
+DROP POLICY IF EXISTS "Admin Write Brackets" ON public.tournament_brackets;
+DROP POLICY IF EXISTS "Admin Write Migration Logs" ON public.migration_logs;
+
 CREATE POLICY "Public Read Houses" ON public.houses FOR SELECT USING (true);
 CREATE POLICY "Public Read Sports" ON public.sports FOR SELECT USING (true);
 CREATE POLICY "Public Read Groups" ON public.tournament_groups FOR SELECT USING (true);
