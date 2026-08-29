@@ -968,20 +968,6 @@ def get_matches():
     gender = request.args.get("gender")
     stage = request.args.get("stage")
 
-    # Optional pagination for chunked / incremental loading on the frontend.
-    page_limit = None
-    page_offset = 0
-    if request.args.get("limit") is not None:
-        try:
-            page_limit = max(1, min(int(request.args.get("limit")), 200))
-        except ValueError:
-            page_limit = None
-    if request.args.get("offset") is not None:
-        try:
-            page_offset = max(0, int(request.args.get("offset")))
-        except ValueError:
-            page_offset = 0
-
     if supabase_client:
         try:
             query = _service_client().table("matches").select(
@@ -993,38 +979,14 @@ def get_matches():
                 query = query.eq("gender", gender)
             if stage:
                 query = query.eq("stage", stage)
-
-            q = query
-            total = None
-            if page_limit is not None:
-                # Total matching rows for the pagination header (count query
-                # keeps the range limited to a single page).
-                try:
-                    cq = _service_client().table("matches").select("id", count="exact")
-                    if sport_id:
-                        cq = cq.eq("sport_id", sport_id)
-                    if gender:
-                        cq = cq.eq("gender", gender)
-                    if stage:
-                        cq = cq.eq("stage", stage)
-                    cres = cq.execute()
-                    if cres.count is not None:
-                        total = cres.count
-                except Exception:
-                    pass
-                q = q.range(page_offset, page_offset + page_limit - 1)
-
             try:
-                res = q.order("created_at").execute()
+                res = query.order("created_at").execute()
             except Exception:
                 try:
-                    res = q.order("id").execute()
+                    res = query.order("id").execute()
                 except Exception:
-                    res = q.execute()
-            headers = {}
-            if total is not None:
-                headers["X-Total-Count"] = str(total)
-            return jsonify(res.data), 200, headers
+                    res = query.execute()
+            return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": _internal_error(e)}), 500
     return jsonify({"error": "Supabase not configured"}), 503

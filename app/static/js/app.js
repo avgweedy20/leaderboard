@@ -871,20 +871,15 @@ async function loadPerSportStandings() {
 
 // ─── 3. ADMIN CENTER ───────────────────────────────────────────────────────
 async function loadAdminCenterData() {
-    // Fetch every dataset in parallel instead of sequentially; renders are
-    // ordered by page layout so the top section (Fixture Score Management)
-    // fills in first.
-    await Promise.all([
-        fetchSports(),
-        fetchHouses(),
-        fetchSquads(),
-        fetchPlayers(),
-        fetchMatches()
-    ]);
+    await fetchSports();
+    await fetchHouses();
+    await fetchSquads();
+    await fetchPlayers();
+    await fetchMatches();
 
-    renderAdminFixturesTable();
     renderAdminSquadsTable();
     renderAdminPlayersTable();
+    renderAdminFixturesTable();
 
     await ensureAdminRole();
     applyAdminRoleUI();
