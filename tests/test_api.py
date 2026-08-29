@@ -1,18 +1,20 @@
-import os
-import tempfile
 import pytest
 import json
 import io
 
-# Isolate the admin account store to a temporary SQLite database.
-_ADMIN_TEST_DIR = tempfile.mkdtemp(prefix="scoreboard_admin_test_")
-os.environ["ADMIN_DB_PATH"] = os.path.join(_ADMIN_TEST_DIR, "admins.db")
-
-from app.app import app, MOCK_DB, add_admin, remove_admin, _clear_all_sessions, _login_failures
+from app.app import (
+    app,
+    supabase_client,
+    add_admin,
+    remove_admin,
+    _clear_all_sessions,
+    _login_failures,
+)
 
 ADMIN1 = "admin1@school.edu"
 ADMIN2 = "admin2@school.edu"
 ADMIN3 = "admin3@school.edu"
+ADMIN4 = "admin4@school.edu"
 ADMIN_PASSWORD = "Str0ng-Adm1n-Pass!42"
 
 @pytest.fixture(scope="session", autouse=True)
@@ -274,3 +276,135 @@ def test_matches_flow(client):
     # Delete Match
     del_res = client.delete(f'/api/matches/{match_id}', headers=headers)
     assert del_res.status_code == 200
+
+
+def test_unconfigured_supabase_fails_closed(client):
+    """With no Supabase client every data/admin endpoint must return 503."""
+    import app.app as app_module
+    saved = app_module.supabase_client
+    try:
+        app_module.supabase_client = None
+
+        assert client.get('/api/houses').status_code == 503
+        assert client.get('/api/sports').status_code == 503
+        assert client.get('/api/teams').status_code == 503
+        assert client.get('/api/players').status_code == 503
+        assert client.get('/api/matches').status_code == 503
+        assert client.get('/api/leaderboard/overall').status_code == 503
+        assert client.get('/api/leaderboard').status_code == 503
+        assert client.get('/api/leaderboard/qualifiers').status_code == 503
+        rv = client.post('/api/auth/login', json={
+            "email": ADMIN1, "password": ADMIN_PASSWORD
+        })
+        assert rv.status_code == 503
+        rv = client.get('/api/health')
+        assert rv.status_code == 200
+        assert rv.get_json()["supabase_connected"] is False
+    finally:
+        app_module.supabase_client = saved
+
+
+def test_health_mode_reports_supabase(client):
+    rv = client.get('/api/health')
+    assert rv.status_code == 200
+    assert rv.get_json()["mode"] == "supabase"
+    assert rv.get_json()["supabase_connected"] is True
+
+
+def test_admin_api_requires_auth(client):
+    assert client.get('/api/admin/list').status_code == 401
+    assert client.post('/api/admin/add', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD
+    }).status_code == 401
+    assert client.post('/api/admin/remove', json={"email": ADMIN4}).status_code == 401
+    assert client.post('/api/admin/reset-password', json={
+        "email": ADMIN2, "password": ADMIN_PASSWORD
+    }).status_code == 401
+    assert client.get('/api/admin/log').status_code == 401
+
+
+def test_admin_add_list_remove_flow(client):
+    headers = _admin_headers(client)
+
+    rv = client.post('/api/admin/add', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD
+    }, headers=headers)
+    assert rv.status_code == 201
+
+    rv = client.get('/api/admin/list', headers=headers)
+    assert rv.status_code == 200
+    emails = [a["email"] for a in rv.get_json()["admins"]]
+    assert ADMIN4.lower() in emails
+
+    rv = client.post('/api/admin/remove', json={"email": ADMIN4}, headers=headers)
+    assert rv.status_code == 200
+
+    rv = client.get('/api/admin/list', headers=headers)
+    emails = [a["email"] for a in rv.get_json()["admins"]]
+    assert ADMIN4.lower() not in emails
+
+    # The removed admin can no longer log in.
+    assert client.post('/api/auth/login', json={
+        "email": ADMIN4, "password": ADMIN_PASSWORD
+    }).status_code == 401
+
+
+def test_admin_cannot_remove_self_or_last(client):
+    headers = _admin_headers(client)
+    rv = client.post('/api/admin/remove', json={"email": ADMIN1}, headers=headers)
+    assert rv.status_code == 400
+
+    # Reduce the roster to a single admin, then attempt to remove that last one.
+    add_admin(ADMIN2, ADMIN_PASSWORD)
+    rv = client.post('/api/admin/remove', json={"email": ADMIN2}, headers=headers)
+    assert rv.status_code == 200
+    add_admin(ADMIN3, ADMIN_PASSWORD)
+    rv = client.post('/api/admin/remove', json={"email": ADMIN3}, headers=headers)
+    assert rv.status_code == 200
+
+    rv = client.post('/api/admin/remove', json={"email": ADMIN1}, headers=headers)
+    assert rv.status_code == 400
+
+    # Restore the roster for downstream tests.
+    add_admin(ADMIN2, ADMIN_PASSWORD)
+    add_admin(ADMIN3, ADMIN_PASSWORD)
+
+
+def test_admin_add_rejects_bad_input(client):
+    headers = _admin_headers(client)
+    rv = client.post('/api/admin/add', json={"email": "not-an-email", "password": ADMIN_PASSWORD}, headers=headers)
+    assert rv.status_code == 400
+    rv = client.post('/api/admin/add', json={"email": ADMIN4, "password": "short"}, headers=headers)
+    assert rv.status_code == 400
+
+
+def test_admin_reset_password_flow(client):
+    headers = _admin_headers(client)
+    new_password = "Br4nd-N3w-Pass!77"
+    rv = client.post('/api/admin/reset-password', json={
+        "email": ADMIN2, "password": new_password
+    }, headers=headers)
+    assert rv.status_code == 200
+
+    assert client.post('/api/auth/login', json={
+        "email": ADMIN2, "password": ADMIN_PASSWORD
+    }).status_code == 401
+    assert client.post('/api/auth/login', json={
+        "email": ADMIN2, "password": new_password
+    }).status_code == 200
+
+    # Restore the original password and revoke the recent session.
+    rv = client.post('/api/admin/reset-password', json={
+        "email": ADMIN2, "password": ADMIN_PASSWORD
+    }, headers=headers)
+    assert rv.status_code == 200
+    _clear_all_sessions()
+
+
+def test_admin_audit_log_accessible(client):
+    headers = _admin_headers(client)
+    rv = client.get('/api/admin/log', headers=headers)
+    assert rv.status_code == 200
+    assert isinstance(rv.get_json(), list)
+    actions = {row["action"] for row in rv.get_json()}
+    assert "login" in actions

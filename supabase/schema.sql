@@ -465,3 +465,30 @@ DROP POLICY IF EXISTS "Public Read Migration Logs" ON public.migration_logs;
 DROP POLICY IF EXISTS "Admin Write Migration Logs" ON public.migration_logs;
 CREATE POLICY "Admin Write Migration Logs" ON public.migration_logs FOR ALL
   USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+-- 13. ADMIN SESSIONS & AUDIT LOG
+-- Server-side opaque admin sessions (SHA-256 hashed token is the PK) and an
+-- audit trail for admin actions. There are deliberately NO read/write
+-- policies: these tables are only reached with the service_role key (which
+-- bypasses RLS). anon/authenticated clients can never read or write them.
+CREATE TABLE IF NOT EXISTS public.admin_sessions (
+    token_hash  text PRIMARY KEY,
+    email       text NOT NULL,
+    expires_at  double precision NOT NULL
+);
+ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.admin_sessions FROM anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS public.admin_audit_log (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    action       text NOT NULL,
+    actor_email  text,
+    target_email text,
+    ip_address   text,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.admin_audit_log FROM anon, authenticated;
+
+-- The admins registry itself must never be reachable by non-admin clients.
+REVOKE ALL ON public.admins FROM anon, authenticated;

@@ -177,6 +177,78 @@
             </div>
         </div>
     </div>
+
+    <div class="admin-section">
+        <div class="admin-section-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div class="dot-indicator" style="background-color:var(--c-mahakali);"></div>
+                <h3 style="margin:0;">Admin Accounts</h3>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="adminCountBadge" class="badge badge-stage">0 Admins</span>
+                <button onclick="openAddAdminModal()" class="btn btn-secondary"
+                    style="height:28px; font-size:11px; padding:0 10px;">
+                    <svg class="icon" width="12" height="12">
+                        <use href="#icon-plus" />
+                    </svg>
+                    Add Admin
+                </button>
+            </div>
+        </div>
+        <div id="adminAccountsList" style="overflow-x:auto;">
+            <div class="skeleton-table sk" aria-hidden="true">
+                <div class="skeleton-table-header">
+                    <div class="sk-bar" style="height:12px; width:180px;"></div>
+                    <div class="sk-bar" style="height:12px; width:120px;"></div>
+                    <div class="sk-bar" style="height:12px; width:140px;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:170px;"></div>
+                    <div class="sk-bar" style="height:12px; width:110px;"></div>
+                    <div class="sk-bar" style="height:12px; width:130px;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:160px;"></div>
+                    <div class="sk-bar" style="height:12px; width:120px;"></div>
+                    <div class="sk-bar" style="height:12px; width:140px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <div class="admin-section-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div class="dot-indicator" style="background-color:var(--text-tertiary);"></div>
+                <h3 style="margin:0;">Admin Audit Log</h3>
+            </div>
+        </div>
+        <div id="adminAuditLogList" style="overflow-x:auto;">
+            <div class="skeleton-table sk" aria-hidden="true">
+                <div class="skeleton-table-header">
+                    <div class="sk-bar" style="height:12px; width:160px;"></div>
+                    <div class="sk-bar" style="height:12px; width:90px;"></div>
+                    <div class="sk-bar" style="height:12px; width:150px;"></div>
+                    <div class="sk-bar" style="height:12px; width:150px;"></div>
+                    <div class="sk-bar" style="height:12px; width:100px;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:150px;"></div>
+                    <div class="sk-bar" style="height:12px; width:80px;"></div>
+                    <div class="sk-bar" style="height:12px; width:140px;"></div>
+                    <div class="sk-bar" style="height:12px; width:140px;"></div>
+                    <div class="sk-bar" style="height:12px; width:90px;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:155px;"></div>
+                    <div class="sk-bar" style="height:12px; width:85px;"></div>
+                    <div class="sk-bar" style="height:12px; width:145px;"></div>
+                    <div class="sk-bar" style="height:12px; width:135px;"></div>
+                    <div class="sk-bar" style="height:12px; width:95px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
 
@@ -372,6 +444,58 @@
 </div>
 
 {% endblock %}
+
+<div id="addAdminModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Admin</h3>
+            <button class="modal-close" onclick="closeModal('addAdminModal')">&times;</button>
+        </div>
+        <form onsubmit="handleAddAdminSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+                <label>Email</label>
+                <input type="email" id="newAdminEmail" required placeholder="admin@example.com" style="width:100%;">
+            </div>
+            <div>
+                <label>Temporary Password (min 12 characters)</label>
+                <input type="password" id="newAdminPassword" required minlength="12"
+                    placeholder="Must be at least 12 characters" style="width:100%;">
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('addAdminModal')">Cancel</button>
+                <button type="submit" class="btn">Add Admin</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<div id="resetPasswordModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Reset Admin Password</h3>
+            <button class="modal-close" onclick="closeModal('resetPasswordModal')">&times;</button>
+        </div>
+        <form onsubmit="handleResetPasswordSubmit(event)" autocomplete="off"
+            style="display:flex; flex-direction:column; gap:14px;">
+            <input type="hidden" id="resetAdminEmail">
+            <div>
+                <label>Admin Email</label>
+                <input type="email" id="resetAdminEmailDisplay" disabled style="width:100%;">
+            </div>
+            <div>
+                <label>New Password (min 12 characters)</label>
+                <input type="password" id="resetAdminPassword" required minlength="12"
+                    placeholder="Must be at least 12 characters" style="width:100%;">
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('resetPasswordModal')">Cancel</button>
+                <button type="submit" class="btn">Reset Password</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 {% block scripts %}
 <script>

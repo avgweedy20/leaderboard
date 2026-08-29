@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Manage ScoreBoard admin accounts.
 
-Admin accounts are NOT stored in code or environment variables. Use this CLI on
-the server to add / remove administrators:
+Admin accounts are NOT stored in code or environment variables. They are real
+Supabase Auth users whose email exists in the public.admins table. Use this CLI
+on the server (with SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set) to add /
+remove administrators:
 
     python manage_admins.py add <email>            # hidden password prompt
     python manage_admins.py add <email> --stdin    # read password from stdin
@@ -10,11 +12,8 @@ the server to add / remove administrators:
     python manage_admins.py remove <email>
     python manage_admins.py list
 
-Mode:
-  * Supabase mode (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY set): creates/updates
-    a real Supabase Auth user and adds the email to the public.admins table.
-  * Mock/dev mode: stores PBKDF2-HMAC-SHA256-hashed credentials in
-    data/admins.db (or ADMIN_DB_PATH).
+There is no mock/dev mode: every command requires a working Supabase
+connection and fails closed if it is not configured.
 """
 import argparse
 import getpass
@@ -47,7 +46,7 @@ def cmd_add(args):
     password = _collect_password(args)
     try:
         _add(args.email, password)
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         sys.exit(f"Error: {e}")
     print(f"Admin account created/updated for {args.email}")
 
@@ -70,13 +69,16 @@ def cmd_reset_password(args):
                     print(f"Warning: no Supabase Auth user '{args.email}' found to update.")
             except Exception as e:
                 print(f"Note: could not update Supabase Auth password automatically: {e}")
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         sys.exit(f"Error: {e}")
     print(f"Password updated for {args.email}")
 
 
 def cmd_remove(args):
-    _remove(args.email)
+    try:
+        _remove(args.email)
+    except RuntimeError as e:
+        sys.exit(f"Error: {e}")
     print(f"Admin account removed for {args.email}")
 
 
@@ -86,10 +88,7 @@ def cmd_list(_):
         print("No admin accounts.")
         return
     for item in admins:
-        if isinstance(item, dict):
-            print(f"  {item['email']}  active={bool(item.get('is_active'))}")
-        else:
-            print(f"  {item}")
+        print(f"  {item.get('email')}  created_at={item.get('created_at')}")
 
 
 def main():

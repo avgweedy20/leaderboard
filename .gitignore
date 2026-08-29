@@ -28,7 +28,3 @@ release.keystore
 .venv
 env/
 venv/
-
-# Admin account store (SQLite, contains password hashes)
-data/admins.db
-admins.db

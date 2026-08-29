@@ -14,12 +14,10 @@ To maintain security while allowing Admin capabilities in both clients:
 
 2. **Admin Authentication in Web & Android:**
    - Both the Web frontend and native Android client log in via the backend endpoint `/api/auth/login` using email and password.
-   - Multiple admin accounts are supported. Credentials are NEVER stored in code or environment variables:
-     - **Supabase mode:** admins are real Supabase Auth users whose email is registered in the `public.admins` table.
-     - **Mock (dev) mode:** admins are stored in a local SQLite store (`data/admins.db`) with PBKDF2-HMAC-SHA256-hashed passwords.
-     - Create/remove admins with the CLI: `python manage_admins.py add <email>`.
+   - Multiple admin accounts are supported. Credentials are NEVER stored in code or environment variables. Admins are real Supabase Auth users whose email is registered in the `public.admins` table.
+   - Create/remove admins with the CLI: `python manage_admins.py add <email>`.
    - Login is fail-closed (there is no default admin), throttled per IP + per email (5 tries / 15 min), and limited to 5 concurrent sessions per account.
-   - Successful logins receive a random, expiring (6-hour), server-side registered token that is revoked on logout and on account removal — no static token is ever accepted.
+   - Successful logins receive a random, expiring (6-hour), server-side registered token (stored in `public.admin_sessions`) that is revoked on logout and on account removal — no static token is ever accepted.
    - The Android app and Web app send this Bearer token in the `Authorization` header (`Authorization: Bearer <token>`) for write actions (scoring matches, creating sports, generating brackets, bulk CSV imports).
 
 3. **Public Reads (Anon Key):**
@@ -56,8 +54,7 @@ python manage_admins.py remove admin1@school.edu
 python manage_admins.py list
 ```
 
-- In **mock/dev mode** this writes PBKDF2-hashed credentials to `data/admins.db` (see `ADMIN_DB_PATH`).
-- In **Supabase mode** (with `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` set) it creates the Supabase Auth user and registers the email in the `public.admins` table.
+- Admin credentials are never placed in environment variables or code. The CLI operates against Supabase Auth + the `public.admins` table; admin sessions are stored server-side in `public.admin_sessions`, and all admin-management actions (login, add, remove, reset-password, view log) are recorded in `public.admin_audit_log`.
 
 ---
 
@@ -84,7 +81,7 @@ Gradle injects this into Android's `BuildConfig.API_BASE_URL`, allowing Retrofit
 
 ---
 
-## 4. Backend & Database Mode Indicator (Supabase Postgres vs In-Memory Mock)
+## 4. Backend & Database Mode Indicator (Supabase Postgres vs Unconfigured)
 
 Both the Web frontend and Android app query the `/api/health` endpoint:
 ```json
@@ -95,5 +92,5 @@ Both the Web frontend and Android app query the `/api/health` endpoint:
 }
 ```
 
-- **Postgres Mode (`mode: "supabase"`):** Displays `"Connected: Postgres DB [DEBUG]"` in the app header/settings.
-- **Development Mock Mode (`mode: "mock_in_memory"`):** Displays `"Development: In-Memory Mock DB"` when running locally without a live Supabase connection. Admin accounts still exist and are managed via `python manage_admins.py add <email>`.
+- **Configured mode (`mode: "supabase"`):** Displays `"Connected: Postgres DB [DEBUG]"` in the app header/settings when Supabase credentials are present in `.env`.
+- **Unconfigured mode (`mode: "unconfigured"`):** Displays an `"Unconfigured"` health badge and all data/admin endpoints fail closed with an `HTTP 503 Supabase not configured` response. The server no longer contains any in-memory or SQLite mock data — without a live Supabase connection the app serves only the static pages and API health, not fake data.

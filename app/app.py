@@ -1,15 +1,11 @@
 import os
-import csv
-import io
 import re
 import uuid
-import json
 import time
-import sqlite3
-import base64
 import hashlib
 import secrets
 from functools import wraps
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -33,7 +29,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mock.supabase.co")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "mock-service-key")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "mock-anon-key")
 
-# Supabase client (None = in-memory mock DB mode)
+# Supabase client (None = Supabase not configured; unless every endpoint that
+# depends on it returns an explicit "Supabase not configured" 503 response, the
+# app fails closed rather than serving stale in-memory data).
 supabase_client = None
 if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE_ROLE_KEY:
     try:
@@ -42,1420 +40,15 @@ if SUPABASE_URL != "https://mock.supabase.co" and "mock" not in SUPABASE_SERVICE
     except Exception as e:
         print(f"Warning: Could not initialize Supabase client: {e}")
 
-# In-memory mock DB fallback for Inter-House Meet
-MOCK_DB = {
-    "houses": [
-        {"id": "h1", "name": "Karnali", "color_hex": "#10B981", "short_code": "KAR"},
-        {"id": "h2", "name": "Koshi", "color_hex": "#0EA5E9", "short_code": "KOS"},
-        {"id": "h3", "name": "Mahakali", "color_hex": "#8B5CF6", "short_code": "MAH"},
-        {"id": "h4", "name": "Mechi", "color_hex": "#F97316", "short_code": "MEC"}
-    ],
-    "sports": [
-        {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "name": "Futsal",
-            "type": "football",
-            "level": "HS",
-            "is_lower_score_better": False
-        },
-        {
-            "id": "22222222-2222-2222-2222-222222222222",
-            "name": "Basketball",
-            "type": "basketball",
-            "level": "HS",
-            "is_lower_score_better": False
-        },
-        {
-            "id": "33333333-3333-3333-3333-333333333333",
-            "name": "Cricksal",
-            "type": "generic",
-            "level": "HS",
-            "is_lower_score_better": False
-        }
-    ],
-    "tournament_groups": [
-        {"id": "g1", "sport_id": "11111111-1111-1111-1111-111111111111", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
-        {"id": "g2", "sport_id": "11111111-1111-1111-1111-111111111111", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
-        {"id": "g3", "sport_id": "22222222-2222-2222-2222-222222222222", "gender": "Boys", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
-        {"id": "g4", "sport_id": "22222222-2222-2222-2222-222222222222", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0},
-        {"id": "g5", "sport_id": "33333333-3333-3333-3333-333333333333", "gender": "Boys", "format": "pool_to_semis", "point_win": 3, "point_draw": 1, "point_loss": 0},
-        {"id": "g6", "sport_id": "33333333-3333-3333-3333-333333333333", "gender": "Girls", "format": "round_robin", "point_win": 3, "point_draw": 1, "point_loss": 0}
-    ],
-    "teams": [
-    {
-        "id": "t_karnali_futsal_boys_a",
-        "name": "Karnali Boys Futsal A",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "B",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_futsal_boys_b",
-        "name": "Karnali Boys Futsal B",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "A",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_futsal_girls_a",
-        "name": "Karnali Girls Futsal A",
-        "house_id": "h1",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_futsal_girls_b",
-        "name": "Karnali Girls Futsal B",
-        "house_id": "h1",
-        "gender": "Girls",
-        "squad_label": "B",
-        "pool": None,
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_futsal_boys_a",
-        "name": "Koshi Boys Futsal A",
-        "house_id": "h2",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "B",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_futsal_boys_b",
-        "name": "Koshi Boys Futsal B",
-        "house_id": "h2",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "A",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_futsal_girls_a",
-        "name": "Koshi",
-        "house_id": "h2",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_futsal_boys_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "A",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_futsal_girls_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_futsal_boys_a",
-        "name": "Mechi Boys Futsal A",
-        "house_id": "h4",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "B",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_futsal_boys_b",
-        "name": "Mechi Boys Futsal B",
-        "house_id": "h4",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "A",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_futsal_girls_a",
-        "name": "Mechi",
-        "house_id": "h4",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_basketball_boys_a",
-        "name": "Karnali Boys Basketball A",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_basketball_boys_b",
-        "name": "Karnali Boys Basketball B",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_basketball_girls_a",
-        "name": "Karnali Girls Basketball A",
-        "house_id": "h1",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_basketball_girls_b",
-        "name": "Karnali Girls Basketball B",
-        "house_id": "h1",
-        "gender": "Girls",
-        "squad_label": "B",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_basketball_boys_a",
-        "name": "Koshi",
-        "house_id": "h2",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_basketball_girls_a",
-        "name": "Koshi",
-        "house_id": "h2",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_basketball_boys_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_basketball_girls_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_basketball_boys_a",
-        "name": "Mechi",
-        "house_id": "h4",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_basketball_girls_a",
-        "name": "Mechi",
-        "house_id": "h4",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_cricksal_boys_a",
-        "name": "Karnali Boys Cricksal A",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "B",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_cricksal_boys_b",
-        "name": "Karnali Boys Cricksal B",
-        "house_id": "h1",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "A",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_karnali_cricksal_girls_a",
-        "name": "Karnali",
-        "house_id": "h1",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_cricksal_boys_a",
-        "name": "Koshi Boys Cricksal A",
-        "house_id": "h2",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "B",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_cricksal_boys_b",
-        "name": "Koshi Boys Cricksal B",
-        "house_id": "h2",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "A",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_koshi_cricksal_girls_a",
-        "name": "Koshi",
-        "house_id": "h2",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_cricksal_boys_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "A",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_mahakali_cricksal_girls_a",
-        "name": "Mahakali",
-        "house_id": "h3",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_cricksal_boys_a",
-        "name": "Mechi Boys Cricksal A",
-        "house_id": "h4",
-        "gender": "Boys",
-        "squad_label": "A",
-        "pool": "A",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_cricksal_boys_b",
-        "name": "Mechi Boys Cricksal B",
-        "house_id": "h4",
-        "gender": "Boys",
-        "squad_label": "B",
-        "pool": "B",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    },
-    {
-        "id": "t_mechi_cricksal_girls_a",
-        "name": "Mechi",
-        "house_id": "h4",
-        "gender": "Girls",
-        "squad_label": "A",
-        "pool": None,
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "level": "HS"
-    }
-],
-    "matches": [
-    {
-        "id": "m_fg_1",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_girls_a",
-        "team_b_id": "t_koshi_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_mechi_futsal_girls_a",
-        "is_draw": False,
-        "score_team_a": 6,
-        "score_team_b": 1,
-        "score_difference": 5,
-        "score_summary": "6 - 1"
-    },
-    {
-        "id": "m_fg_2",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_karnali_futsal_girls_a",
-        "team_b_id": "t_mahakali_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_futsal_girls_a",
-        "is_draw": False,
-        "score_team_a": 3,
-        "score_team_b": 1,
-        "score_difference": 2,
-        "score_summary": "3 - 1"
-    },
-    {
-        "id": "m_fg_3",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_karnali_futsal_girls_b",
-        "team_b_id": "t_koshi_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_futsal_girls_b",
-        "is_draw": False,
-        "score_team_a": 12,
-        "score_team_b": 2,
-        "score_difference": 10,
-        "score_summary": "12 - 2"
-    },
-    {
-        "id": "m_fg_4",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_girls_a",
-        "team_b_id": "t_mahakali_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_mechi_futsal_girls_a",
-        "is_draw": False,
-        "score_team_a": 1,
-        "score_team_b": 0,
-        "score_difference": 1,
-        "score_summary": "1 - 0"
-    },
-    {
-        "id": "m_fg_5",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_karnali_futsal_girls_a",
-        "team_b_id": "t_karnali_futsal_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_futsal_girls_a",
-        "is_draw": False,
-        "score_team_a": 11,
-        "score_team_b": 0,
-        "score_difference": 11,
-        "score_summary": "11 - 0"
-    },
-    {
-        "id": "m_fg_6",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_koshi_futsal_girls_a",
-        "team_b_id": "t_mahakali_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fg_7",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_girls_a",
-        "team_b_id": "t_karnali_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fg_8",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mahakali_futsal_girls_a",
-        "team_b_id": "t_karnali_futsal_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fg_9",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_karnali_futsal_girls_a",
-        "team_b_id": "t_koshi_futsal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fg_10",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_girls_a",
-        "team_b_id": "t_karnali_futsal_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bb_1",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_boys_a",
-        "team_b_id": "t_koshi_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_mechi_basketball_boys_a",
-        "is_draw": False,
-        "score_team_a": 69,
-        "score_team_b": 23,
-        "score_difference": 46,
-        "score_summary": "69 - 23"
-    },
-    {
-        "id": "m_bb_2",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_boys_a",
-        "team_b_id": "t_mahakali_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_basketball_boys_a",
-        "is_draw": False,
-        "score_team_a": 54,
-        "score_team_b": 0,
-        "score_difference": 54,
-        "score_summary": "54 - 0"
-    },
-    {
-        "id": "m_bb_3",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_boys_b",
-        "team_b_id": "t_koshi_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_basketball_boys_b",
-        "is_draw": False,
-        "score_team_a": 30,
-        "score_team_b": 16,
-        "score_difference": 14,
-        "score_summary": "30 - 16"
-    },
-    {
-        "id": "m_bb_4",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_boys_a",
-        "team_b_id": "t_mahakali_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_mechi_basketball_boys_a",
-        "is_draw": False,
-        "score_team_a": 61,
-        "score_team_b": 9,
-        "score_difference": 52,
-        "score_summary": "61 - 9"
-    },
-    {
-        "id": "m_bb_5",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_boys_a",
-        "team_b_id": "t_karnali_basketball_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "completed",
-        "round_info": "League Game",
-        "winner_team_id": "t_karnali_basketball_boys_a",
-        "is_draw": False,
-        "score_team_a": 23,
-        "score_team_b": 18,
-        "score_difference": 5,
-        "score_summary": "23 - 18"
-    },
-    {
-        "id": "m_bb_6",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_koshi_basketball_boys_a",
-        "team_b_id": "t_mahakali_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bb_7",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_boys_a",
-        "team_b_id": "t_karnali_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bb_8",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mahakali_basketball_boys_a",
-        "team_b_id": "t_karnali_basketball_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bb_9",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_boys_a",
-        "team_b_id": "t_koshi_basketball_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bb_10",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_boys_a",
-        "team_b_id": "t_karnali_basketball_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_1",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_girls_a",
-        "team_b_id": "t_koshi_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_2",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_girls_a",
-        "team_b_id": "t_mahakali_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_3",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_girls_b",
-        "team_b_id": "t_koshi_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_4",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_girls_a",
-        "team_b_id": "t_mahakali_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_5",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_girls_a",
-        "team_b_id": "t_karnali_basketball_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_6",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_koshi_basketball_girls_a",
-        "team_b_id": "t_mahakali_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_7",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_girls_a",
-        "team_b_id": "t_karnali_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_8",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mahakali_basketball_girls_a",
-        "team_b_id": "t_karnali_basketball_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_9",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_karnali_basketball_girls_a",
-        "team_b_id": "t_koshi_basketball_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_bg_10",
-        "sport_id": "22222222-2222-2222-2222-222222222222",
-        "team_a_id": "t_mechi_basketball_girls_a",
-        "team_b_id": "t_karnali_basketball_girls_b",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_1",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mechi_cricksal_girls_a",
-        "team_b_id": "t_koshi_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_2",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_karnali_cricksal_girls_a",
-        "team_b_id": "t_mahakali_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_3",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mechi_cricksal_girls_a",
-        "team_b_id": "t_karnali_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_4",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_koshi_cricksal_girls_a",
-        "team_b_id": "t_mahakali_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_5",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_karnali_cricksal_girls_a",
-        "team_b_id": "t_koshi_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cg_6",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mechi_cricksal_girls_a",
-        "team_b_id": "t_mahakali_cricksal_girls_a",
-        "gender": "Girls",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_1",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_koshi_cricksal_boys_b",
-        "team_b_id": "t_mahakali_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_2",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_koshi_cricksal_boys_a",
-        "team_b_id": "t_karnali_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_3",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_karnali_cricksal_boys_b",
-        "team_b_id": "t_mechi_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_4",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mechi_cricksal_boys_b",
-        "team_b_id": "t_koshi_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_5",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mahakali_cricksal_boys_a",
-        "team_b_id": "t_karnali_cricksal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_6",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_karnali_cricksal_boys_a",
-        "team_b_id": "t_mechi_cricksal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_7",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_koshi_cricksal_boys_b",
-        "team_b_id": "t_mechi_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_8",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_mechi_cricksal_boys_a",
-        "team_b_id": "t_mahakali_cricksal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_9",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": "t_koshi_cricksal_boys_b",
-        "team_b_id": "t_karnali_cricksal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_10",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "semifinal",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Semi Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_11",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "semifinal",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Semi Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_cb_12",
-        "sport_id": "33333333-3333-3333-3333-333333333333",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "final",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_1",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_boys_b",
-        "team_b_id": "t_karnali_futsal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_2",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_koshi_futsal_boys_a",
-        "team_b_id": "t_mechi_futsal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_3",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mahakali_futsal_boys_a",
-        "team_b_id": "t_koshi_futsal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_4",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_boys_a",
-        "team_b_id": "t_karnali_futsal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_5",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_boys_b",
-        "team_b_id": "t_mahakali_futsal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_6",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_karnali_futsal_boys_a",
-        "team_b_id": "t_koshi_futsal_boys_a",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_7",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_koshi_futsal_boys_b",
-        "team_b_id": "t_karnali_futsal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_8",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mechi_futsal_boys_b",
-        "team_b_id": "t_koshi_futsal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_9",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": "t_mahakali_futsal_boys_a",
-        "team_b_id": "t_karnali_futsal_boys_b",
-        "gender": "Boys",
-        "stage": "league",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "League Game",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_10",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "semifinal",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Semi Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_11",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "semifinal",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Semi Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    },
-    {
-        "id": "m_fb_12",
-        "sport_id": "11111111-1111-1111-1111-111111111111",
-        "team_a_id": None,
-        "team_b_id": None,
-        "gender": "Boys",
-        "stage": "final",
-        "level": "HS",
-        "status": "scheduled",
-        "round_info": "Final Match",
-        "winner_team_id": None,
-        "is_draw": False,
-        "score_team_a": 0,
-        "score_team_b": 0,
-        "score_difference": 0,
-        "score_summary": ""
-    }
-],
-    "brackets": [],
-    "generic_results": [],
-    "football_events": [],
-    "basketball_quarters": [],
-    "players": []
-}
-
-# --- AUTH ------------------------------------------------------------------
-# Admin accounts live OUTSIDE the codebase and OUTSIDE the environment:
-#   * Supabase mode: admin accounts are real Supabase Auth users; an account
-#     is an admin while its email exists in the public.admins table.
-#   * Mock/dev mode: accounts are stored in a local SQLite database
-#     (data/admins.db — override with ADMIN_DB_PATH) using PBKDF2-HMAC-SHA256
-#     password hashing (600k iterations, per-account random salt).
-# Sessions are server-side opaque tokens in BOTH modes: random, expiring,
-# stored (SHA-256 hashed) in the SQLite store, revocable on logout, and
-# immediately invalidated when the account is removed. No static or JWT-based
-# shortcut is ever accepted.
+# AUTH ------------------------------------------------------------------
+# Admin accounts are real Supabase Auth users (managed with the service-role
+# client). An account is an "admin" while its email exists in public.admins.
+# Sessions are opaque, expiring, server-side tokens stored (SHA-256 hashed) in
+# the public.admin_sessions table; they are revoked on logout and immediately
+# when the account is removed. No static or JWT-based shortcut is ever
+# accepted. Admin actions are recorded in public.admin_audit_log.
 SESSION_TTL = 21600  # seconds (6h), synced with the frontend session length
 MAX_SESSIONS_PER_ADMIN = 5
-_PBKDF2_ITERATIONS = 600_000
 _PASSWORD_MIN_LENGTH = 12
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW_SECONDS = 900  # 15 minutes
@@ -1463,99 +56,33 @@ _LOGIN_WINDOW_SECONDS = 900  # 15 minutes
 _login_failures = {}  # (ip, email) -> [failure timestamps]
 
 
-def _admin_db_path():
-    env_path = os.getenv("ADMIN_DB_PATH")
-    if env_path:
-        return env_path
-    here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.normpath(os.path.join(here, "..", "data", "admins.db"))
-
-
-def _get_admin_db():
-    path = _admin_db_path()
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS admins (
-            email         TEXT PRIMARY KEY COLLATE NOCASE,
-            password_hash TEXT NOT NULL,
-            is_active     INTEGER NOT NULL DEFAULT 1,
-            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-            token_hash TEXT PRIMARY KEY,
-            email      TEXT NOT NULL,
-            expires_at REAL NOT NULL
-        )
-    """)
-    return conn
-
-
-def _hash_password(password):
-    salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
-    return "pbkdf2_sha256${}${}${}".format(
-        _PBKDF2_ITERATIONS,
-        base64.b64encode(salt).decode("ascii"),
-        base64.b64encode(digest).decode("ascii"),
-    )
-
-
-def _verify_password(password, stored):
-    try:
-        algorithm, iterations, salt_b64, hash_b64 = stored.split("$")
-        if algorithm != "pbkdf2_sha256":
-            return False
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(hash_b64)
-        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations))
-        return secrets.compare_digest(actual, expected)
-    except Exception:
-        return False
-
-
-# Equalizes login timing for unknown emails (no user enumeration).
-_DUMMY_HASH = _hash_password("dummy-hash-for-timing-equalization")
-
-
 def _is_admin_email(email):
     if not email:
         return False
     email = email.strip().lower()
-    if supabase_client:
-        try:
-            res = supabase_client.table("admins").select("email").eq("email", email).limit(1).execute()
-            return bool(res.data)
-        except Exception:
-            return False
-    conn = _get_admin_db()
-    try:
-        row = conn.execute(
-            "SELECT email FROM admins WHERE email = ? AND is_active = 1", (email,)
-        ).fetchone()
-        return row is not None
-    finally:
-        conn.close()
-
-
-def _verify_admin_password(email, password):
-    conn = _get_admin_db()
-    try:
-        row = conn.execute(
-            "SELECT password_hash FROM admins WHERE email = ? AND is_active = 1", (email,)
-        ).fetchone()
-    finally:
-        conn.close()
-    if not row:
-        _verify_password(password, _DUMMY_HASH)  # equalize timing
+    if not supabase_client:
         return False
-    return _verify_password(password, row["password_hash"])
+    try:
+        res = supabase_client.table("admins").select("email").eq("email", email).limit(1).execute()
+        return bool(res.data)
+    except Exception:
+        return False
+
+
+def _audit(action, actor_email=None, target_email=None, ip_address=None):
+    """Append a row to public.admin_audit_log (best effort, never fatal)."""
+    if not supabase_client:
+        return
+    try:
+        supabase_client.table("admin_audit_log").insert({
+            "action": action,
+            "actor_email": (actor_email or "").lower(),
+            "target_email": (target_email or "").lower(),
+            "ip_address": ip_address,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception:
+        pass
 
 
 def add_admin(email, password):
@@ -1567,60 +94,52 @@ def add_admin(email, password):
         raise ValueError("Password must be at least %d characters" % _PASSWORD_MIN_LENGTH)
     if password.lower() == email:
         raise ValueError("Password must not be the email address")
-    if supabase_client:
-        try:
-            supabase_client.auth.admin.create_user({
-                "email": email, "password": password, "email_confirm": True
-            })
-        except Exception:
-            pass  # Auth user may already exist
-        supabase_client.table("admins").upsert({"email": email}, on_conflict="email").execute()
-        return
-    conn = _get_admin_db()
+    if not supabase_client:
+        raise RuntimeError("Supabase not configured")
     try:
-        conn.execute(
-            "INSERT INTO admins (email, password_hash, is_active) VALUES (?, ?, 1) "
-            "ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, "
-            "is_active = 1",
-            (email, _hash_password(password)),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.auth.admin.create_user({
+            "email": email, "password": password, "email_confirm": True
+        })
+    except Exception:
+        pass  # Auth user may already exist
+    supabase_client.table("admins").upsert({"email": email}, on_conflict="email").execute()
 
 
 def remove_admin(email):
     """Remove an admin account and revoke all of its sessions immediately."""
     email = (email or "").strip().lower()
-    if supabase_client:
-        try:
-            supabase_client.table("admins").delete().eq("email", email).execute()
-        except Exception:
-            pass
-    else:
-        conn = _get_admin_db()
-        try:
-            conn.execute("DELETE FROM admins WHERE email = ?", (email,))
-            conn.commit()
-        finally:
-            conn.close()
+    if not supabase_client:
+        raise RuntimeError("Supabase not configured")
+    try:
+        supabase_client.table("admins").delete().eq("email", email).execute()
+    except Exception:
+        pass
     _revoke_admin_sessions(email)
 
 
 def list_admins():
-    """List admin accounts. Mock mode returns dicts, Supabase mode returns emails."""
-    if supabase_client:
-        try:
-            res = supabase_client.table("admins").select("email").execute()
-            return [r["email"] for r in (res.data or [])]
-        except Exception:
-            return []
-    conn = _get_admin_db()
+    """List admin accounts as [{"email": ..., "created_at": ...}]."""
+    if not supabase_client:
+        return []
     try:
-        rows = conn.execute("SELECT email, is_active FROM admins ORDER BY email").fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
+        res = supabase_client.table("admins").select("email, created_at").order("email").execute()
+        return [dict(r) for r in (res.data or [])]
+    except Exception:
+        return []
+
+
+def _auth_user_id_by_email(email):
+    """Resolve a Supabase Auth user id from an email (service-role client)."""
+    if not supabase_client:
+        return None
+    try:
+        users = supabase_client.auth.admin.list_users()
+        for u in users:
+            if (getattr(u, "email", "") or "").lower() == email:
+                return getattr(u, "id", None)
+    except Exception:
+        return None
+    return None
 
 
 def _session_token_hash(token):
@@ -1628,77 +147,76 @@ def _session_token_hash(token):
 
 
 def _cleanup_sessions():
-    conn = _get_admin_db()
+    if not supabase_client:
+        return
     try:
-        conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (time.time(),))
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.table("admin_sessions").delete().lt("expires_at", time.time()).execute()
+    except Exception:
+        pass
 
 
 def _issue_session(email):
     token = secrets.token_urlsafe(48)
-    conn = _get_admin_db()
+    if not supabase_client:
+        return token
     try:
-        conn.execute(
-            "INSERT INTO sessions (token_hash, email, expires_at) VALUES (?, ?, ?)",
-            (_session_token_hash(token), email, time.time() + SESSION_TTL),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.table("admin_sessions").insert({
+            "token_hash": _session_token_hash(token),
+            "email": email,
+            "expires_at": time.time() + SESSION_TTL,
+        }).execute()
+    except Exception:
+        pass
     return token
 
 
 def _session_email(token):
+    if not token or not supabase_client:
+        return None
     _cleanup_sessions()
-    conn = _get_admin_db()
     try:
-        row = conn.execute(
-            "SELECT email FROM sessions WHERE token_hash = ?", (_session_token_hash(token),)
-        ).fetchone()
-        return row["email"] if row else None
-    finally:
-        conn.close()
+        res = supabase_client.table("admin_sessions").select("email").eq("token_hash", _session_token_hash(token)).maybe_single().execute()
+        return res.data.get("email") if isinstance(res.data, dict) else None
+    except Exception:
+        return None
 
 
 def _revoke_session(token):
-    conn = _get_admin_db()
+    if not token or not supabase_client:
+        return
     try:
-        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_session_token_hash(token),))
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.table("admin_sessions").delete().eq("token_hash", _session_token_hash(token)).execute()
+    except Exception:
+        pass
 
 
 def _revoke_admin_sessions(email):
-    conn = _get_admin_db()
+    if not supabase_client:
+        return
     try:
-        conn.execute("DELETE FROM sessions WHERE email = ?", (email,))
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.table("admin_sessions").delete().eq("email", email).execute()
+    except Exception:
+        pass
 
 
 def _clear_all_sessions():
-    conn = _get_admin_db()
+    if not supabase_client:
+        return
     try:
-        conn.execute("DELETE FROM sessions")
-        conn.commit()
-    finally:
-        conn.close()
+        supabase_client.table("admin_sessions").delete().neq("token_hash", "").execute()
+    except Exception:
+        pass
 
 
 def _active_session_count(email):
+    if not supabase_client:
+        return 0
     _cleanup_sessions()
-    conn = _get_admin_db()
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) AS c FROM sessions WHERE email = ?", (email,)
-        ).fetchone()
-        return row["c"]
-    finally:
-        conn.close()
+        res = supabase_client.table("admin_sessions").select("token_hash", count="exact").eq("email", email).execute()
+        return int(res.count or 0)
+    except Exception:
+        return 0
 
 
 def _validate_session(token):
@@ -1776,7 +294,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "supabase_connected": supabase_client is not None,
-        "mode": "supabase" if supabase_client else "mock_in_memory"
+        "mode": "supabase" if supabase_client else "unconfigured"
     })
 
 # AUTH ENDPOINTS
@@ -1790,24 +308,22 @@ def auth_login():
     if not email or not password:
         return jsonify({"error": "Email and password required"}), 400
 
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+
     cred_key = (ip, email)
     if _login_blocked(cred_key):
         return jsonify({"error": "Too many failed attempts. Try again later."}), 429
 
-    if supabase_client:
-        try:
-            res = supabase_client.auth.sign_in_with_password({"email": email, "password": password})
-            user_email = (getattr(res.user, "email", "") or "").lower()
-        except Exception:
-            _record_login_failure(cred_key)
-            return jsonify({"error": "Invalid email or password"}), 401
-        if user_email != email or not _is_admin_email(user_email):
-            _record_login_failure(cred_key)
-            return jsonify({"error": "Invalid email or password"}), 401
-    else:
-        if not _verify_admin_password(email, password):
-            _record_login_failure(cred_key)
-            return jsonify({"error": "Invalid email or password"}), 401
+    try:
+        res = supabase_client.auth.sign_in_with_password({"email": email, "password": password})
+        user_email = (getattr(res.user, "email", "") or "").lower()
+    except Exception:
+        _record_login_failure(cred_key)
+        return jsonify({"error": "Invalid email or password"}), 401
+    if user_email != email or not _is_admin_email(user_email):
+        _record_login_failure(cred_key)
+        return jsonify({"error": "Invalid email or password"}), 401
 
     active_sessions = _active_session_count(email)
     if active_sessions >= MAX_SESSIONS_PER_ADMIN:
@@ -1817,6 +333,7 @@ def auth_login():
 
     _clear_login_failures(cred_key)
     token = _issue_session(email)
+    _audit("login", actor_email=email, ip_address=ip)
     return jsonify({
         "access_token": token,
         "expires_in": SESSION_TTL,
@@ -1835,10 +352,105 @@ def auth_me():
 @app.route("/api/auth/logout", methods=["POST"])
 @req_admin_auth
 def auth_logout():
-    """Revoke the current session server-side (both modes)."""
+    """Revoke the current session server-side."""
+    email = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
     token = request.headers.get("Authorization", "").split(" ", 1)[1].strip()
     _revoke_session(token)
+    _audit("logout", actor_email=email, ip_address=request.remote_addr)
     return jsonify({"status": "logged_out"})
+
+
+# ADMIN MANAGEMENT ENDPOINTS
+@app.route("/api/admin/list", methods=["GET"])
+@req_admin_auth
+def api_admin_list():
+    """List all admin accounts (admin-only)."""
+    return jsonify({"admins": list_admins()})
+
+
+@app.route("/api/admin/add", methods=["POST"])
+@req_admin_auth
+def api_admin_add():
+    """Create a new admin account (admin-only)."""
+    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    try:
+        add_admin(email, password)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    _audit("admin.add", actor_email=actor, target_email=(email or "").lower(), ip_address=request.remote_addr)
+    return jsonify({"message": "Admin added", "email": (email or "").lower()}), 201
+
+
+@app.route("/api/admin/remove", methods=["POST"])
+@req_admin_auth
+def api_admin_remove():
+    """Remove an admin account and revoke its sessions (admin-only)."""
+    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"error": "email is required"}), 400
+    if email == actor:
+        return jsonify({"error": "You cannot remove your own account"}), 400
+
+    remaining = list_admins()
+    if len(remaining) <= 1:
+        return jsonify({"error": "Cannot remove the last admin account"}), 400
+
+    try:
+        remove_admin(email)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    _audit("admin.remove", actor_email=actor, target_email=email, ip_address=request.remote_addr)
+    return jsonify({"message": "Admin removed", "email": email})
+
+
+@app.route("/api/admin/reset-password", methods=["POST"])
+@req_admin_auth
+def api_admin_reset_password():
+    """Reset another admin's password via Supabase Auth (admin-only)."""
+    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email:
+        return jsonify({"error": "email is required"}), 400
+    if email != actor and email not in {a.get("email") for a in list_admins()}:
+        return jsonify({"error": "Target must be an existing admin"}), 404
+    if not password or len(password) < _PASSWORD_MIN_LENGTH:
+        return jsonify({"error": "Password must be at least %d characters" % _PASSWORD_MIN_LENGTH}), 400
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+    user_id = _auth_user_id_by_email(email)
+    if not user_id:
+        return jsonify({"error": "Auth user not found"}), 404
+    try:
+        supabase_client.auth.admin.update_user_by_id(user_id, {"password": password})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    _revoke_admin_sessions(email)
+    _audit("admin.reset_password", actor_email=actor, target_email=email, ip_address=request.remote_addr)
+    return jsonify({"message": "Password updated"})
+
+
+@app.route("/api/admin/log", methods=["GET"])
+@req_admin_auth
+def api_admin_log():
+    """Return the most recent admin audit log entries (admin-only)."""
+    actor = _session_email(request.headers.get("Authorization", "").split(" ", 1)[1].strip()) or ""
+    _audit("admin.view_log", actor_email=actor, ip_address=request.remote_addr)
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+    try:
+        res = supabase_client.table("admin_audit_log").select("*").order("created_at", desc=True).limit(50).execute()
+        return jsonify(res.data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.after_request
@@ -1860,7 +472,7 @@ def get_houses():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-    return jsonify(MOCK_DB["houses"])
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # SPORTS ENDPOINTS
@@ -1872,7 +484,7 @@ def get_sports():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-    return jsonify(MOCK_DB["sports"])
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/sports", methods=["POST"])
 @req_admin_auth
@@ -1907,8 +519,7 @@ def create_sport():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    MOCK_DB["sports"].append(record)
-    return jsonify(record), 201
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # TEAMS / SQUADS ENDPOINTS
@@ -1932,14 +543,7 @@ def get_teams():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    teams = MOCK_DB["teams"]
-    if sport_id:
-        teams = [t for t in teams if t.get("sport_id") == sport_id]
-    if house_id:
-        teams = [t for t in teams if t.get("house_id") == house_id]
-    if gender:
-        teams = [t for t in teams if t.get("gender") == gender]
-    return jsonify(teams)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/teams", methods=["POST"])
 @req_admin_auth
@@ -1958,10 +562,16 @@ def create_team():
     if not name:
         house_name = "House"
         sport_name = "Sport"
-        for h in MOCK_DB["houses"]:
-            if h["id"] == house_id: house_name = h["name"]
-        for s in MOCK_DB["sports"]:
-            if s["id"] == sport_id: sport_name = s["name"]
+        if supabase_client:
+            try:
+                hr = supabase_client.table("houses").select("name").eq("id", house_id).maybe_single().execute()
+                if isinstance(hr.data, dict):
+                    house_name = hr.data.get("name", house_name)
+                sr = supabase_client.table("sports").select("name").eq("id", sport_id).maybe_single().execute()
+                if isinstance(sr.data, dict):
+                    sport_name = sr.data.get("name", sport_name)
+            except Exception:
+                pass
         name = f"{house_name} {gender} {sport_name} {squad_label}"
 
     record = {
@@ -1981,8 +591,7 @@ def create_team():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    MOCK_DB["teams"].append(record)
-    return jsonify(record), 201
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/teams/<team_id>", methods=["PUT"])
 @req_admin_auth
@@ -1994,12 +603,7 @@ def update_team(team_id):
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    for t in MOCK_DB["teams"]:
-        if t["id"] == team_id:
-            t.update(data)
-            return jsonify(t)
-    return jsonify({"error": "Team not found"}), 404
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/teams/<team_id>", methods=["DELETE"])
 @req_admin_auth
@@ -2010,9 +614,7 @@ def delete_team(team_id):
             return jsonify({"message": "Team deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["teams"] = [t for t in MOCK_DB["teams"] if t["id"] != team_id]
-    return jsonify({"message": "Team deleted"})
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # PLAYERS ENDPOINTS
@@ -2029,11 +631,7 @@ def get_players():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    players = MOCK_DB["players"]
-    if team_id:
-        players = [p for p in players if p.get("team_id") == team_id]
-    return jsonify(players)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players", methods=["POST"])
 @req_admin_auth
@@ -2061,9 +659,7 @@ def create_player():
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["players"].append(record)
-    return jsonify(record), 201
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/<player_id>", methods=["PUT"])
 @req_admin_auth
@@ -2075,12 +671,7 @@ def update_player(player_id):
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    for p in MOCK_DB["players"]:
-        if p["id"] == player_id:
-            p.update(data)
-            return jsonify(p)
-    return jsonify({"error": "Player not found"}), 404
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/<player_id>", methods=["DELETE"])
 @req_admin_auth
@@ -2091,9 +682,7 @@ def delete_player(player_id):
             return jsonify({"message": "Player deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["players"] = [p for p in MOCK_DB["players"] if p["id"] != player_id]
-    return jsonify({"message": "Player deleted"})
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/bulk", methods=["POST"])
 @req_admin_auth
@@ -2101,9 +690,6 @@ def bulk_upsert_players():
     items = request.get_json() or []
     if not isinstance(items, list):
         return jsonify({"error": "Expected a list of player objects"}), 400
-
-    created_count = 0
-    updated_count = 0
 
     if supabase_client:
         try:
@@ -2113,30 +699,7 @@ def bulk_upsert_players():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    for item in items:
-        roll = item.get("roll_number")
-        existing = None
-        if roll:
-            existing = next((p for p in MOCK_DB["players"] if str(p.get("roll_number")) == str(roll)), None)
-
-        if existing:
-            existing.update(item)
-            updated_count += 1
-        else:
-            rec = {
-                "id": str(uuid.uuid4()),
-                "name": item.get("name"),
-                "team_id": item.get("team_id"),
-                "roll_number": roll,
-                "grade": item.get("grade"),
-                "section": item.get("section"),
-                "gender": item.get("gender", "Boys"),
-                "level": item.get("level", "HS")
-            }
-            MOCK_DB["players"].append(rec)
-            created_count += 1
-
-    return jsonify({"message": f"Bulk import complete: {created_count} created, {updated_count} updated", "created": created_count, "updated": updated_count})
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/players/bulk-delete", methods=["POST"])
 @req_admin_auth
@@ -2152,9 +715,7 @@ def bulk_delete_players():
             return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["players"] = [p for p in MOCK_DB["players"] if p["id"] not in player_ids]
-    return jsonify({"message": f"Successfully deleted {len(player_ids)} players", "count": len(player_ids)})
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # MATCHES ENDPOINTS
@@ -2185,15 +746,7 @@ def get_matches():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    matches = MOCK_DB["matches"]
-    if sport_id:
-        matches = [m for m in matches if m.get("sport_id") == sport_id]
-    if gender:
-        matches = [m for m in matches if m.get("gender") == gender]
-    if stage:
-        matches = [m for m in matches if m.get("stage") == stage]
-    return jsonify(matches)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches", methods=["POST"])
 @req_admin_auth
@@ -2229,9 +782,7 @@ def create_match():
             return jsonify(res.data[0]), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["matches"].append(record)
-    return jsonify(record), 201
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches/<match_id>", methods=["PUT"])
 @req_admin_auth
@@ -2262,11 +813,7 @@ def update_match(match_id):
                 except Exception:
                     pass
             else:
-                for m in MOCK_DB["matches"]:
-                    if m["id"] == match_id:
-                        team_a_id = team_a_id or m.get("team_a_id")
-                        team_b_id = team_b_id or m.get("team_b_id")
-                        break
+                return jsonify({"error": "Supabase not configured"}), 503
 
         if score_a > score_b:
             data["winner_team_id"] = team_a_id
@@ -2284,12 +831,7 @@ def update_match(match_id):
             return jsonify(res.data[0] if res.data else data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    for m in MOCK_DB["matches"]:
-        if m["id"] == match_id:
-            m.update(data)
-            return jsonify(m)
-    return jsonify({"error": "Match not found"}), 404
+    return jsonify({"error": "Supabase not configured"}), 503
 
 @app.route("/api/matches/<match_id>", methods=["DELETE"])
 @req_admin_auth
@@ -2300,9 +842,7 @@ def delete_match(match_id):
             return jsonify({"message": "Match deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    MOCK_DB["matches"] = [m for m in MOCK_DB["matches"] if m["id"] != match_id]
-    return jsonify({"message": "Match deleted"})
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # OVERALL HOUSE STANDINGS API
@@ -2314,90 +854,7 @@ def get_house_overall_standings():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    houses = MOCK_DB["houses"]
-    teams = MOCK_DB["teams"]
-    matches = MOCK_DB["matches"]
-
-    # Calculate total squads per house
-    squad_counts = {}
-    for t in teams:
-        h_id = t["house_id"]
-        squad_counts[h_id] = squad_counts.get(h_id, 0) + 1
-
-    # Aggregate match stats per team
-    team_stats = {}
-    for m in matches:
-        if m.get("status") != "completed" or m.get("stage") != "league":
-            continue
-        team_a_id = m.get("team_a_id")
-        team_b_id = m.get("team_b_id")
-        score_a = m.get("score_team_a", 0)
-        score_b = m.get("score_team_b", 0)
-
-        if team_a_id:
-            team_stats.setdefault(team_a_id, {"played": 0, "wins": 0, "draws": 0, "losses": 0, "diff": 0, "pts": 0})
-            team_stats[team_a_id]["played"] += 1
-            team_stats[team_a_id]["diff"] += (score_a - score_b)
-            if m.get("is_draw"):
-                team_stats[team_a_id]["draws"] += 1
-                team_stats[team_a_id]["pts"] += 1
-            elif m.get("winner_team_id") == team_a_id:
-                team_stats[team_a_id]["wins"] += 1
-                team_stats[team_a_id]["pts"] += 3
-            else:
-                team_stats[team_a_id]["losses"] += 1
-
-        if team_b_id:
-            team_stats.setdefault(team_b_id, {"played": 0, "wins": 0, "draws": 0, "losses": 0, "diff": 0, "pts": 0})
-            team_stats[team_b_id]["played"] += 1
-            team_stats[team_b_id]["diff"] += (score_b - score_a)
-            if m.get("is_draw"):
-                team_stats[team_b_id]["draws"] += 1
-                team_stats[team_b_id]["pts"] += 1
-            elif m.get("winner_team_id") == team_b_id:
-                team_stats[team_b_id]["wins"] += 1
-                team_stats[team_b_id]["pts"] += 3
-            else:
-                team_stats[team_b_id]["losses"] += 1
-
-    # Aggregate team stats by house
-    house_stats = {}
-    for t in teams:
-        h_id = t["house_id"]
-        st = team_stats.get(t["id"], {"played": 0, "wins": 0, "draws": 0, "losses": 0, "diff": 0, "pts": 0})
-        house_stats.setdefault(h_id, {"played": 0, "wins": 0, "draws": 0, "losses": 0, "diff": 0, "pts": 0})
-        house_stats[h_id]["played"] += st["played"]
-        house_stats[h_id]["wins"] += st["wins"]
-        house_stats[h_id]["draws"] += st["draws"]
-        house_stats[h_id]["losses"] += st["losses"]
-        house_stats[h_id]["diff"] += st["diff"]
-        house_stats[h_id]["pts"] += st["pts"]
-
-    standings = []
-    for h in houses:
-        h_id = h["id"]
-        hs = house_stats.get(h_id, {"played": 0, "wins": 0, "draws": 0, "losses": 0, "diff": 0, "pts": 0})
-        standings.append({
-            "house_id": h_id,
-            "house_name": h["name"],
-            "color_hex": h["color_hex"],
-            "short_code": h["short_code"],
-            "total_squads": squad_counts.get(h_id, 0),
-            "matches_played": hs["played"],
-            "total_wins": hs["wins"],
-            "total_draws": hs["draws"],
-            "total_losses": hs["losses"],
-            "total_score_difference": hs["diff"],
-            "total_points": hs["pts"],
-            "rank": 1
-        })
-
-    standings.sort(key=lambda x: (x["total_points"], x["total_score_difference"], x["total_wins"]), reverse=True)
-    for idx, r in enumerate(standings, start=1):
-        r["rank"] = idx
-
-    return jsonify(standings)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # PER-SPORT STANDINGS API
@@ -2417,64 +874,7 @@ def get_leaderboard():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    teams = MOCK_DB["teams"]
-    sports = {s["id"]: s for s in MOCK_DB["sports"]}
-    houses = {h["id"]: h for h in MOCK_DB["houses"]}
-    matches = MOCK_DB["matches"]
-
-    results = []
-    for t in teams:
-        if sport_id and t["sport_id"] != sport_id:
-            continue
-        if gender and t.get("gender") != gender:
-            continue
-
-        sport = sports.get(t["sport_id"], {"name": "Futsal", "type": "football"})
-        house = houses.get(t["house_id"], {"name": "Karnali", "color_hex": "#10B981", "short_code": "KAR"})
-
-        played, wins, draws, losses, pts, diff = 0, 0, 0, 0, 0, 0
-        for m in matches:
-            if m.get("status") != "completed":
-                continue
-            if m["team_a_id"] == t["id"]:
-                played += 1
-                if m.get("is_draw"): draws += 1
-                elif m.get("winner_team_id") == t["id"]: wins += 1; pts += 3
-                else: losses += 1
-                diff += (m.get("score_team_a", 0) - m.get("score_team_b", 0))
-            elif m["team_b_id"] == t["id"]:
-                played += 1
-                if m.get("is_draw"): draws += 1
-                elif m.get("winner_team_id") == t["id"]: wins += 1; pts += 3
-                else: losses += 1
-                diff += (m.get("score_team_b", 0) - m.get("score_team_a", 0))
-
-        results.append({
-            "team_id": t["id"],
-            "team_name": t["name"],
-            "house_id": t["house_id"],
-            "house_name": house["name"],
-            "house_color": house["color_hex"],
-            "house_short_code": house["short_code"],
-            "gender": t.get("gender", "Boys"),
-            "squad_label": t.get("squad_label", "A"),
-            "sport_id": t["sport_id"],
-            "sport_name": sport["name"],
-            "sport_type": sport["type"],
-            "played": played,
-            "wins": wins,
-            "draws": draws,
-            "losses": losses,
-            "score_difference": diff,
-            "points": pts,
-            "rank": 1
-        })
-
-    results.sort(key=lambda x: (x["points"], x["score_difference"]), reverse=True)
-    for idx, r in enumerate(results, start=1):
-        r["rank"] = idx
-    return jsonify(results)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # FINAL QUALIFIERS API
@@ -2486,11 +886,7 @@ def get_final_qualifiers():
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
-    # In mock mode return top 2 squads per sport+gender
-    all_standings = json.loads(get_leaderboard().data)
-    qualifiers = [r for r in all_standings if r.get("rank", 99) <= 2]
-    return jsonify(qualifiers)
+    return jsonify({"error": "Supabase not configured"}), 503
 
 
 # OTA UPDATE CHECK FOR ANDROID CLIENT

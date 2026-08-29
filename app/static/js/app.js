@@ -18,6 +18,20 @@ let matchesData = [];
 let selectedSportId = '';
 let pendingCsvPlayers = [];
 
+// ─── TOKEN FORGE DEFENSE ───────────────────────────────────────────────────
+// The old hardcoded 'mock-admin-token' bypass no longer exists on the server.
+// If anything still tries to plant it in localStorage, refuse and show our face.
+(function () {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+        if (key === 'sb_auth_token' && String(value) === 'mock-admin-token') {
+            console.warn('nice try');
+            return undefined;
+        }
+        return originalSetItem.call(this, key, value);
+    };
+})();
+
 // Session duration: 6 hours (in milliseconds)
 const SESSION_DURATION_MS = 6 * 60 * 60 * 1000; // 21,600,000 ms
 
@@ -192,7 +206,7 @@ function handleSessionExpired() {
 }
 
 /**
- * Best-effort server-side session revocation (revokes mock-mode tokens).
+ * Best-effort server-side session revocation.
  */
 async function serverLogout() {
     if (!currentToken) return;
@@ -281,7 +295,7 @@ async function checkDbHealth() {
     try {
         const res = await fetch('/api/health');
         const data = await res.json();
-        badge.textContent = data.supabase_connected ? 'Live DB' : 'Mock DB';
+        badge.textContent = data.supabase_connected ? 'Live DB' : 'Unconfigured';
         badge.className = 'badge badge-status-' + (data.supabase_connected ? 'completed' : 'scheduled');
     } catch (e) {
         badge.textContent = 'Offline';
@@ -753,6 +767,9 @@ async function loadAdminCenterData() {
     renderAdminSquadsTable();
     renderAdminPlayersTable();
     renderAdminFixturesTable();
+
+    await loadAdminAccounts();
+    loadAdminAuditLog();
 }
 
 // ─── ADMIN TABLE STATE ─────────────────────────────────────────────────────
@@ -1393,6 +1410,227 @@ function toggleFixturesSort(col) {
         adminFixturesState.sortDir = 'asc';
     }
     renderAdminFixturesTable();
+}
+
+// ─── ADMIN ACCOUNTS (list / add / remove / reset / audit) ─────────────────
+async function loadAdminAccounts() {
+    const container = document.getElementById('adminAccountsList');
+    if (!container) return;
+    try {
+        const res = await fetchWithAuth('/api/admin/list');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            container.innerHTML = renderSharedErrorState(err.error || 'Failed to load admins.', 'loadAdminAccounts()');
+            return;
+        }
+        renderAdminAccounts(await res.json());
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            container.innerHTML = renderSharedErrorState('Failed to load admins.', 'loadAdminAccounts()');
+        }
+    }
+}
+
+function renderAdminAccounts(admins) {
+    const container = document.getElementById('adminAccountsList');
+    const badge = document.getElementById('adminCountBadge');
+    if (!container) return;
+    if (badge && admins) badge.textContent = `${admins.length} Admin${admins.length !== 1 ? 's' : ''}`;
+    if (!admins || admins.length === 0) {
+        container.innerHTML = renderSharedEmptyState('No admins registered yet', '');
+        return;
+    }
+    container.innerHTML = `
+        <div class="table-wrap fade-in">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Added</th>
+                        <th style="width:170px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${admins.map(a => `
+                        <tr>
+                            <td style="font-weight:700;">${escapeHtml(a.email)}</td>
+                            <td style="color:var(--text-secondary);">${escapeHtml(a.created_at || '')}</td>
+                            <td>
+                                <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                    <button class="btn btn-secondary" style="height:26px; font-size:11px; padding:0 8px;"
+                                        onclick="openResetPasswordModal('${escapeHtml(a.email).replace(/'/g, "\\'")}')">Reset Password</button>
+                                    <button class="btn btn-danger" style="height:26px; font-size:11px; padding:0 8px;"
+                                        onclick="removeAdminAccount('${escapeHtml(a.email).replace(/'/g, "\\'")}')">Remove</button>
+                                </div>
+                            </td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+function openAddAdminModal() {
+    const emailInput = document.getElementById('newAdminEmail');
+    const pwInput = document.getElementById('newAdminPassword');
+    if (emailInput) emailInput.value = '';
+    if (pwInput) pwInput.value = '';
+    openModal('addAdminModal');
+}
+
+async function handleAddAdminSubmit(e) {
+    e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const email = document.getElementById('newAdminEmail').value.trim();
+    const password = document.getElementById('newAdminPassword').value;
+    if (!email || !password) {
+        showToast('Email and password are required', 'error');
+        return;
+    }
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adding…';
+    }
+    try {
+        const res = await fetchWithAuth('/api/admin/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            closeModal('addAdminModal');
+            showToast(`${email} added as admin`, 'success');
+            await loadAdminAccounts();
+            loadAdminAuditLog();
+        } else {
+            showToast(data.error || 'Failed to add admin', 'error', { title: 'Add Failed' });
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast('Network error while adding admin', 'error');
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Add Admin';
+        }
+    }
+}
+
+async function removeAdminAccount(email) {
+    if (!confirm(`Remove ${email} from admin?`)) return;
+    try {
+        const res = await fetchWithAuth('/api/admin/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            showToast(`${email} removed from admin`, 'success');
+            await loadAdminAccounts();
+            loadAdminAuditLog();
+        } else {
+            showToast(data.error || 'Failed to remove admin', 'error', { title: 'Remove Failed' });
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast('Network error while removing admin', 'error');
+        }
+    }
+}
+
+function openResetPasswordModal(email) {
+    document.getElementById('resetAdminEmail').value = email;
+    const display = document.getElementById('resetAdminEmailDisplay');
+    if (display) display.value = email;
+    document.getElementById('resetAdminPassword').value = '';
+    openModal('resetPasswordModal');
+}
+
+async function handleResetPasswordSubmit(e) {
+    e.preventDefault();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const email = document.getElementById('resetAdminEmail').value.trim();
+    const password = document.getElementById('resetAdminPassword').value;
+    if (!password) {
+        showToast('New password is required', 'error');
+        return;
+    }
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Resetting…';
+    }
+    try {
+        const res = await fetchWithAuth('/api/admin/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, new_password: password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            closeModal('resetPasswordModal');
+            showToast(`Password reset for ${email}`, 'success');
+            loadAdminAuditLog();
+        } else {
+            showToast(data.error || 'Failed to reset password', 'error', { title: 'Reset Failed' });
+        }
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            showToast('Network error while resetting password', 'error');
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Reset Password';
+        }
+    }
+}
+
+async function loadAdminAuditLog() {
+    const container = document.getElementById('adminAuditLogList');
+    if (!container) return;
+    try {
+        const res = await fetchWithAuth('/api/admin/log');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            container.innerHTML = renderSharedErrorState(err.error || 'Failed to load audit log.', 'loadAdminAuditLog()');
+            return;
+        }
+        const entries = await res.json();
+        if (!entries || entries.length === 0) {
+            container.innerHTML = renderSharedEmptyState('No audit events yet', '');
+            return;
+        }
+        container.innerHTML = `
+            <div class="table-wrap fade-in">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Action</th>
+                            <th>Actor</th>
+                            <th>Target</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${entries.map(x => `
+                            <tr>
+                                <td style="color:var(--text-secondary); white-space:nowrap;">${escapeHtml(x.created_at || '')}</td>
+                                <td><span class="badge badge-stage">${escapeHtml(x.action)}</span></td>
+                                <td>${escapeHtml(x.actor_email || '')}</td>
+                                <td style="color:var(--text-secondary);">${escapeHtml(x.target_email || '—')}</td>
+                                <td style="color:var(--text-tertiary);">${escapeHtml(x.ip_address || '—')}</td>
+                            </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    } catch (err) {
+        if (!err.message.includes('Session expired')) {
+            container.innerHTML = renderSharedErrorState('Failed to load audit log.', 'loadAdminAuditLog()');
+        }
+    }
 }
 
 /**
