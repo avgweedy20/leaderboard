@@ -181,13 +181,13 @@ def test_auth_me_and_logout(client):
 
 def test_session_cap_per_admin(client):
     headers = []
-    for _ in range(5):
+    for _ in range(20):
         rv = client.post('/api/auth/login', json={
             "email": ADMIN1, "password": ADMIN_PASSWORD
         })
         assert rv.status_code == 200
         headers.append(rv.get_json()["access_token"])
-    # Sixth concurrent session for the same account is refused.
+    # 21st concurrent session for the same account is refused.
     rv = client.post('/api/auth/login', json={
         "email": ADMIN1, "password": ADMIN_PASSWORD
     })

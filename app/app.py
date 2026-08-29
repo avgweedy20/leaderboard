@@ -71,7 +71,7 @@ def _service_client():
 # when the account is removed. No static or JWT-based shortcut is ever
 # accepted. Admin actions are recorded in public.admin_audit_log.
 SESSION_TTL = 21600  # seconds (6h), synced with the frontend session length
-MAX_SESSIONS_PER_ADMIN = 5
+MAX_SESSIONS_PER_ADMIN = 20
 _PASSWORD_MIN_LENGTH = 6
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW_SECONDS = 300  # 5 minutes
