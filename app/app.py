@@ -51,7 +51,7 @@ SESSION_TTL = 21600  # seconds (6h), synced with the frontend session length
 MAX_SESSIONS_PER_ADMIN = 5
 _PASSWORD_MIN_LENGTH = 12
 _LOGIN_MAX_ATTEMPTS = 5
-_LOGIN_WINDOW_SECONDS = 900  # 15 minutes
+_LOGIN_WINDOW_SECONDS = 300  # 5 minutes
 
 _login_failures = {}  # (ip, email) -> [failure timestamps]
 
