@@ -209,6 +209,13 @@ class FakeAuthAdmin:
     def list_users(self):
         return [SimpleNamespace(**u) for u in self.db._users.values()]
 
+    def delete_user(self, user_id):
+        for email, u in list(self.db._users.items()):
+            if u['id'] == user_id:
+                del self.db._users[email]
+                return SimpleNamespace(**u)
+        raise FakeAuthError("user not found")
+
     def update_user_by_id(self, user_id, updates):
         for u in self.db._users.values():
             if u['id'] == user_id:

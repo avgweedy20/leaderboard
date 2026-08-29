@@ -81,7 +81,7 @@ def cmd_remove(args):
         _remove(args.email)
     except RuntimeError as e:
         sys.exit(f"Error: {e}")
-    print(f"Admin account removed for {args.email}")
+    print(f"Admin account removed for {args.email} (auth user and all sessions deleted)")
 
 
 def cmd_list(_):

@@ -7,6 +7,7 @@ from app.app import (
     supabase_client,
     add_admin,
     remove_admin,
+    _auth_user_id_by_email,
     _clear_all_sessions,
     _login_failures,
 )
@@ -125,7 +126,10 @@ def test_remove_admin_revokes_sessions(client):
         "point_win": 3, "point_draw": 1, "point_loss": 0
     }, headers=headers).status_code == 201
 
+    assert _auth_user_id_by_email(ADMIN3) is not None
     remove_admin(ADMIN3)
+    # The underlying Auth account is deleted entirely, not just the admins row.
+    assert _auth_user_id_by_email(ADMIN3) is None
     # Sessions of that admin are revoked immediately.
     assert client.post('/api/sports', json={
         "name": "Athletics2", "type": "generic", "level": "HS",
