@@ -4,6 +4,18 @@ version = "1.0.0"
 description = "DSS Inter-House Sports Meet live leaderboard (Flask backend + reactbits widget islands)."
 requires-python = ">=3.12"
 
+# Vercel's Python runtime installs dependencies from pyproject.toml (uv)
+# BEFORE reading requirements.txt, so this list MUST mirror the runtime deps.
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "supabase>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "gunicorn>=21.2.0",
+    "requests>=2.31.0",
+    "openpyxl>=3.1.0",
+]
+
 # Vercel zero-config Flask deployment.
 #   - entrypoint: where to find the WSGI `app` instance (app/app.py).
 #   - [tool.vercel.scripts].build runs AFTER Python deps are installed and
