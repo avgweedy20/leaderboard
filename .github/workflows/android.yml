@@ -41,7 +41,7 @@ jobs:
           ./gradlew assembleRelease assembleDebug \
             -PSUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -PSUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
-            -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://your-scoreboard-api.vercel.app/' }}" \
+            -PAPI_BASE_URL="${{ secrets.API_BASE_URL || 'https://sportsdss.vercel.app/' }}" \
             -PRELEASE_KEYSTORE_FILE="release.keystore" \
             -PRELEASE_KEYSTORE_PASSWORD="${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
             -PRELEASE_KEY_ALIAS="${{ secrets.RELEASE_KEY_ALIAS || 'dss-sports' }}" \
