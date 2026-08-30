@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -464,7 +465,7 @@ fun AdminScreen(
                             if (squadSortCol == col) squadSortAsc = !squadSortAsc
                             else { squadSortCol = col; squadSortAsc = true }
                         },
-                        labelOf = { it.replaceFirstChar { c -> c.uppercase() } },
+                        labelOf = { value: String -> value.replaceFirstChar { c -> c.uppercase() } },
                         modifier = Modifier.weight(1f)
                     )
                     ResultCount("${filteredSquads.size} result${if (filteredSquads.size != 1) "s" else ""}")
@@ -551,7 +552,7 @@ fun AdminScreen(
                             if (playerSortCol == col) playerSortAsc = !playerSortAsc
                             else { playerSortCol = col; playerSortAsc = true }
                         },
-                        labelOf = { it.replaceFirstChar { c -> c.uppercase() } },
+                        labelOf = { value: String -> value.replaceFirstChar { c -> c.uppercase() } },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -689,7 +690,7 @@ fun AdminScreen(
                             if (fixtureSortCol == col) fixtureSortAsc = !fixtureSortAsc
                             else { fixtureSortCol = col; fixtureSortAsc = true }
                         },
-                        labelOf = { it.replaceFirstChar { c -> c.uppercase() } },
+                        labelOf = { value: String -> value.replaceFirstChar { c -> c.uppercase() } },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -933,7 +934,7 @@ private fun SectionDivider(title: String, count: Int, dotColor: Color) {
 }
 
 @Composable
-private fun FilterPanel(content: @Composable Column.() -> Unit) {
+private fun FilterPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -1409,7 +1410,7 @@ private fun AddAdminDialog(
                 options = listOf("admin", "superadmin"),
                 selected = role,
                 onSelect = { role = it },
-                labelOf = { it.replaceFirstChar { c -> c.uppercase() } }
+                labelOf = { value: String -> value.replaceFirstChar { c -> c.uppercase() } }
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 WebButton("Cancel", onClick = onDismiss, secondary = true, enabled = !busy)
@@ -1638,7 +1639,7 @@ private fun MatchDialog(
                 options = listOf("league", "semifinal", "final"),
                 selected = stage,
                 onSelect = { stage = it },
-                labelOf = { value -> value.replaceFirstChar { it.uppercase() } }
+                labelOf = { value: String -> value.replaceFirstChar { c -> c.uppercase() } }
             )
             AppTextField(value = roundInfo, onValueChange = { roundInfo = it }, label = "Round Info (e.g. League Game)")
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
