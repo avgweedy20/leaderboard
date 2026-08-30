@@ -27,6 +27,12 @@ interface FlaskApiService {
     @POST("api/auth/login")
     suspend fun login(@Body body: Map<String, String>): LoginResponse
 
+    @GET("api/auth/me")
+    suspend fun getMe(): AdminMe
+
+    @POST("api/auth/logout")
+    suspend fun logout(): Map<String, Any?>
+
     @GET("api/houses")
     suspend fun getHouses(): List<House>
 
@@ -84,7 +90,7 @@ interface FlaskApiService {
     suspend fun deleteMatch(@Path("id") id: String): Map<String, Any?>
 
     @GET("api/leaderboard/overall")
-    suspend fun getOverallStandings(): List<HouseOverallStanding>
+    suspend fun getOverallStandings(@Query("gender") gender: String? = null): List<HouseOverallStanding>
 
     @GET("api/leaderboard")
     suspend fun getLeaderboard(
@@ -94,12 +100,38 @@ interface FlaskApiService {
 
     @GET("api/leaderboard/qualifiers")
     suspend fun getQualifiers(): List<LeaderboardItem>
+
+    @GET("api/admin/list")
+    suspend fun getAdmins(): AdminListResponse
+
+    @POST("api/admin/add")
+    suspend fun addAdmin(@Body body: Map<String, String>): Map<String, Any?>
+
+    @POST("api/admin/remove")
+    suspend fun removeAdmin(@Body body: Map<String, String>): Map<String, Any?>
+
+    @POST("api/admin/reset-password")
+    suspend fun resetAdminPassword(@Body body: Map<String, String>): Map<String, Any?>
+
+    @GET("api/admin/log")
+    suspend fun getAuditLog(
+        @Query("action") action: String? = null,
+        @Query("actor") actor: String? = null,
+        @Query("target") target: String? = null,
+        @Query("details") details: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0
+    ): AuditLogResponse
 }
 
 object ApiRepository {
     var adminToken: String? = null
         private set
     var adminExpiresAtMillis: Long = 0L
+        private set
+    var adminRole: String? = null
         private set
 
     val isAuthenticated: Boolean
@@ -159,19 +191,22 @@ object ApiRepository {
         }
     }
 
-    fun restoreSession(token: String, expiresAtMillis: Long) {
+    fun restoreSession(token: String, expiresAtMillis: Long, role: String? = null) {
         adminToken = token
         adminExpiresAtMillis = expiresAtMillis
+        adminRole = role ?: adminRole
     }
 
-    fun setSession(token: String, expiresAtMillis: Long) {
+    fun setSession(token: String, expiresAtMillis: Long, role: String? = null) {
         adminToken = token
         adminExpiresAtMillis = expiresAtMillis
+        adminRole = role ?: adminRole
     }
 
     fun logout() {
         adminToken = null
         adminExpiresAtMillis = 0L
+        adminRole = null
     }
 
     suspend fun getHealth(): HealthInfo = apiCall { service.getHealth() }
@@ -179,6 +214,10 @@ object ApiRepository {
     suspend fun login(email: String, password: String): LoginResponse = apiCall {
         service.login(mapOf("email" to email, "password" to password))
     }
+
+    suspend fun getMe(): AdminMe = apiCall { service.getMe() }
+
+    suspend fun logout() = apiCall { service.logout() }
 
     suspend fun getHouses(): List<House> = apiCall { service.getHouses() }
 
@@ -325,10 +364,27 @@ object ApiRepository {
 
     suspend fun deleteMatch(id: String) = apiCall { service.deleteMatch(id) }
 
-    suspend fun getOverallStandings(): List<HouseOverallStanding> = apiCall { service.getOverallStandings() }
+    suspend fun getOverallStandings(gender: String? = null): List<HouseOverallStanding> =
+        apiCall { service.getOverallStandings(gender) }
 
     suspend fun getLeaderboard(sportId: String? = null, gender: String? = null): List<LeaderboardItem> =
         apiCall { service.getLeaderboard(sportId, gender) }
 
     suspend fun getQualifiers(): List<LeaderboardItem> = apiCall { service.getQualifiers() }
+
+    suspend fun getAdmins(): List<AdminAccount> = apiCall { service.getAdmins().admins }
+
+    suspend fun addAdmin(email: String, password: String, role: String) = apiCall {
+        service.addAdmin(mapOf("email" to email, "password" to password, "role" to role))
+    }
+
+    suspend fun removeAdmin(email: String) = apiCall { service.removeAdmin(mapOf("email" to email)) }
+
+    suspend fun resetAdminPassword(email: String, password: String) = apiCall {
+        service.resetAdminPassword(mapOf("email" to email, "password" to password))
+    }
+
+    suspend fun getAuditLog(offset: Int = 0, limit: Int = 50): AuditLogResponse = apiCall {
+        service.getAuditLog(limit = limit, offset = offset)
+    }
 }

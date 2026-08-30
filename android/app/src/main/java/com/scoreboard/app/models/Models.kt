@@ -126,5 +126,39 @@ data class LoginResponse(
 
 data class UserInfo(
     val id: String,
-    val email: String
+    val email: String,
+    val role: String? = null
+)
+
+data class AdminMe(
+    val email: String,
+    val role: String
+)
+
+data class AdminAccount(
+    val email: String,
+    val role: String? = null,
+    @SerializedName("is_active") val isActive: Boolean? = null,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class AdminListResponse(
+    val admins: List<AdminAccount> = emptyList()
+)
+
+data class AuditEntry(
+    val id: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    val action: String? = null,
+    @SerializedName("actor_email") val actorEmail: String? = null,
+    @SerializedName("target_email") val targetEmail: String? = null,
+    val details: String? = null,
+    @SerializedName("ip_address") val ipAddress: String? = null
+)
+
+data class AuditLogResponse(
+    val entries: List<AuditEntry> = emptyList(),
+    val total: Int = 0,
+    val limit: Int = 50,
+    val offset: Int = 0
 )

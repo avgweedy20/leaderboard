@@ -51,6 +51,7 @@ val Context.dataStore by preferencesDataStore(name = "dss_prefs")
 val THEME_KEY = stringPreferencesKey("theme_mode")
 val AUTH_TOKEN_KEY = stringPreferencesKey("auth_token")
 val AUTH_EXPIRY_KEY = stringPreferencesKey("auth_expires_at")
+val AUTH_ROLE_KEY = stringPreferencesKey("auth_role")
 
 enum class ThemeMode { LIGHT, DARK }
 
@@ -68,8 +69,9 @@ class MainActivity : ComponentActivity() {
             }
             val token = prefs[AUTH_TOKEN_KEY]
             val expiresAt = prefs[AUTH_EXPIRY_KEY]?.toLongOrNull() ?: 0L
+            val role = prefs[AUTH_ROLE_KEY]
             if (token != null && expiresAt > System.currentTimeMillis()) {
-                ApiRepository.restoreSession(token, expiresAt)
+                ApiRepository.restoreSession(token, expiresAt, role)
             }
             theme
         }
@@ -89,11 +91,11 @@ class MainActivity : ComponentActivity() {
                         scope.launch { context.dataStore.edit { it[THEME_KEY] = themeMode.name } }
                     },
                     authToken = authToken,
-                    onSessionChange = { token, expiresAtMillis ->
+                    onSessionChange = { token, expiresAtMillis, role ->
                         if (token == null) {
                             ApiRepository.logout()
                         } else {
-                            ApiRepository.setSession(token, expiresAtMillis)
+                            ApiRepository.setSession(token, expiresAtMillis, role)
                         }
                         authToken = token
                         scope.launch {
@@ -101,9 +103,11 @@ class MainActivity : ComponentActivity() {
                                 if (token == null) {
                                     prefs.remove(AUTH_TOKEN_KEY)
                                     prefs.remove(AUTH_EXPIRY_KEY)
+                                    prefs.remove(AUTH_ROLE_KEY)
                                 } else {
                                     prefs[AUTH_TOKEN_KEY] = token
                                     prefs[AUTH_EXPIRY_KEY] = expiresAtMillis.toString()
+                                    if (role != null) prefs[AUTH_ROLE_KEY] = role
                                 }
                             }
                         }
@@ -126,7 +130,7 @@ fun ScoreBoardApp(
     isDark: Boolean,
     onToggleTheme: () -> Unit,
     authToken: String?,
-    onSessionChange: (String?, Long) -> Unit
+    onSessionChange: (String?, Long, String?) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -160,6 +164,7 @@ fun ScoreBoardApp(
 
     var selectedSportId by remember { mutableStateOf("") }
     var selectedGender by remember { mutableStateOf("") }
+    var selectedOverallGender by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf("") }
 
     var showLogin by remember { mutableStateOf(false) }
@@ -167,6 +172,8 @@ fun ScoreBoardApp(
     var loginEmail by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf<String?>(null) }
+
+    var adminRole by remember { mutableStateOf(ApiRepository.adminRole) }
 
     var editingMatch by remember { mutableStateOf<MatchItem?>(null) }
     var scoreA by remember { mutableStateOf("") }
@@ -181,7 +188,7 @@ fun ScoreBoardApp(
             try {
                 val sportQ = selectedSportId.ifEmpty { null }
                 val genderQ = selectedGender.ifEmpty { null }
-                overall = ApiRepository.getOverallStandings()
+                overall = ApiRepository.getOverallStandings(selectedOverallGender.ifEmpty { null })
                 leaderboard = ApiRepository.getLeaderboard(sportQ, genderQ)
                 matches = ApiRepository.getMatches(sportQ, genderQ)
             } catch (e: ApiException) {
@@ -223,7 +230,9 @@ fun ScoreBoardApp(
             try {
                 val res = ApiRepository.login(loginEmail.trim(), loginPassword)
                 val expiresAt = System.currentTimeMillis() + (res.expiresIn * 1000)
-                onSessionChange(res.accessToken, expiresAt)
+                val role = res.user?.role
+                onSessionChange(res.accessToken, expiresAt, role)
+                adminRole = role
                 toast("Admin authenticated!")
                 showLogin = false
                 loginPassword = ""
@@ -239,7 +248,8 @@ fun ScoreBoardApp(
     }
 
     fun handleLogout() {
-        onSessionChange(null, 0)
+        onSessionChange(null, 0, null)
+        adminRole = null
         toast("Signed out.")
         if (activeTab == AppTab.ADMIN) activeTab = AppTab.OVERALL
     }
@@ -279,7 +289,7 @@ fun ScoreBoardApp(
         if (!baseLoaded) loadBase()
     }
 
-    LaunchedEffect(selectedSportId, selectedGender) {
+    LaunchedEffect(selectedSportId, selectedGender, selectedOverallGender) {
         loadPublic()
     }
 
@@ -338,6 +348,8 @@ fun ScoreBoardApp(
                 when (activeTab) {
                     AppTab.OVERALL -> OverallScreen(
                         standings = overall,
+                        selectedGender = selectedOverallGender,
+                        onSelectGender = { selectedOverallGender = it },
                         loading = publicLoading && overall.isEmpty(),
                         error = publicError,
                         onRetry = { loadPublic() },
@@ -379,6 +391,7 @@ fun ScoreBoardApp(
                         squads = squads,
                         players = players,
                         matches = matches,
+                        isSuperAdmin = adminRole == "superadmin",
                         onEditMatch = { editingMatch = it },
                         onRefresh = {
                             loadBase()
@@ -604,6 +617,8 @@ fun AppTabBar(
 @Composable
 fun OverallScreen(
     standings: List<HouseOverallStanding>,
+    selectedGender: String,
+    onSelectGender: (String) -> Unit,
     loading: Boolean,
     error: String?,
     onRetry: () -> Unit,
@@ -619,6 +634,24 @@ fun OverallScreen(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             PageHeader("Overall House Standings", "Season points across all sports — running after each completed match.")
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionLabel("GENDER")
+                    FilterChipRow(
+                        options = listOf("", "Girls", "Boys"),
+                        selected = selectedGender,
+                        onSelect = onSelectGender,
+                        labelOf = { value -> if (value.isEmpty()) "All" else value }
+                    )
+                }
+            }
         }
         when {
             loading -> item(span = { GridItemSpan(maxLineSpan) }) { SkeletonTable() }
@@ -642,77 +675,97 @@ fun OverallScreen(
 @Composable
 fun HouseHeroCard(standing: HouseOverallStanding) {
     val color = parseHexColor(standing.colorHex)
+    val isLeader = standing.rank == 1
+    val borderColor = if (isLeader) color.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(if (isLeader) 1.dp else 1.dp, borderColor)
     ) {
-        Row(Modifier.height(148.dp)) {
-            Box(Modifier.fillMaxHeight().width(4.dp).background(color))
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 14.dp, top = 14.dp, end = 12.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = color.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
                 ) {
                     Text(
-                        standing.houseName,
-                        fontSize = 17.sp,
+                        "RANK #${standing.rank}",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        "#${standing.rank}",
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = color,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
+                        letterSpacing = 0.6.sp,
+                        color = color
                     )
                 }
-                Column {
-                    SectionLabel("TOTAL POINTS")
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "${standing.totalPoints} PTS",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = color,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                        maxLines = 1
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    standing.houseName,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${standing.totalSquads} squad${if (standing.totalSquads != 1) "s" else ""} registered",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Surface(
+                    color = Color.Transparent,
+                    border = null
                 ) {
                     Column {
-                        SectionLabel("W-D-L")
+                        SectionLabel("TOTAL POINTS")
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            "${standing.totalWins}-${standing.totalDraws}-${standing.totalLosses}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        SectionLabel("SQUADS")
-                        Text(
-                            "${standing.totalSquads} squads",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.secondary,
+                            "${standing.totalPoints}",
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = color,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                             maxLines = 1
                         )
                     }
+                }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "${standing.totalWins}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WinGreen,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
+                    )
+                    Text(" - ", fontSize = 15.sp, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
+                    Text(
+                        "${standing.totalDraws}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
+                    )
+                    Text(" - ", fontSize = 15.sp, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
+                    Text(
+                        "${standing.totalLosses}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = LossRed,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
+                    )
                 }
             }
         }
@@ -735,14 +788,14 @@ fun OverallTable(standings: List<HouseOverallStanding>) {
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TableLabel("Rank", Modifier.width(40.dp))
+                    TableLabel("Rank", Modifier.width(52.dp))
                     TableLabel("House", Modifier.width(150.dp))
                     TableLabel("Squads", Modifier.width(56.dp), align = TextAlign.Center)
                     TableLabel("Played", Modifier.width(48.dp), align = TextAlign.Center)
-                    TableLabel("W", Modifier.width(40.dp), align = TextAlign.Center)
-                    TableLabel("D", Modifier.width(40.dp), align = TextAlign.Center)
-                    TableLabel("L", Modifier.width(40.dp), align = TextAlign.Center)
-                    TableLabel("Pts", Modifier.width(60.dp), align = TextAlign.Center)
+                    TableLabel("W", Modifier.width(38.dp), align = TextAlign.Center)
+                    TableLabel("D", Modifier.width(38.dp), align = TextAlign.Center)
+                    TableLabel("L", Modifier.width(38.dp), align = TextAlign.Center)
+                    TableLabel("Pts", Modifier.width(60.dp), align = TextAlign.End)
                 }
                 HorizontalRule()
                 standings.forEach { house ->
@@ -753,10 +806,24 @@ fun OverallTable(standings: List<HouseOverallStanding>) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val color = parseHexColor(house.colorHex)
-                        TableCell(house.rank.toString(), Modifier.width(40.dp), align = TextAlign.Center, number = true, color = MaterialTheme.colorScheme.tertiary)
+                        Box(
+                            Modifier
+                                .width(52.dp)
+                                .height(22.dp)
+                                .background(color, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "#${house.rank}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (color.luminance() > 0.5f) Color.Black else Color.White,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum")
+                            )
+                        }
                         Row(Modifier.width(150.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(8.dp).background(color, RoundedCornerShape(3.dp)))
-                            Spacer(Modifier.width(6.dp))
+                            Box(Modifier.size(9.dp).background(color, RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 house.houseName,
                                 fontSize = 13.sp,
@@ -768,10 +835,10 @@ fun OverallTable(standings: List<HouseOverallStanding>) {
                         }
                         TableCell(house.totalSquads.toString(), Modifier.width(56.dp), align = TextAlign.Center, number = true)
                         TableCell(house.matchesPlayed.toString(), Modifier.width(48.dp), align = TextAlign.Center, number = true)
-                        TableCell(house.totalWins.toString(), Modifier.width(40.dp), align = TextAlign.Center, number = true, color = WinGreen)
-                        TableCell(house.totalDraws.toString(), Modifier.width(40.dp), align = TextAlign.Center, number = true, color = MaterialTheme.colorScheme.secondary)
-                        TableCell(house.totalLosses.toString(), Modifier.width(40.dp), align = TextAlign.Center, number = true, color = LossRed)
-                        TableCell(house.totalPoints.toString(), Modifier.width(60.dp), align = TextAlign.Center, number = true, bold = true, color = color)
+                        TableCell(house.totalWins.toString(), Modifier.width(38.dp), align = TextAlign.Center, number = true, color = WinGreen, bold = true)
+                        TableCell(house.totalDraws.toString(), Modifier.width(38.dp), align = TextAlign.Center, number = true, color = MaterialTheme.colorScheme.tertiary)
+                        TableCell(house.totalLosses.toString(), Modifier.width(38.dp), align = TextAlign.Center, number = true, color = LossRed, bold = true)
+                        TableCell(house.totalPoints.toString(), Modifier.width(60.dp), align = TextAlign.End, number = true, bold = true, color = color)
                     }
                     HorizontalRule()
                 }

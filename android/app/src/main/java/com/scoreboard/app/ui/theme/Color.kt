@@ -2,24 +2,24 @@ package com.scoreboard.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// House colors — used on data elements only, matching the web app
-val KarnaliGreen = Color(0xFF10B981)
-val KoshiBlue = Color(0xFF0EA5E9)
-val MahakaliPurple = Color(0xFF8B5CF6)
-val MechiOrange = Color(0xFFF97316)
+// House colors — web design system (muted earthy data colors)
+val KarnaliGreen = Color(0xFFA16207)   // ochre
+val KoshiBlue = Color(0xFF5E7891)      // steel
+val MahakaliPurple = Color(0xFFA5534B) // clay
+val MechiOrange = Color(0xFF7B843F)    // olive
 
-// Outcome colors
-val WinGreen = Color(0xFF10B981)
+// Outcome colors (web)
+val WinGreen = Color(0xFFA16207)
 val LossRed = Color(0xFFF87171)
-val OutcomeAmber = Color(0xFFF59E0B)
+val OutcomeAmber = Color(0xFFD97706)
 
-// Badge palette (web)
-val SuccessBg = Color(0xFF052E16)
-val SuccessText = Color(0xFF34D399)
-val SuccessBorder = Color(0xFF064E3B)
-val PendingBg = Color(0xFF18181B)
-val PendingText = Color(0xFF71717A)
-val PendingBorder = Color(0xFF27272A)
+// Badge palette (web gray tones — FT & Scheduled both neutral)
+val SuccessBg = Color(0xFF161618)
+val SuccessText = Color(0xFFB4B4BD)
+val SuccessBorder = Color(0xFF2A2A30)
+val PendingBg = Color(0xFF161618)
+val PendingText = Color(0xFFA1A1AA)
+val PendingBorder = Color(0xFF2A2A30)
 
 // Error state (web)
 val ErrorBgDark = Color(0xFF1C0505)
