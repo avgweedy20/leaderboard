@@ -203,7 +203,7 @@ object ApiRepository {
         adminRole = role ?: adminRole
     }
 
-    fun logout() {
+    fun clearSession() {
         adminToken = null
         adminExpiresAtMillis = 0L
         adminRole = null

@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +94,7 @@ class MainActivity : ComponentActivity() {
                     authToken = authToken,
                     onSessionChange = { token, expiresAtMillis, role ->
                         if (token == null) {
-                            ApiRepository.logout()
+                            ApiRepository.clearSession()
                         } else {
                             ApiRepository.setSession(token, expiresAtMillis, role)
                         }
@@ -248,6 +249,12 @@ fun ScoreBoardApp(
     }
 
     fun handleLogout() {
+        scope.launch {
+            try {
+                ApiRepository.logout()
+            } catch (_: Exception) {
+            }
+        }
         onSessionChange(null, 0, null)
         adminRole = null
         toast("Signed out.")
