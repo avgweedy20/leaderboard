@@ -1,0 +1,15 @@
+/* ── React widget islands (bundled into widgets.bundle.js) ──────────────────
+   Overrides to make the vendored reactbits components match the DSS theme. */
+
+/* Footer TextType */
+#footerTextRoot {
+  display: inline-block;
+}
+#footerTextRoot .text-type {
+  white-space: pre;
+}
+#footerTextRoot .text-type__cursor {
+  color: var(--text);
+  font-weight: 700;
+  margin-left: 2px;
+}

@@ -7,23 +7,21 @@ Sports Meet 2083.{% endblock %}
 {% block content %}
 <section data-sport-slug="{{ sport_slug }}">
 
-    <div style="margin-bottom:24px;">
+    <div class="page-head">
+        <p class="eyebrow">Inter-House Sports Meet 2083</p>
         <h1>Per-Sport Standings</h1>
-        <p style="margin-top:6px; font-size:14px;">
-            Squad-level standings by sport and gender division.
-        </p>
+        <p class="lead"></p>
     </div>
 
-
-    <div
-        style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:16px; margin-bottom:24px; padding:16px; background-color:var(--bg-surface); border:1px solid var(--border); border-radius:12px;">
-        <div style="flex:1; min-width:240px;">
+    <div class="filter-panel" style="margin-bottom:24px;">
+        <div class="field">
             <label>Sport</label>
             <div id="sportChipGroup" class="chip-group" style="margin-top:4px;"></div>
         </div>
-        <div style="min-width:140px;">
+        <div class="field">
             <label for="filterGender">Gender</label>
-            <select id="filterGender" onchange="loadPerSportStandings()" style="width:100%; margin-top:4px;">
+            <select id="filterGender" class="table-filter-select" style="width:100%;"
+                onchange="loadPerSportStandings()">
                 <option value="">All Genders</option>
                 <option value="Boys">Boys</option>
                 <option value="Girls">Girls</option>

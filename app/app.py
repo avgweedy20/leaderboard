@@ -1,9 +1,12 @@
 ﻿import os
 import re
+import sys
 import uuid
 import time
 import hashlib
 import secrets
+import shutil
+import subprocess
 from functools import wraps
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template, send_from_directory
@@ -28,6 +31,13 @@ CORS(app, resources={r"/api/*": {"origins": _cors_origins}})
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mock.supabase.co")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "mock-service-key")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "mock-anon-key")
+
+SPEED_INSIGHTS_PATH = os.getenv("SPEED_INSIGHTS_PATH", "").strip()
+
+
+@app.context_processor
+def inject_speed_insights():
+    return {"speed_insights_path": SPEED_INSIGHTS_PATH}
 
 # Supabase client (None = Supabase not configured; unless every endpoint that
 # depends on it returns an explicit "Supabase not configured" 503 response, the
@@ -672,11 +682,11 @@ def add_security_headers(response):
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://va.vercel-scripts.com; "
-        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
-        "img-src 'self' data:; font-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
+        "img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; "
         "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; "
-        "connect-src 'self' https://va.vercel-scripts.com",
+        "connect-src 'self'",
     )
     if request.is_secure:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -1121,9 +1131,26 @@ def delete_match(match_id):
 # OVERALL HOUSE STANDINGS API
 @app.route("/api/leaderboard/overall", methods=["GET"])
 def get_house_overall_standings():
+    gender = request.args.get("gender")
     if supabase_client:
         try:
-            res = _service_client().table("house_overall_standings").select("*").execute()
+            if gender in ("Boys", "Girls"):
+                res = (
+                    _service_client()
+                    .table("house_gender_overall_standings")
+                    .select("*")
+                    .eq("gender", gender)
+                    .order("rank")
+                    .execute()
+                )
+            else:
+                res = (
+                    _service_client()
+                    .table("house_overall_standings")
+                    .select("*")
+                    .order("rank")
+                    .execute()
+                )
             return jsonify(res.data)
         except Exception as e:
             return jsonify({"error": _internal_error(e)}), 500
@@ -1175,11 +1202,60 @@ def get_version_info():
     })
 
 
+# ─── REACT WIDGETS AUTO-BUILD ──────────────────────────────────────────────
+# The reactbits TextType footer widget lives in react-widgets/ and is compiled
+# by esbuild to app/static/js/widgets.bundle.js. On Vercel the pyproject.toml
+# build script runs this before packaging, so the bundle already exists at
+# deploy time. Locally we build on demand at startup so `python app/app.py`
+# just works without a manual `npm run build`.
+
+def _run_npm(widgets_dir, args, timeout=600):
+    npm = shutil.which("npm") or "npm"
+    if os.name == "nt":
+        cmd = ["cmd", "/c", npm] + list(args)
+    else:
+        cmd = [npm] + list(args)
+    subprocess.run(
+        cmd,
+        cwd=widgets_dir,
+        check=True,
+        timeout=timeout,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _ensure_widgets_bundle():
+    """Build the React widgets bundle if it is missing and Node is available."""
+    bundle = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "js", "widgets.bundle.js")
+    if os.path.exists(bundle):
+        return
+    if os.getenv("SKIP_WIDGET_BUILD", "").strip().lower() in ("1", "true", "yes", "on"):
+        print("[widgets] SKIP_WIDGET_BUILD set - skipping react widgets build.")
+        return
+    if not shutil.which("node"):
+        print("[widgets] node not found - skipping react widgets build (vanilla fallback active).")
+        return
+    widgets_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "react-widgets"))
+    if not os.path.isdir(widgets_dir):
+        print("[widgets] react-widgets/ not found - skipping react widgets build.")
+        return
+    print("[widgets] widgets.bundle.js missing - building react widgets with node...")
+    try:
+        if not os.path.isdir(os.path.join(widgets_dir, "node_modules")):
+            _run_npm(widgets_dir, ["install", "--no-audit", "--no-fund"])
+        _run_npm(widgets_dir, ["run", "build"])
+        print(f"[widgets] react widgets built: {bundle}")
+    except Exception as e:
+        print(f"[widgets] react widgets build failed ({e}): vanilla fallback active.")
+
+
 if __name__ == "__main__":
+    _ensure_widgets_bundle()
     _host = os.getenv("HOST", "0.0.0.0")
     _port = int(os.getenv("PORT", "5000"))
     _debug = os.getenv("FLASK_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
     if _debug and _host in ("0.0.0.0", "::", "::1", ""):
         print("WARNING: FLASK_DEBUG is enabled on a public bind address. The Werkzeug "
-              "debugger allows remote code execution â€” never enable it in production.")
+              "debugger allows remote code execution - never enable it in production.")
     app.run(host=_host, port=_port, debug=_debug, use_reloader=False)

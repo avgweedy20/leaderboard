@@ -1,0 +1,21 @@
+{
+  "name": "dss-react-widgets",
+  "private": true,
+  "version": "1.0.0",
+  "description": "React island widgets (TextType footer) for the DSS Flask frontend.",
+  "scripts": {
+    "build": "esbuild src/widgets.jsx --bundle --minify --jsx=automatic --jsx-import-source=react --target=es2019 --loader:.css=text --outfile=../app/static/js/widgets.bundle.js",
+    "watch": "esbuild src/widgets.jsx --bundle --minify --jsx=automatic --jsx-import-source=react --target=es2019 --loader:.css=text --outfile=../app/static/js/widgets.bundle.js --watch"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "allowScripts": {
+    "esbuild@0.24.2": true
+  }
+}

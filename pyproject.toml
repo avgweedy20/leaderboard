@@ -1,0 +1,18 @@
+[project]
+name = "dss-league-games"
+version = "1.0.0"
+description = "DSS Inter-House Sports Meet live leaderboard (Flask backend + reactbits widget islands)."
+requires-python = ">=3.12"
+
+# Vercel zero-config Flask deployment.
+#   - entrypoint: where to find the WSGI `app` instance (app/app.py).
+#   - [tool.vercel.scripts].build runs AFTER Python deps are installed and
+#     BEFORE the function is packaged, so the Node/esbuild widgets bundle is
+#     compiled into app/static/js/widgets.bundle.js at deploy time.
+# Note: do NOT add a legacy "builds" array to vercel.json - Vercel ignores the
+# build/install scripts when a "builds" array exists.
+[tool.vercel]
+entrypoint = "app.app:app"
+
+[tool.vercel.scripts]
+build = "cd react-widgets && npm install --no-audit --no-fund && npm run build"

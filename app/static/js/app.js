@@ -1,14 +1,6 @@
-/**
- * DSS Sports — Inter-House Sports Meet
- * Main application logic
- *
- * Implements:
- *  1. Reusable Toast Notification System (replacing all alerts)
- *  2. JWT Session Expiry: 6-hour duration, proactive expiry checks, auto-logout on expiry/401
- *  3. Fixture Score Editing: reliable modal pre-population, score update, and instant live UI refresh
- */
 
-// ─── GLOBALS ───────────────────────────────────────────────────────────────
+
+
 let currentToken = localStorage.getItem('sb_auth_token') || null;
 let currentAdminRole = null;
 let sportsData = [];
@@ -19,9 +11,9 @@ let matchesData = [];
 let selectedSportId = '';
 let pendingCsvPlayers = [];
 
-// ─── TOKEN FORGE DEFENSE ───────────────────────────────────────────────────
-// The old hardcoded 'mock-admin-token' bypass no longer exists on the server.
-// If anything still tries to plant it in localStorage, refuse and show our face.
+
+
+
 (function () {
     const originalSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -33,18 +25,18 @@ let pendingCsvPlayers = [];
     };
 })();
 
-// Session duration: 6 hours (in milliseconds)
-const SESSION_DURATION_MS = 6 * 60 * 60 * 1000; // 21,600,000 ms
 
-// House color map (keyed by lowercase house name, used as fallback)
+const SESSION_DURATION_MS = 6 * 60 * 60 * 1000;
+
+
 const HOUSE_COLORS = {
-    karnali: '#10B981',
-    koshi: '#0EA5E9',
-    mahakali: '#8B5CF6',
-    mechi: '#F97316'
+    karnali: '#A16207',
+    koshi: '#5E7891',
+    mahakali: '#A5534B',
+    mechi: '#7B843F'
 };
 
-// ─── INIT ──────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkAuthUI();
@@ -54,13 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initFooterTypewriter();
 });
 
-// ─── TOAST NOTIFICATION SYSTEM ─────────────────────────────────────────────
-/**
- * Show a toast notification
- * @param {string} message - Toast text
- * @param {'success'|'error'|'info'} type - Type of toast
- * @param {Object} [options] - Options { title, duration, action: { label, onClick } }
- */
+
+
 function showToast(message, type = 'info', options = {}) {
     let container = document.getElementById('toastContainer');
     if (!container) {
@@ -94,11 +81,11 @@ function showToast(message, type = 'info', options = {}) {
         <button type="button" class="toast-close" aria-label="Dismiss">&times;</button>
     `;
 
-    // Close button
+
     const closeBtn = toast.querySelector('.toast-close');
     closeBtn.onclick = () => dismissToast(toast);
 
-    // Action button
+
     if (options.action && options.action.onClick) {
         const actionBtn = toast.querySelector('#toast-action-btn');
         if (actionBtn) {
@@ -111,7 +98,7 @@ function showToast(message, type = 'info', options = {}) {
 
     container.appendChild(toast);
 
-    // Auto-dismiss timing (errors stay slightly longer)
+
     const duration = options.duration || (type === 'error' ? 6000 : 4000);
     const timer = setTimeout(() => {
         dismissToast(toast);
@@ -140,28 +127,20 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-/** JS-string + HTML-attribute safe encoding for values embedded inside an
- *  inline `onclick="fn('...')"` handler. Escape order matters: backslash and
- *  single-quote are escaped for the JS layer FIRST, then HTML-escaped; the
- *  browser decodes entities before the JS engine runs, so `\'` survives and
- *  no quote breakout is possible. Newlines are collapsed (attribute-hostile). */
+
 function jsStrLiteral(str) {
     if (str === null || str === undefined) return '';
     return escapeHtml(String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' '));
 }
 
-/** CSS-safe hex color. Accepts only `#rgb`, `#rrggbb`, `#rgba`, `#rrggbbaa`
- *  shapes (with or without `#`); anything else returns '' so callers can
- *  fall back. Blocks CSS/HTML injection through color_hex-like values. */
+
 function cssColor(str) {
     const s = String(str || '').trim();
     return /^#?[0-9a-fA-F]{3,8}$/.test(s) ? s : '';
 }
 
-// ─── JWT / SESSION EXPIRY MANAGEMENT ───────────────────────────────────────
-/**
- * Parse expiration time from JWT token string if possible
- */
+
+
 function parseJwtExp(token) {
     if (!token || typeof token !== 'string') return null;
     try {
@@ -169,19 +148,17 @@ function parseJwtExp(token) {
         if (parts.length !== 3) return null;
         const payload = JSON.parse(atob(parts[1]));
         if (payload && payload.exp) {
-            return payload.exp * 1000; // in milliseconds
+            return payload.exp * 1000;
         }
-    } catch (e) { /* not a standard JWT or decoding failed */ }
+    } catch (e) { }
     return null;
 }
 
-/**
- * Returns true if the stored auth token is expired or invalid
- */
+
 function isTokenExpired() {
     if (!currentToken) return true;
 
-    // Check explicit expires_at timestamp stored at login
+
     const storedExpiry = localStorage.getItem('sb_auth_expires_at');
     if (storedExpiry) {
         const expiryTime = parseInt(storedExpiry, 10);
@@ -190,7 +167,7 @@ function isTokenExpired() {
         }
     }
 
-    // Check JWT payload exp claim if present
+
     const jwtExp = parseJwtExp(currentToken);
     if (jwtExp && Date.now() >= jwtExp) {
         return true;
@@ -199,25 +176,23 @@ function isTokenExpired() {
     return false;
 }
 
-/**
- * Log out and clear session when token expires
- */
+
 function handleSessionExpired() {
     if (!currentToken) return;
 
-    serverLogout(); // best-effort server-side token revocation
+    serverLogout();
     currentToken = null;
     currentAdminRole = null;
     localStorage.removeItem('sb_auth_token');
     localStorage.removeItem('sb_auth_expires_at');
     checkAuthUI();
 
-    showToast('Your session expired — please sign in again.', 'info', {
+    showToast('Your session expired - please sign in again.', 'info', {
         title: 'Session Expired',
         duration: 7000
     });
 
-    // If currently on an admin page, redirect home
+
     if (window.location.pathname.startsWith('/admin')) {
         setTimeout(() => {
             window.location.href = '/';
@@ -225,9 +200,7 @@ function handleSessionExpired() {
     }
 }
 
-/**
- * Best-effort server-side session revocation.
- */
+
 async function serverLogout() {
     if (!currentToken) return;
     try {
@@ -235,14 +208,10 @@ async function serverLogout() {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
-    } catch (e) { /* best-effort */ }
+    } catch (e) { }
 }
 
-/**
- * Validate a locally stored token against the server on load. A locally
- * forged or revoked token is rejected immediately instead of at the first
- * admin API call.
- */
+
 async function validateSession() {
     if (!currentToken || isTokenExpired()) return;
     try {
@@ -256,13 +225,10 @@ async function validateSession() {
         const me = await res.json().catch(() => ({}));
         currentAdminRole = me.role || 'admin';
         applyAdminRoleUI();
-    } catch (e) { /* transient network error — next authenticated call enforces */ }
+    } catch (e) { }
 }
 
-/**
- * True when the current session belongs to a super admin. Returns a promise so
- * callers can await the role before deciding whether to render super-admin UI.
- */
+
 async function ensureAdminRole() {
     if (!currentToken) return null;
     if (currentAdminRole) return currentAdminRole;
@@ -272,15 +238,12 @@ async function ensureAdminRole() {
             const me = await res.json();
             currentAdminRole = me.role || 'admin';
         }
-    } catch (e) { /* keep previous value */ }
+    } catch (e) { }
     applyAdminRoleUI();
     return currentAdminRole;
 }
 
-/**
- * Show/hide super-admin-only sections and the current admin's role badge.
- * Sections carrying data-superadmin-only are hidden for plain admins.
- */
+
 function applyAdminRoleUI() {
     const allowed = currentAdminRole === 'superadmin';
     document.querySelectorAll('[data-superadmin-only]').forEach(el => {
@@ -294,23 +257,21 @@ function applyAdminRoleUI() {
     });
 }
 
-/**
- * Periodic session expiration checker (runs every 10s & on window focus)
- */
+
 function startSessionExpiryChecker() {
-    // Immediate check on load
+
     if (currentToken && isTokenExpired()) {
         handleSessionExpired();
     }
 
-    // Interval check
+
     setInterval(() => {
         if (currentToken && isTokenExpired()) {
             handleSessionExpired();
         }
     }, 10000);
 
-    // Re-check on tab visibility change / focus
+
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && currentToken && isTokenExpired()) {
             handleSessionExpired();
@@ -323,9 +284,7 @@ function startSessionExpiryChecker() {
     });
 }
 
-/**
- * Authenticated API fetch wrapper — handles Bearer header and 401 auto-logout
- */
+
 async function fetchWithAuth(url, options = {}) {
     if (currentToken && isTokenExpired()) {
         handleSessionExpired();
@@ -341,13 +300,13 @@ async function fetchWithAuth(url, options = {}) {
 
     if (res.status === 401) {
         handleSessionExpired();
-        throw new Error('Unauthorized — session expired');
+        throw new Error('Unauthorized - session expired');
     }
 
     return res;
 }
 
-// ─── HEALTH CHECK ──────────────────────────────────────────────────────────
+
 async function checkDbHealth() {
     const badge = document.getElementById('dbModeBadge');
     if (!badge) return;
@@ -363,7 +322,7 @@ async function checkDbHealth() {
     }
 }
 
-// ─── THEME ─────────────────────────────────────────────────────────────────
+
 function initTheme() {
     const saved = localStorage.getItem('sb_theme') || 'dark';
     applyTheme(saved);
@@ -381,7 +340,7 @@ function applyTheme(theme) {
     if (icon) icon.innerHTML = `<use href="#icon-${theme === 'dark' ? 'moon' : 'sun'}"/>`;
 }
 
-// ─── AUTH UI ───────────────────────────────────────────────────────────────
+
 function checkAuthUI() {
     const authBtnText = document.getElementById('authBtnText');
     const authIcon = document.getElementById('authIcon');
@@ -405,11 +364,11 @@ function checkAuthUI() {
     }
 }
 
-// ─── LOADING STATES ────────────────────────────────────────────────────────
+
 
 let _busyCount = 0;
 
-/** Toggle a loading state on a form submit button (spinner + busy label). */
+
 function setButtonLoading(btn, loading, label) {
     if (!btn) return;
     if (loading) {
@@ -425,7 +384,7 @@ function setButtonLoading(btn, loading, label) {
     }
 }
 
-/** Show a blocking overlay spinner (reference counted, pairs with hideBusy). */
+
 function showBusy(label = 'Working…') {
     _busyCount++;
     const overlay = document.getElementById('globalBusyOverlay');
@@ -448,10 +407,10 @@ function hideBusy() {
     }
 }
 
-// ─── AUTH / LOGIN ─────────────────────────────────────────────────────────
+
 function openLoginModal() {
     if (currentToken && !isTokenExpired()) {
-        serverLogout(); // best-effort server-side token revocation
+        serverLogout();
         currentToken = null;
         localStorage.removeItem('sb_auth_token');
         localStorage.removeItem('sb_auth_expires_at');
@@ -483,7 +442,7 @@ async function handleLogin(e) {
             currentAdminRole = (data.user && data.user.role) || 'admin';
             localStorage.setItem('sb_auth_token', currentToken);
 
-            // Compute 6-hour expiry (21,600 seconds)
+
             const expiresInSec = data.expires_in || 21600;
             const expiresAtMs = Date.now() + (expiresInSec * 1000);
             localStorage.setItem('sb_auth_expires_at', String(expiresAtMs));
@@ -502,7 +461,7 @@ async function handleLogin(e) {
     }
 }
 
-// ─── MODALS ────────────────────────────────────────────────────────────────
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('hidden');
@@ -513,14 +472,14 @@ function closeModal(id) {
     if (el) el.classList.add('hidden');
 }
 
-// Close modal when clicking overlay backdrop
+
 document.addEventListener('click', e => {
     if (e.target.classList.contains('modal-overlay')) {
         e.target.classList.add('hidden');
     }
 });
 
-// ─── MOBILE NAV (HAMBURGER) ────────────────────────────────────────────────
+
 function toggleMobileNav() {
     const nav = document.getElementById('mobileNav');
     const btn = document.getElementById('navToggleBtn');
@@ -539,7 +498,7 @@ function closeMobileNav() {
     btn.setAttribute('aria-expanded', 'false');
 }
 
-// Close on selecting an item or tapping outside (only matters below breakpoint)
+
 document.addEventListener('click', e => {
     const nav = document.getElementById('mobileNav');
     const btn = document.getElementById('navToggleBtn');
@@ -552,55 +511,25 @@ document.addEventListener('click', e => {
     if (!nav.classList.contains('hidden')) closeMobileNav();
 });
 
-// ─── FOOTER TYPEWRITER ─────────────────────────────────────────────────────
+
 function initFooterTypewriter() {
     const el = document.getElementById('footerType');
     if (!el) return;
 
-    const variants = [
-        'Made by Samir Ghimire',
-        'Made by STEM Club President'
-    ];
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) {
-        el.textContent = variants[0];
-        return;
+    if (window.DSSWidgets && window.DSSWidgets.ready) return;
+    if (window.DSSEffects && typeof window.DSSEffects.textType === 'function') {
+        window.DSSEffects.textType(el, {
+            text: ['Made by Samir Ghimire', 'Made by STEM Club President'],
+            typingSpeed: 55,
+            deletingSpeed: 28,
+            pauseDuration: 1400,
+            variableSpeed: { min: 35, max: 85 },
+            showCursor: true
+        });
     }
-
-    let variant = 0, charIndex = 0, deleting = false;
-    const typeSpeed = 55, deleteSpeed = 28, holdTime = 1400;
-
-    function tick() {
-        const text = variants[variant];
-        if (!deleting) {
-            charIndex++;
-            el.textContent = text.slice(0, charIndex);
-            if (charIndex === text.length) {
-                deleting = true;
-                el.classList.add('typing-done');
-                setTimeout(tick, holdTime);
-                return;
-            }
-            setTimeout(tick, typeSpeed);
-        } else {
-            charIndex--;
-            el.textContent = text.slice(0, charIndex);
-            if (charIndex === 0) {
-                deleting = false;
-                el.classList.remove('typing-done');
-                variant = (variant + 1) % variants.length;
-                setTimeout(tick, 300);
-                return;
-            }
-            setTimeout(tick, deleteSpeed);
-        }
-    }
-
-    setTimeout(tick, 400);
 }
 
-// ─── DATA FETCHERS ─────────────────────────────────────────────────────────
+
 async function fetchHouses() {
     try {
         const res = await fetch('/api/houses');
@@ -636,7 +565,7 @@ async function fetchMatches() {
     } catch (e) { console.error('fetchMatches:', e); }
 }
 
-// ─── SPORT FILTER CHIPS (standings page) ───────────────────────────────────
+
 function renderSportFilterChips() {
     const group = document.getElementById('sportChipGroup');
     if (!group) return;
@@ -663,58 +592,77 @@ function selectSportChip(sportId, sportSlug) {
     loadPerSportStandings();
 }
 
-// ─── PAGE LOADERS ──────────────────────────────────────────────────────────
+
 function loadHouseOverallStandingsPage() { loadHouseOverallStandings(); }
 function loadPerSportStandingsPage() { loadPerSportStandings(); }
-function loadFixturesPage() { /* fixtures.html manages its own state via loadAllFixtures() */ }
+function loadFixturesPage() { }
 function loadAdminCenterPage() {
     applyAdminRoleUI();
     loadAdminCenterData();
 }
 
-// ─── 1. OVERALL HOUSE STANDINGS ────────────────────────────────────────────
+
+let overallGender = '';
+
+function filterOverallGender(gender, btn) {
+    overallGender = gender;
+    document.querySelectorAll('#overallGenderChips .chip').forEach(c => c.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    loadHouseOverallStandings();
+}
+
 async function loadHouseOverallStandings() {
     const heroEl = document.getElementById('houseHeroContainer');
     const tableEl = document.getElementById('houseTableContainer');
 
-    try {
-        const res = await fetch('/api/leaderboard/overall');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const standings = await res.json();
+    const urls = {
+        all: '/api/leaderboard/overall',
+        girls: '/api/leaderboard/overall?gender=Girls',
+        boys: '/api/leaderboard/overall?gender=Boys',
+    };
 
-        // ── Hero Cards ──
+    try {
+        const results = await Promise.all(Object.entries(urls).map(async ([key, url]) => {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            return [key, Array.isArray(data) ? data : []];
+        }));
+        const byKey = Object.fromEntries(results);
+
+        const standings = overallGender === 'Girls' ? byKey.girls
+            : overallGender === 'Boys' ? byKey.boys
+                : byKey.all;
+
         if (!standings || standings.length === 0) {
             heroEl.innerHTML = renderSharedEmptyState('No standings data yet.', '');
         } else {
             heroEl.innerHTML = standings.map(h => {
-                const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
+                const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#A16207';
                 return `
-                <div class="house-hero-card fade-in" style="border-left-color:${color};">
-                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
-                        <div style="min-width:0;">
-                            <div class="house-name">${escapeHtml(h.house_name)}</div>
-                            <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px;">
-                                ${h.total_squads} squad${h.total_squads !== 1 ? 's' : ''}
-                            </div>
-                        </div>
-                        <span class="rank-number" style="color:${color}; flex-shrink:0;">#${h.rank}</span>
+                <div class="house-hero-card tilt reveal ${h.rank === 1 ? 'is-leader' : ''}"
+                     style="--accent:${color}; --d:${(h.rank - 1) * 70}ms;">
+                    <div>
+                        <span class="hero-medal">Rank #${h.rank}</span>
+                        <div class="house-name" style="margin-top:8px;">${escapeHtml(h.house_name)}</div>
+                        <div class="hero-sub">${h.total_squads} squad${h.total_squads !== 1 ? 's' : ''} registered</div>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end;
-                                padding-top:12px; border-top:1px solid var(--border);">
+                    <div class="hero-stats">
                         <div>
                             <div class="stat-label">Total Points</div>
-                            <div class="stat-value" style="color:${color};">${h.total_points}</div>
+                            <div class="stat-value" data-tick="${h.total_points}">0</div>
                         </div>
                         <div style="text-align:right;">
-                            <div class="stat-label">W &ndash; D &ndash; L</div>
-                            <div class="stat-value-sm tabular">${h.total_wins}&ndash;${h.total_draws}&ndash;${h.total_losses}</div>
+                            <div class="stat-value-sm tabular">
+                                <span class="wl-good">${h.total_wins}</span><span style="color:var(--text-tertiary);">&nbsp;-&nbsp;</span><span class="wl-mid">${h.total_draws}</span><span style="color:var(--text-tertiary);">&nbsp;-&nbsp;</span><span class="wl-bad">${h.total_losses}</span>
+                            </div>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        // ── Table ──
+
         if (!standings || standings.length === 0) {
             tableEl.innerHTML = renderSharedEmptyState('No data.', '');
             return;
@@ -725,7 +673,7 @@ async function loadHouseOverallStandings() {
             <table>
                 <thead>
                     <tr>
-                        <th style="width:56px;">Rank</th>
+                        <th style="width:64px;">Rank</th>
                         <th>House</th>
                         <th>Squads</th>
                         <th>Played</th>
@@ -737,21 +685,23 @@ async function loadHouseOverallStandings() {
                 </thead>
                 <tbody>
                     ${standings.map(h => {
-            const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#10B981';
+            const color = cssColor(h.color_hex) || HOUSE_COLORS[h.house_name.toLowerCase()] || '#A16207';
             return `
-                        <tr style="border-left:3px solid ${color};">
-                            <td style="font-weight:700; color:${color};">#${h.rank}</td>
+                        <tr class="trow" style="--d:${(h.rank - 1) * 60}ms;">
                             <td>
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <div style="width:8px; height:8px; border-radius:2px; background-color:${color}; flex-shrink:0;"></div>
-                                    <span style="font-weight:700;">${escapeHtml(h.house_name)}</span>
+                                <span class="rank-pill" style="background:${color};">#${h.rank}</span>
+                            </td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:9px; height:9px; border-radius:3px; background:${color}; flex-shrink:0;"></div>
+                                    <span style="font-family:var(--font-display); font-weight:620;">${escapeHtml(h.house_name)}</span>
                                 </div>
                             </td>
                             <td class="tabular">${h.total_squads}</td>
                             <td class="tabular">${h.matches_played}</td>
-                            <td class="tabular" style="color:var(--c-karnali);">${h.total_wins}</td>
-                            <td class="tabular" style="color:var(--text-secondary);">${h.total_draws}</td>
-                            <td class="tabular" style="color:#F87171;">${h.total_losses}</td>
+                            <td class="tabular" style="color:var(--c-karnali); font-weight:600;">${h.total_wins}</td>
+                            <td class="tabular" style="color:var(--text-tertiary);">${h.total_draws}</td>
+                            <td class="tabular" style="color:#F87171; font-weight:600;">${h.total_losses}</td>
                             <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${h.total_points}</td>
                         </tr>`;
         }).join('')}
@@ -765,12 +715,12 @@ async function loadHouseOverallStandings() {
     }
 }
 
-// ─── 2. PER-SPORT STANDINGS ────────────────────────────────────────────────
+
 async function loadPerSportStandings() {
     const container = document.getElementById('perSportStandingsContainer');
     if (!container) return;
 
-    // Show skeleton while loading (mirrors the per-sport tables container)
+
     container.innerHTML = `
     <div class="skeleton-table sk" aria-hidden="true">
         <div class="skeleton-table-header">
@@ -822,7 +772,7 @@ async function loadPerSportStandings() {
             <table>
                 <thead>
                     <tr>
-                        <th style="width:48px;">Rank</th>
+                        <th style="width:56px;">Rank</th>
                         <th>Squad</th>
                         <th>House</th>
                         <th>Sport</th>
@@ -836,26 +786,28 @@ async function loadPerSportStandings() {
                     </tr>
                 </thead>
                 <tbody>
-                    ${standings.map(s => {
-            const color = cssColor(s.house_color) || HOUSE_COLORS[(s.house_name || '').toLowerCase()] || '#10B981';
+                    ${standings.map((s, i) => {
+            const color = cssColor(s.house_color) || HOUSE_COLORS[(s.house_name || '').toLowerCase()] || '#A16207';
             const sign = s.score_difference > 0 ? '+' : '';
             const squadLabel = s.squad_label ? ` ${s.squad_label}` : '';
             return `
-                        <tr style="border-left:3px solid ${color};">
-                            <td style="font-weight:700;">#${s.rank}</td>
-                            <td style="font-weight:700;">${escapeHtml(s.team_name)}</td>
+                        <tr class="trow" style="--d:${i * 45}ms;">
                             <td>
-                                <div style="display:flex; align-items:center; gap:6px;">
-                                    <div style="width:6px; height:6px; border-radius:2px; background-color:${color}; flex-shrink:0;"></div>
-                                    <span style="color:${color}; font-weight:700;">${escapeHtml(s.house_name)}${escapeHtml(squadLabel)}</span>
+                                <span class="rank-pill" style="background:${color};">#${s.rank}</span>
+                            </td>
+                            <td style="font-family:var(--font-display); font-weight:620;">${escapeHtml(s.team_name)}</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="width:8px; height:8px; border-radius:3px; background:${color}; flex-shrink:0;"></span>
+                                    <span style="color:${color}; font-weight:620;">${escapeHtml(s.house_name)}${escapeHtml(squadLabel)}</span>
                                 </div>
                             </td>
-                            <td style="color:var(--text-secondary);">${escapeHtml(s.sport_name)}</td>
-                            <td style="color:var(--text-secondary);">${escapeHtml(s.gender)}</td>
+                            <td style="color:var(--text-secondary); font-size:0.82rem;">${escapeHtml(s.sport_name)}</td>
+                            <td style="color:var(--text-secondary); font-size:0.82rem;">${escapeHtml(s.gender)}</td>
                             <td class="tabular">${s.played}</td>
-                            <td class="tabular" style="color:var(--c-karnali);">${s.wins}</td>
-                            <td class="tabular" style="color:var(--text-secondary);">${s.draws}</td>
-                            <td class="tabular" style="color:#F87171;">${s.losses}</td>
+                            <td class="tabular" style="color:var(--c-karnali); font-weight:600;">${s.wins}</td>
+                            <td class="tabular" style="color:var(--text-tertiary);">${s.draws}</td>
+                            <td class="tabular" style="color:#F87171; font-weight:600;">${s.losses}</td>
                             <td class="tabular" style="color:var(--text-secondary);">${sign}${s.score_difference}</td>
                             <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${s.points}</td>
                         </tr>`;
@@ -869,7 +821,7 @@ async function loadPerSportStandings() {
     }
 }
 
-// ─── 3. ADMIN CENTER ───────────────────────────────────────────────────────
+
 async function loadAdminCenterData() {
     await fetchSports();
     await fetchHouses();
@@ -889,7 +841,7 @@ async function loadAdminCenterData() {
     }
 }
 
-// ─── ADMIN TABLE STATE ─────────────────────────────────────────────────────
+
 const adminSquadsState = {
     sortCol: 'name',
     sortDir: 'asc',
@@ -936,7 +888,7 @@ function getSortIcon(currentCol, targetCol, currentDir) {
     return `<span class="sort-indicator active"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></span>`;
 }
 
-// ─── 1. SQUADS TABLE (SORTABLE, FILTERABLE, PAGINATED) ─────────────────────
+
 function renderAdminSquadsTable() {
     const container = document.getElementById('adminSquadsList');
     const badge = document.getElementById('squadCountBadge');
@@ -948,7 +900,7 @@ function renderAdminSquadsTable() {
         return;
     }
 
-    // Apply combined filters
+
     let list = [...squadsData];
     if (adminSquadsState.search) {
         const q = adminSquadsState.search.toLowerCase();
@@ -968,7 +920,7 @@ function renderAdminSquadsTable() {
         list = list.filter(s => s.gender === adminSquadsState.genderFilter);
     }
 
-    // Sorting
+
     list.sort((a, b) => {
         let vA = '', vB = '';
         if (adminSquadsState.sortCol === 'name') {
@@ -989,7 +941,7 @@ function renderAdminSquadsTable() {
         return 0;
     });
 
-    // Pagination
+
     const totalItems = list.length;
     const pageSize = adminSquadsState.pageSize === 'all' ? totalItems : parseInt(adminSquadsState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
@@ -997,12 +949,12 @@ function renderAdminSquadsTable() {
     const startIdx = (adminSquadsState.page - 1) * pageSize;
     const pageItems = adminSquadsState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
-    // Build House filter options
+
     const houseOptions = housesData.map(h =>
         `<option value="${h.id}" ${adminSquadsState.houseFilter === h.id ? 'selected' : ''}>${escapeHtml(h.name)}</option>`
     ).join('');
 
-    // Build Sport filter options
+
     const sportOptions = sportsData.map(s =>
         `<option value="${s.id}" ${adminSquadsState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
@@ -1050,7 +1002,7 @@ function renderAdminSquadsTable() {
                 ${pageItems.map(s => {
         const hName = (s.houses || {}).name || getHouseName(s.house_id);
         const sName = (s.sports || {}).name || getSportName(s.sport_id);
-        const color = cssColor((s.houses || {}).color_hex) || HOUSE_COLORS[(hName || '').toLowerCase()] || '#10B981';
+        const color = cssColor((s.houses || {}).color_hex) || HOUSE_COLORS[(hName || '').toLowerCase()] || '#A16207';
         return `
                     <tr style="border-left:3px solid ${color};">
                         <td style="font-weight:700;">${escapeHtml(s.name)}</td>
@@ -1075,7 +1027,7 @@ function renderAdminSquadsTable() {
     <!-- Pagination -->
     <div class="pagination-bar">
         <div>
-            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
         </div>
         <div class="pagination-nav">
             <button class="pagination-btn" ${adminSquadsState.page <= 1 ? 'disabled' : ''} onclick="adminSquadsState.page--; renderAdminSquadsTable();">Prev</button>
@@ -1100,7 +1052,7 @@ function toggleSquadsSort(col) {
     renderAdminSquadsTable();
 }
 
-// ─── 2. PLAYERS TABLE (SORTABLE, FILTERABLE, PAGINATED, BULK DELETION) ─────
+
 function renderAdminPlayersTable() {
     const container = document.getElementById('adminPlayersList');
     const badge = document.getElementById('playerCountBadge');
@@ -1112,7 +1064,7 @@ function renderAdminPlayersTable() {
         return;
     }
 
-    // Apply combined filters
+
     let list = [...playersData];
     if (adminPlayersState.search) {
         const q = adminPlayersState.search.toLowerCase();
@@ -1143,7 +1095,7 @@ function renderAdminPlayersTable() {
         list = list.filter(p => p.gender === adminPlayersState.genderFilter);
     }
 
-    // Sorting
+
     list.sort((a, b) => {
         let vA = '', vB = '';
         if (adminPlayersState.sortCol === 'name') {
@@ -1165,7 +1117,7 @@ function renderAdminPlayersTable() {
         return 0;
     });
 
-    // Pagination
+
     const totalItems = list.length;
     const pageSize = adminPlayersState.pageSize === 'all' ? totalItems : parseInt(adminPlayersState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
@@ -1173,18 +1125,18 @@ function renderAdminPlayersTable() {
     const startIdx = (adminPlayersState.page - 1) * pageSize;
     const pageItems = adminPlayersState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
-    // Build unique Grades for filter
+
     const grades = Array.from(new Set(playersData.map(p => String(p.grade || '')).filter(Boolean))).sort();
     const gradeOptions = grades.map(g =>
         `<option value="${g}" ${adminPlayersState.gradeFilter === g ? 'selected' : ''}>Grade ${g}</option>`
     ).join('');
 
-    // Build House filter options
+
     const houseOptions = housesData.map(h =>
         `<option value="${h.id}" ${adminPlayersState.houseFilter === h.id ? 'selected' : ''}>${escapeHtml(h.name)}</option>`
     ).join('');
 
-    // Build Sport filter options
+
     const sportOptions = sportsData.map(s =>
         `<option value="${s.id}" ${adminPlayersState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
@@ -1259,10 +1211,10 @@ function renderAdminPlayersTable() {
                         <td style="text-align:center;">
                             <input type="checkbox" class="player-select" data-player-id="${jsStrLiteral(p.id)}" ${isSelected ? 'checked' : ''} onchange="toggleSelectPlayer('${jsStrLiteral(p.id)}', this.checked)">
                         </td>
-                        <td style="font-variant-numeric:tabular-nums; color:var(--text-secondary);">${escapeHtml(p.roll_number || '—')}</td>
+                        <td style="font-variant-numeric:tabular-nums; color:var(--text-secondary);">${escapeHtml(p.roll_number || '-')}</td>
                         <td style="font-weight:700;">${escapeHtml(p.name)}</td>
                         <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(teamName)}</td>
-                        <td style="color:var(--text-secondary);">${escapeHtml(p.grade || '—')}${p.section ? ` (${escapeHtml(p.section)})` : ''}</td>
+                        <td style="color:var(--text-secondary);">${escapeHtml(p.grade || '-')}${p.section ? ` (${escapeHtml(p.section)})` : ''}</td>
                         <td style="text-align:right;">
                             <button onclick="openPlayerModal('${jsStrLiteral(p.id)}')" class="btn btn-secondary btn-icon" title="Edit" style="height:26px; width:26px; margin-right:4px;">
                                 <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
@@ -1281,7 +1233,7 @@ function renderAdminPlayersTable() {
     <!-- Pagination -->
     <div class="pagination-bar">
         <div>
-            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
         </div>
         <div class="pagination-nav">
             <button class="pagination-btn" ${adminPlayersState.page <= 1 ? 'disabled' : ''} onclick="adminPlayersState.page--; renderAdminPlayersTable();">Prev</button>
@@ -1314,8 +1266,8 @@ function toggleSelectPlayer(id, checked) {
 }
 
 function toggleSelectAllPlayers(checked) {
-    // Read the currently rendered page's ids from the DOM instead of embedding
-    // a JSON array into an inline handler attribute.
+
+
     const boxes = document.querySelectorAll('.player-select');
     const pageIds = Array.from(boxes).map(b => b.getAttribute('data-player-id')).filter(Boolean);
     if (checked) {
@@ -1357,7 +1309,7 @@ async function bulkDeleteSelectedPlayers() {
     }
 }
 
-// ─── 3. FIXTURES MANAGEMENT (SORTABLE, MULTI-FILTER, PAGINATED, INLINE QUICK SCORE) ──
+
 function renderAdminFixturesTable() {
     const container = document.getElementById('adminFixturesContainer');
     if (!container) return;
@@ -1367,7 +1319,7 @@ function renderAdminFixturesTable() {
         return;
     }
 
-    // Apply combined filters
+
     let list = [...matchesData];
     if (adminFixturesState.search) {
         const q = adminFixturesState.search.toLowerCase();
@@ -1391,7 +1343,7 @@ function renderAdminFixturesTable() {
         list = list.filter(m => m.status === adminFixturesState.statusFilter);
     }
 
-    // Sorting
+
     list.sort((a, b) => {
         let vA = '', vB = '';
         if (adminFixturesState.sortCol === 'stage') {
@@ -1412,7 +1364,7 @@ function renderAdminFixturesTable() {
         return 0;
     });
 
-    // Pagination
+
     const totalItems = list.length;
     const pageSize = adminFixturesState.pageSize === 'all' ? totalItems : parseInt(adminFixturesState.pageSize, 10);
     const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
@@ -1420,7 +1372,7 @@ function renderAdminFixturesTable() {
     const startIdx = (adminFixturesState.page - 1) * pageSize;
     const pageItems = adminFixturesState.pageSize === 'all' ? list : list.slice(startIdx, startIdx + pageSize);
 
-    // Build Sport filter options
+
     const sportOptions = sportsData.map(s =>
         `<option value="${s.id}" ${adminFixturesState.sportFilter === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
     ).join('');
@@ -1486,13 +1438,13 @@ function renderAdminFixturesTable() {
                         <td style="font-weight:700; font-size:12px;">
                             ${escapeHtml(aName)} <span style="font-size:10px; color:var(--text-tertiary);">vs</span> ${escapeHtml(bName)}
                         </td>
-                        <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(sName)} &mdash; ${escapeHtml(m.gender)}</td>
+                        <td style="color:var(--text-secondary); font-size:12px;">${escapeHtml(sName)} - ${escapeHtml(m.gender)}</td>
                         <td><span class="badge badge-stage">${escapeHtml(m.stage || 'league')}</span></td>
                         <td><span class="badge ${done ? 'badge-status-completed' : 'badge-status-scheduled'}">${done ? 'FT' : 'Sched.'}</span></td>
                         <td>
                             <div class="inline-score-wrap">
                                 <input type="number" min="0" class="inline-score-input" id="inline_a_${m.id}" value="${scoreA}" placeholder="0" aria-label="${escapeHtml(aName)} score">
-                                <span style="font-size:11px; color:var(--text-tertiary);">&ndash;</span>
+                                <span style="font-size:11px; color:var(--text-tertiary);">-</span>
                                 <input type="number" min="0" class="inline-score-input" id="inline_b_${m.id}" value="${scoreB}" placeholder="0" aria-label="${escapeHtml(bName)} score">
                                 <button class="inline-save-btn" onclick="saveInlineMatchScore('${jsStrLiteral(m.id)}')" title="Quick Save Score">Save</button>
                             </div>
@@ -1511,7 +1463,7 @@ function renderAdminFixturesTable() {
     <!-- Pagination -->
     <div class="pagination-bar">
         <div>
-            Showing ${totalItems === 0 ? 0 : startIdx + 1}–${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
+            Showing ${totalItems === 0 ? 0 : startIdx + 1}-${Math.min(startIdx + (pageSize || totalItems), totalItems)} of ${totalItems}
         </div>
         <div class="pagination-nav">
             <button class="pagination-btn" ${adminFixturesState.page <= 1 ? 'disabled' : ''} onclick="adminFixturesState.page--; renderAdminFixturesTable();">Prev</button>
@@ -1536,7 +1488,7 @@ function toggleFixturesSort(col) {
     renderAdminFixturesTable();
 }
 
-// ─── ADMIN ACCOUNTS (list / add / remove / reset / audit) ─────────────────
+
 async function loadAdminAccounts() {
     const container = document.getElementById('adminAccountsList');
     if (!container) return;
@@ -1581,8 +1533,8 @@ function renderAdminAccounts(admins) {
                         <tr>
                             <td style="font-weight:700;">${escapeHtml(a.email)}</td>
                             <td>${(a.role === 'superadmin')
-                                ? '<span class="badge badge-status-completed">Super Admin</span>'
-                                : '<span class="badge badge-status-scheduled">Admin</span>'}</td>
+            ? '<span class="badge badge-status-completed">Super Admin</span>'
+            : '<span class="badge badge-status-scheduled">Admin</span>'}</td>
                             <td style="color:var(--text-secondary);">${escapeHtml(a.created_at || '')}</td>
                             <td>
                                 <div style="display:flex; gap:6px; justify-content:flex-end;">
@@ -1720,7 +1672,7 @@ async function handleResetPasswordSubmit(e) {
     }
 }
 
-// ─── ADMIN AUDIT LOG (super-admin only, filterable) ────────────────────────
+
 const adminAuditState = {
     action: '', actor: '', target: '', details: '', from: '', to: '',
     limit: 50, offset: 0, total: 0
@@ -1743,10 +1695,10 @@ function resetAdminAuditFilters() {
     adminAuditState.details = adminAuditState.from = adminAuditState.to = '';
     adminAuditState.offset = 0;
     ['adminAuditFilterAction', 'adminAuditFilterActor', 'adminAuditFilterTarget',
-     'adminAuditFilterDetails', 'adminAuditFilterFrom', 'adminAuditFilterTo'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
+        'adminAuditFilterDetails', 'adminAuditFilterFrom', 'adminAuditFilterTo'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
     loadAdminAuditLog();
 }
 
@@ -1820,9 +1772,9 @@ async function loadAdminAuditLog() {
                                 <td style="color:var(--text-secondary); white-space:nowrap;">${escapeHtml(x.created_at || '')}</td>
                                 <td><span class="badge badge-stage">${escapeHtml(x.action)}</span></td>
                                 <td>${escapeHtml(x.actor_email || '')}</td>
-                                <td style="color:var(--text-secondary);">${escapeHtml(x.target_email || '—')}</td>
-                                <td style="color:var(--text-secondary); white-space:normal; min-width:180px;">${escapeHtml(x.details || '—')}</td>
-                                <td style="color:var(--text-tertiary);">${escapeHtml(x.ip_address || '—')}</td>
+                                <td style="color:var(--text-secondary);">${escapeHtml(x.target_email || '-')}</td>
+                                <td style="color:var(--text-secondary); white-space:normal; min-width:180px;">${escapeHtml(x.details || '-')}</td>
+                                <td style="color:var(--text-tertiary);">${escapeHtml(x.ip_address || '-')}</td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
@@ -1834,9 +1786,7 @@ async function loadAdminAuditLog() {
     }
 }
 
-/**
- * Fast inline score recording action directly from table row
- */
+
 async function saveInlineMatchScore(matchId) {
     const aInput = document.getElementById(`inline_a_${matchId}`);
     const bInput = document.getElementById(`inline_b_${matchId}`);
@@ -1893,7 +1843,7 @@ async function saveInlineMatchScore(matchId) {
     }
 }
 
-// ─── ADMIN CRUD: SQUADS ────────────────────────────────────────────────────
+
 function openSquadModal(squadId = null) {
     const hSel = document.getElementById('squadHouseId');
     const sSel = document.getElementById('squadSportId');
@@ -1980,7 +1930,7 @@ async function deleteSquad(id) {
     }
 }
 
-// ─── ADMIN CRUD: PLAYERS ───────────────────────────────────────────────────
+
 function openPlayerModal(playerId = null) {
     const teamSel = document.getElementById('playerTeamId');
     if (!teamSel) return;
@@ -2069,7 +2019,7 @@ async function deletePlayer(id) {
     }
 }
 
-// ─── ADMIN CRUD: MATCHES ───────────────────────────────────────────────────
+
 async function openCreateMatchModal() {
     const sportSel = document.getElementById('newMatchSportId');
     if (!sportSel) return;
@@ -2134,27 +2084,24 @@ async function handleCreateMatchSubmit(e) {
     }
 }
 
-// ─── FIXTURE SCORE EDITING (TASK 3 FIX) ─────────────────────────────────────
-/**
- * Opens the match score recording modal and pre-populates it with real data.
- * Checks in-memory matches, local fixtures list, and falls back to API fetch.
- */
+
+
 async function openMatchModal(matchId) {
     if (!matchId) return;
 
-    // Ensure squad & house metadata is loaded for name resolution
+
     if (!squadsData.length) await fetchSquads();
     if (!housesData.length) await fetchHouses();
 
-    // 1. Look up in global matchesData
+
     let match = matchesData.find(m => m.id === matchId);
 
-    // 2. Fall back to local fixtures on fixtures page
+
     if (!match && typeof allFixtures !== 'undefined' && Array.isArray(allFixtures)) {
         match = allFixtures.find(m => m.id === matchId);
     }
 
-    // 3. Fall back to fetching matches from backend if still not found
+
     if (!match) {
         await fetchMatches();
         match = matchesData.find(m => m.id === matchId);
@@ -2165,15 +2112,15 @@ async function openMatchModal(matchId) {
         return;
     }
 
-    // Pre-populate hidden match ID
+
     const matchIdInput = document.getElementById('matchId');
     if (matchIdInput) matchIdInput.value = match.id;
 
-    // Resolve team names
+
     const aName = getTeamName(match.team_a_id, match);
     const bName = getTeamName(match.team_b_id, match);
 
-    // Pre-populate modal labels and values
+
     const summary = document.getElementById('matchModalSummary');
     const aLabel = document.getElementById('teamALabel');
     const bLabel = document.getElementById('teamBLabel');
@@ -2189,9 +2136,7 @@ async function openMatchModal(matchId) {
     openModal('matchModal');
 }
 
-/**
- * Handles match score submission, updates backend, and re-renders current view
- */
+
 async function handleMatchSubmit(e) {
     e.preventDefault();
     const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -2224,7 +2169,7 @@ async function handleMatchSubmit(e) {
             closeModal('matchModal');
             showToast('Match score updated successfully', 'success');
 
-            // Page-aware live UI refresh without page reload
+
             const path = window.location.pathname;
 
             if (path === '/fixtures' || path === '/') {
@@ -2262,7 +2207,7 @@ async function handleMatchSubmit(e) {
     }
 }
 
-// ─── CSV IMPORT ────────────────────────────────────────────────────────────
+
 function openCsvModal() {
     pendingCsvPlayers = [];
     const fileInput = document.getElementById('csvFileInput');
@@ -2336,7 +2281,7 @@ function renderCsvPreviewTable(rows) {
 
     if (badge) badge.textContent = `${rows.length} records`;
 
-    // Squad size warnings
+
     const squadCounts = {};
     rows.forEach(r => { squadCounts[r.team_id] = (squadCounts[r.team_id] || 0) + 1; });
     let warnHtml = '';
@@ -2350,7 +2295,7 @@ function renderCsvPreviewTable(rows) {
             else if (sp.includes('basket')) { min = 7; max = 10; }
             if (count < min || count > max) {
                 warnHtml += `<div style="padding:8px 12px; border:1px solid #92400E; border-radius:8px; background-color:#1C1200; color:#FCD34D; font-size:12px;">
-                    Warning: <strong>${escapeHtml(squad.name)}</strong> has ${count} players (recommended ${min}–${max}).
+                    Warning: <strong>${escapeHtml(squad.name)}</strong> has ${count} players (recommended ${min}-${max}).
                 </div>`;
             }
         }
@@ -2360,9 +2305,9 @@ function renderCsvPreviewTable(rows) {
     if (tbody) {
         tbody.innerHTML = rows.map(r => `
         <tr>
-            <td class="tabular">${escapeHtml(r.roll_number || '—')}</td>
+            <td class="tabular">${escapeHtml(r.roll_number || '-')}</td>
             <td style="font-weight:700;">${escapeHtml(r.name)}</td>
-            <td>${escapeHtml(r.grade || '—')}${r.section ? ` (${escapeHtml(r.section)})` : ''}</td>
+            <td>${escapeHtml(r.grade || '-')}${r.section ? ` (${escapeHtml(r.section)})` : ''}</td>
             <td>${escapeHtml(r.gender)}</td>
             <td>${escapeHtml(getTeamName(r.team_id))}</td>
             <td>
@@ -2406,8 +2351,8 @@ async function commitCsvImport() {
     }
 }
 
-// ─── SHARED STATE COMPONENTS ───────────────────────────────────────────────
-/** Reusable empty state HTML — call from any page */
+
+
 function renderSharedEmptyState(title, desc) {
     return `
     <div class="card">
@@ -2419,7 +2364,7 @@ function renderSharedEmptyState(title, desc) {
     </div>`;
 }
 
-/** Reusable error state HTML with retry button */
+
 function renderSharedErrorState(message, retryCall) {
     return `
     <div class="state-error">
@@ -2432,19 +2377,15 @@ function renderSharedErrorState(message, retryCall) {
     </div>`;
 }
 
-// ─── HELPERS ───────────────────────────────────────────────────────────────
-/**
- * Resolve team display name.
- * Priority: squadsData lookup → nested Supabase join data → 'TBD'
- * If a house has >1 squad for that sport+gender, appends squad_label (A/B).
- */
+
+
 function getTeamName(teamId, matchObj = null) {
     if (!teamId) return 'TBD';
 
-    // 1. Look up in squadsData
+
     let t = squadsData.find(s => s.id === teamId);
 
-    // 2. Fall back to Supabase nested join data on the match object
+
     if (!t && matchObj) {
         if (matchObj.team_a_id === teamId && matchObj.team_a) t = matchObj.team_a;
         else if (matchObj.team_b_id === teamId && matchObj.team_b) t = matchObj.team_b;
@@ -2457,7 +2398,7 @@ function getTeamName(teamId, matchObj = null) {
     const gender = t.gender || (matchObj ? matchObj.gender : null);
     const houseName = (t.houses && t.houses.name) ? t.houses.name : getHouseName(houseId);
 
-    // Show squad label suffix only when the house has multiple squads in same sport+gender
+
     if (houseId && sportId && gender) {
         const multiSquad = squadsData.filter(
             sq => sq.house_id === houseId && sq.sport_id === sportId && sq.gender === gender

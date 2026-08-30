@@ -1,0 +1,34 @@
+# Files pruned from Vercel uploads (build env + function).
+# Keep app/, react-widgets/, requirements.txt, pyproject.toml, vercel.json.
+
+.git
+.github
+.gitignore
+
+# Mobile / build artifacts
+android
+*.apk
+*.jks
+*.keystore
+
+# Local data & assets not served by Flask (static lives in app/static)
+data
+assets
+logo
+
+# Tests & seed files (not needed at runtime)
+tests
+supabase
+*.sql
+
+# Python caches
+__pycache__
+*.pyc
+
+# Admin CLI is run locally against Supabase, not on the server
+seeder.py
+manage_admins.py
+
+# Secrets & logs
+.env
+*.log

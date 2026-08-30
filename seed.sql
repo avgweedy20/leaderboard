@@ -3,10 +3,10 @@
 BEGIN;
 
 -- 1. HOUSES
-INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('65b29d6e-2573-563b-afef-482244e8348e', 'Karnali', '#10B981', 'KAR') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
-INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('ec04892e-017b-5ff3-a9ca-bb093946d2fb', 'Koshi', '#0EA5E9', 'KOS') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
-INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('fdb4c0e5-c23d-5e7d-9c29-15a536c28491', 'Mahakali', '#8B5CF6', 'MAH') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
-INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('06e07dea-3330-57e0-b8f4-355a5c9d1cbd', 'Mechi', '#F97316', 'MEC') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
+INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('65b29d6e-2573-563b-afef-482244e8348e', 'Karnali', '#A16207', 'KAR') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
+INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('ec04892e-017b-5ff3-a9ca-bb093946d2fb', 'Koshi', '#5E7891', 'KOS') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
+INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('fdb4c0e5-c23d-5e7d-9c29-15a536c28491', 'Mahakali', '#A5534B', 'MAH') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
+INSERT INTO public.houses (id, name, color_hex, short_code) VALUES ('06e07dea-3330-57e0-b8f4-355a5c9d1cbd', 'Mechi', '#7B843F', 'MEC') ON CONFLICT (name) DO UPDATE SET color_hex = EXCLUDED.color_hex, short_code = EXCLUDED.short_code;
 
 -- 2. SPORTS
 INSERT INTO public.sports (id, name, type, level) VALUES ('4a84bfea-d954-5d9d-be7e-6a4eb381c388', 'Futsal', 'football', 'HS') ON CONFLICT (name) DO UPDATE SET type = EXCLUDED.type, level = EXCLUDED.level;

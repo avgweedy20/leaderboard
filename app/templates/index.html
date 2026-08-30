@@ -7,13 +7,25 @@
 {% block content %}
 <section>
 
-    <div style="margin-bottom:32px;">
+    <div class="page-head">
+        <p class="eyebrow">Inter-House Sports Meet 2083</p>
         <h1>Overall House Standings</h1>
-
+        <p class="lead"></p>
     </div>
 
+    <div class="filter-panel" style="margin-bottom:24px;">
+        <div class="field">
+            <label>Gender</label>
+            <div id="overallGenderChips" class="chip-group" role="group" aria-label="Gender filter">
+                <button class="chip active" id="overall-chip-all" onclick="filterOverallGender('', this)">All</button>
+                <button class="chip" id="overall-chip-girls" onclick="filterOverallGender('Girls', this)">Girls</button>
+                <button class="chip" id="overall-chip-boys" onclick="filterOverallGender('Boys', this)">Boys</button>
+            </div>
+        </div>
+    </div>
 
-    <div id="houseHeroContainer" class="house-hero-grid" style="margin-bottom:32px;" aria-label="House standings cards">
+    <div id="houseHeroContainer" class="house-hero-grid reveal" style="margin-bottom:32px;"
+        aria-label="House standings cards">
 
         <div class="skeleton-hero-card sk">
             <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
@@ -98,7 +110,7 @@
     </div>
 
 
-    <div id="houseTableContainer">
+    <div id="houseTableContainer" class="reveal" style="--d:120ms;">
         <div class="skeleton-table sk" aria-hidden="true">
             <div class="skeleton-table-header">
                 <div class="sk-bar" style="height:12px; width:50px;"></div>

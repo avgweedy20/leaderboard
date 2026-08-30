@@ -2,10 +2,10 @@
 # Generated from app/app.py MOCK_DB. Do not edit by hand.
 SEED = {
     "houses": [
-        {"id": "h1", "name": "Karnali", "color_hex": "#10B981", "short_code": "KAR"},
-        {"id": "h2", "name": "Koshi", "color_hex": "#0EA5E9", "short_code": "KOS"},
-        {"id": "h3", "name": "Mahakali", "color_hex": "#8B5CF6", "short_code": "MAH"},
-        {"id": "h4", "name": "Mechi", "color_hex": "#F97316", "short_code": "MEC"}
+        {"id": "h1", "name": "Karnali", "color_hex": "#A16207", "short_code": "KAR"},
+        {"id": "h2", "name": "Koshi", "color_hex": "#5E7891", "short_code": "KOS"},
+        {"id": "h3", "name": "Mahakali", "color_hex": "#A5534B", "short_code": "MAH"},
+        {"id": "h4", "name": "Mechi", "color_hex": "#7B843F", "short_code": "MEC"}
     ],
     "sports": [
         {

@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS public.houses (
 
 -- Seed default House configuration
 INSERT INTO public.houses (name, color_hex, short_code) VALUES
-('Karnali', '#10B981', 'KAR'),
-('Koshi', '#0EA5E9', 'KOS'),
-('Mahakali', '#8B5CF6', 'MAH'),
-('Mechi', '#F97316', 'MEC')
+('Karnali', '#A16207', 'KAR'),
+('Koshi', '#5E7891', 'KOS'),
+('Mahakali', '#A5534B', 'MAH'),
+('Mechi', '#7B843F', 'MEC')
 ON CONFLICT (name) DO UPDATE SET
     color_hex = EXCLUDED.color_hex,
     short_code = EXCLUDED.short_code;
@@ -343,6 +343,33 @@ FROM public.houses h
 LEFT JOIN public.teams t ON t.house_id = h.id
 LEFT JOIN public.leaderboard_view lv ON lv.team_id = t.id
 GROUP BY h.id, h.name, h.color_hex, h.short_code;
+
+-- HOUSE OVERALL STANDINGS VIEW (per gender)
+CREATE OR REPLACE VIEW public.house_gender_overall_standings AS
+SELECT
+    h.id as house_id,
+    h.name as house_name,
+    h.color_hex,
+    h.short_code,
+    COALESCE(lv.gender, t.gender, 'Boys') as gender,
+    COUNT(DISTINCT t.id) as total_squads,
+    COALESCE(SUM(lv.played), 0) as matches_played,
+    COALESCE(SUM(lv.wins), 0) as total_wins,
+    COALESCE(SUM(lv.draws), 0) as total_draws,
+    COALESCE(SUM(lv.losses), 0) as total_losses,
+    COALESCE(SUM(lv.score_difference), 0) as total_score_difference,
+    COALESCE(SUM(lv.points), 0) as total_points,
+    DENSE_RANK() OVER (
+        PARTITION BY COALESCE(lv.gender, t.gender, 'Boys')
+        ORDER BY
+            COALESCE(SUM(lv.points), 0) DESC,
+            COALESCE(SUM(lv.score_difference), 0) DESC,
+            COALESCE(SUM(lv.wins), 0) DESC
+    ) as rank
+FROM public.houses h
+LEFT JOIN public.teams t ON t.house_id = h.id
+LEFT JOIN public.leaderboard_view lv ON lv.team_id = t.id
+GROUP BY h.id, h.name, h.color_hex, h.short_code, COALESCE(lv.gender, t.gender, 'Boys');
 
 -- FINAL QUALIFIERS VIEW
 CREATE OR REPLACE VIEW public.final_qualifiers_view AS

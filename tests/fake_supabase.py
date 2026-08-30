@@ -241,7 +241,7 @@ class FakeAuth:
 class FakeSupabase:
     """In-memory stand-in for the Supabase client."""
 
-    VIEWS = {'leaderboard_view', 'house_overall_standings', 'final_qualifiers_view'}
+    VIEWS = {'leaderboard_view', 'house_overall_standings', 'house_gender_overall_standings', 'final_qualifiers_view'}
 
     def __init__(self, seed):
         self._users = {}
@@ -412,6 +412,8 @@ class FakeSupabase:
             return self._leaderboard_rows()
         if name == 'house_overall_standings':
             return self._overall_rows()
+        if name == 'house_gender_overall_standings':
+            return self._overall_rows(by_gender=True)
         if name == 'final_qualifiers_view':
             return [r for r in self._leaderboard_rows() if r['rank'] <= 2]
         return []
@@ -425,7 +427,7 @@ class FakeSupabase:
         results = []
         for t in teams:
             sport = sports.get(t['sport_id'], {'name': 'Futsal', 'type': 'football'})
-            house = houses.get(t['house_id'], {'name': 'Karnali', 'color_hex': '#10B981', 'short_code': 'KAR'})
+            house = houses.get(t['house_id'], {'name': 'Karnali', 'color_hex': '#A16207', 'short_code': 'KAR'})
             played = wins = draws = losses = pts = diff = 0
             for m in matches:
                 if m.get('status') != 'completed':
@@ -479,78 +481,80 @@ class FakeSupabase:
             r['rank'] = idx
         return results
 
-    def _overall_rows(self):
+    def _overall_rows(self, by_gender=False):
         houses = self._tables.get('houses', [])
         teams = self._tables.get('teams', [])
         matches = self._tables.get('matches', [])
 
-        squad_counts = {}
-        for t in teams:
-            squad_counts[t['house_id']] = squad_counts.get(t['house_id'], 0) + 1
+        def compute(team_subset):
+            squad_counts = {}
+            for t in team_subset:
+                squad_counts[t['house_id']] = squad_counts.get(t['house_id'], 0) + 1
 
-        team_stats = {}
-        for m in matches:
-            if m.get('status') != 'completed' or m.get('stage') != 'league':
-                continue
-            ta, tb = m.get('team_a_id'), m.get('team_b_id')
-            sa, sb = m.get('score_team_a', 0), m.get('score_team_b', 0)
-            if ta:
-                s = team_stats.setdefault(ta, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
-                s['played'] += 1
-                s['diff'] += (sa - sb)
-                if m.get('is_draw'):
-                    s['draws'] += 1
-                    s['pts'] += 1
-                elif m.get('winner_team_id') == ta:
-                    s['wins'] += 1
-                    s['pts'] += 3
-                else:
-                    s['losses'] += 1
-            if tb:
-                s = team_stats.setdefault(tb, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
-                s['played'] += 1
-                s['diff'] += (sb - sa)
-                if m.get('is_draw'):
-                    s['draws'] += 1
-                    s['pts'] += 1
-                elif m.get('winner_team_id') == tb:
-                    s['wins'] += 1
-                    s['pts'] += 3
-                else:
-                    s['losses'] += 1
+            team_stats = {}
+            for m in matches:
+                if m.get('status') != 'completed' or m.get('stage') != 'league':
+                    continue
+                ta, tb = m.get('team_a_id'), m.get('team_b_id')
+                sa, sb = m.get('score_team_a', 0), m.get('score_team_b', 0)
+                for tid, sc, anti in ((ta, sa, sb), (tb, sb, sa)):
+                    if not tid:
+                        continue
+                    s = team_stats.setdefault(tid, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
+                    s['played'] += 1
+                    s['diff'] += (sc - anti)
+                    if m.get('is_draw'):
+                        s['draws'] += 1
+                        s['pts'] += 1
+                    elif m.get('winner_team_id') == tid:
+                        s['wins'] += 1
+                        s['pts'] += 3
+                    else:
+                        s['losses'] += 1
 
-        house_stats = {}
-        for t in teams:
-            h_id = t['house_id']
-            st = team_stats.get(t['id'], {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
-            hs = house_stats.setdefault(h_id, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
-            hs['played'] += st['played']
-            hs['wins'] += st['wins']
-            hs['draws'] += st['draws']
-            hs['losses'] += st['losses']
-            hs['diff'] += st['diff']
-            hs['pts'] += st['pts']
+            house_stats = {}
+            for t in team_subset:
+                h_id = t['house_id']
+                st = team_stats.get(t['id'], {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
+                hs = house_stats.setdefault(h_id, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
+                hs['played'] += st['played']
+                hs['wins'] += st['wins']
+                hs['draws'] += st['draws']
+                hs['losses'] += st['losses']
+                hs['diff'] += st['diff']
+                hs['pts'] += st['pts']
 
-        standings = []
-        for h in houses:
-            h_id = h['id']
-            hs = house_stats.get(h_id, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
-            standings.append({
-                'house_id': h_id,
-                'house_name': h['name'],
-                'color_hex': h['color_hex'],
-                'short_code': h['short_code'],
-                'total_squads': squad_counts.get(h_id, 0),
-                'matches_played': hs['played'],
-                'total_wins': hs['wins'],
-                'total_draws': hs['draws'],
-                'total_losses': hs['losses'],
-                'total_score_difference': hs['diff'],
-                'total_points': hs['pts'],
-                'rank': 1,
-            })
+            standings = []
+            for h in houses:
+                h_id = h['id']
+                hs = house_stats.get(h_id, {'played': 0, 'wins': 0, 'draws': 0, 'losses': 0, 'diff': 0, 'pts': 0})
+                standings.append({
+                    'house_id': h_id,
+                    'house_name': h['name'],
+                    'color_hex': h['color_hex'],
+                    'short_code': h['short_code'],
+                    'total_squads': squad_counts.get(h_id, 0),
+                    'matches_played': hs['played'],
+                    'total_wins': hs['wins'],
+                    'total_draws': hs['draws'],
+                    'total_losses': hs['losses'],
+                    'total_score_difference': hs['diff'],
+                    'total_points': hs['pts'],
+                    'rank': 1,
+                })
 
-        standings.sort(key=lambda x: (x['total_points'], x['total_score_difference'], x['total_wins']), reverse=True)
-        for idx, r in enumerate(standings, start=1):
-            r['rank'] = idx
-        return standings
+            standings.sort(key=lambda x: (x['total_points'], x['total_score_difference'], x['total_wins']), reverse=True)
+            for idx, r in enumerate(standings, start=1):
+                r['rank'] = idx
+            return standings
+
+        if by_gender:
+            out = []
+            for gender in sorted({t.get('gender', 'Boys') for t in teams}):
+                subset = [t for t in teams if t.get('gender', 'Boys') == gender]
+                rows = compute(subset)
+                for row in rows:
+                    row['gender'] = gender
+                out.extend(rows)
+            return out
+        return compute(teams)

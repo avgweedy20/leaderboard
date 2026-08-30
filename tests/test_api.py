@@ -208,6 +208,29 @@ def test_get_house_overall_standings(client):
     assert len(json_data) == 4
     assert json_data[0]['house_name'] == 'Karnali'
 
+def test_get_house_overall_standings_by_gender(client):
+    pardata = {}
+    for gender in ('Girls', 'Boys'):
+        rv = client.get('/api/leaderboard/overall', query_string={'gender': gender})
+        assert rv.status_code == 200
+        rows = rv.get_json()
+        assert len(rows) == 4
+        assert all(r['gender'] == gender for r in rows)
+        assert [r['rank'] for r in rows] == [1, 2, 3, 4]
+        assert sorted(r['house_name'] for r in rows) == ['Karnali', 'Koshi', 'Mahakali', 'Mechi']
+        pardata[gender] = {r['house_name']: r for r in rows}
+
+    girls, boys = pardata['Girls'], pardata['Boys']
+    comb = {r['house_name']: r for r in client.get('/api/leaderboard/overall').get_json()}
+    for name in comb:
+        assert girls[name]['total_points'] + boys[name]['total_points'] == comb[name]['total_points']
+        assert girls[name]['total_wins'] + boys[name]['total_wins'] == comb[name]['total_wins']
+        assert girls[name]['total_squads'] + boys[name]['total_squads'] == comb[name]['total_squads']
+    # Leader in every category is rank 1 (girls/boys/combined all show Karnali in the seed)
+    assert girls['Karnali']['rank'] == 1
+    assert boys['Karnali']['rank'] == 1
+    assert comb['Karnali']['rank'] == 1
+
 def test_get_leaderboard(client):
     rv = client.get('/api/leaderboard')
     assert rv.status_code == 200
@@ -556,8 +579,10 @@ def test_security_headers_present(client):
     assert "object-src 'none'" in rv.headers.get('Content-Security-Policy')
     assert 'frame-ancestors' in rv.headers.get('Content-Security-Policy')
     csp = rv.headers.get('Content-Security-Policy')
-    assert 'https://va.vercel-scripts.com' in csp  # Speed Insights script + beacon
+    assert 'https://va.vercel-scripts.com' not in csp  # HTML-injected Speed Insights is same-origin
     assert 'https://cdn.tailwindcss.com' in csp
+    assert 'https://fonts.googleapis.com' in csp  # Google Fonts stylesheet blocked -> allow style-src
+    assert 'https://fonts.gstatic.com' in csp  # font downloads -> allow font-src
 
 
 def test_api_responses_not_cached(client):

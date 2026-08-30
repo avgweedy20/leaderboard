@@ -1,39 +1,36 @@
 {% extends "base.html" %}
 
 {% block title %}Fixtures{% endblock %}
-{% block meta_desc %}Tie-sheet and fixture results for Futsal, Basketball, and Cricksal — Boys and Girls divisions — DSS
+{% block meta_desc %}Tie-sheet and fixture results for Futsal, Basketball, and Cricksal - Boys and Girls divisions - DSS
 Inter-House Sports Meet 2083.{% endblock %}
 
 {% block content %}
 <section>
 
-    <div
-        style="display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:28px;">
-        <div>
-            <h1>Fixtures</h1>
-            <p style="margin-top:6px; font-size:14px;">
-                Complete match schedule and live results across all sports and divisions.
-            </p>
+    <div class="page-head">
+        <p class="eyebrow">Inter-House Sports Meet 2083</p>
+        <h1>Fixtures</h1>
+        <p class="lead"></p>
+    </div>
+
+    <div class="filter-panel" style="margin-bottom:32px;">
+        <div class="field">
+            <label>Sport</label>
+            <div id="fixtureFilterChips" class="chip-group" role="group" aria-label="Sport filter"></div>
         </div>
-
-
-        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
-
-            <div id="fixtureFilterChips" class="chip-group" role="group" aria-label="Sport filter">
-
-            </div>
-
-
-            <select id="fixtureGenderFilter" onchange="applyFixtureFilters()" aria-label="Gender filter"
-                style="height:32px; font-size:12px; padding:0 24px 0 10px;">
+        <div class="field">
+            <label for="fixtureGenderFilter">Gender</label>
+            <select id="fixtureGenderFilter" class="table-filter-select" style="width:100%;"
+                onchange="applyFixtureFilters()" aria-label="Gender filter">
                 <option value="">All Genders</option>
                 <option value="Boys">Boys</option>
                 <option value="Girls">Girls</option>
             </select>
-
-
-            <select id="fixtureStatusFilter" onchange="applyFixtureFilters()" aria-label="Status filter"
-                style="height:32px; font-size:12px; padding:0 24px 0 10px;">
+        </div>
+        <div class="field">
+            <label for="fixtureStatusFilter">Status</label>
+            <select id="fixtureStatusFilter" class="table-filter-select" style="width:100%;"
+                onchange="applyFixtureFilters()" aria-label="Status filter">
                 <option value="">All Statuses</option>
                 <option value="completed">Completed</option>
                 <option value="scheduled">Scheduled</option>
@@ -318,13 +315,13 @@ Inter-House Sports Meet 2083.{% endblock %}
                 <svg class="icon" width="16" height="16" style="color:var(--text-secondary);">
                     <use href="#${sportIconId}"/>
                 </svg>
-                <span class="section-title">${escapeHtml(g.sportName)} — ${escapeHtml(g.gender)}</span>
+                <span class="section-title">${escapeHtml(g.sportName)} - ${escapeHtml(g.gender)}</span>
                 <span class="badge badge-stage">${completedCount}/${g.matches.length} played</span>
             </div>
             <div class="card-grid">`;
 
-            g.matches.forEach(m => {
-                html += renderFixtureCard(m);
+            g.matches.forEach((m, idx) => {
+                html += renderFixtureCard(m, idx);
             });
 
             html += `</div></div>`;
@@ -334,7 +331,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         container.innerHTML = html;
     }
 
-    function renderFixtureCard(m) {
+    function renderFixtureCard(m, idx) {
         const isCompleted = m.status === 'completed';
         const teamAName = getTeamName(m.team_a_id, m);
         const teamBName = getTeamName(m.team_b_id, m);
@@ -363,13 +360,13 @@ Inter-House Sports Meet 2083.{% endblock %}
             <span class="score-text">${escapeHtml(summary)}</span>
         </div>`;
         } else if (!m.team_a_id || !m.team_b_id) {
-            scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD — awaiting qualifiers</p>`;
+            scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD - awaiting qualifiers</p>`;
         } else {
             scoreSection = `<p class="fixture-unplayed">Not yet played</p>`;
         }
 
         return `
-    <div class="fixture-card">
+    <div class="fixture-card reveal" style="--d:${(idx || 0) % 12 * 45}ms;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
             <div style="display:flex; align-items:center; gap:6px;">
                 <span class="badge badge-stage">${stageLabel}</span>
@@ -381,13 +378,13 @@ Inter-House Sports Meet 2083.{% endblock %}
         </div>
         <div class="fixture-matchup">
             <div style="display:flex; align-items:center; gap:8px;">
-                <div style="width:3px; height:28px; border-radius:2px; background-color:${colorA}; flex-shrink:0;"></div>
+                <span style="width:3px; height:28px; border-radius:2px; background-color:${colorA}; flex-shrink:0;"></span>
                 <span class="fixture-team">${escapeHtml(teamAName)}</span>
             </div>
             <span class="fixture-vs">VS</span>
             <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
                 <span class="fixture-team team-b">${escapeHtml(teamBName)}</span>
-                <div style="width:3px; height:28px; border-radius:2px; background-color:${colorB}; flex-shrink:0;"></div>
+                <span style="width:3px; height:28px; border-radius:2px; background-color:${colorB}; flex-shrink:0;"></span>
             </div>
         </div>
         ${scoreSection}

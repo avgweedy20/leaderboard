@@ -96,3 +96,45 @@ Both the Web frontend and Android app query the `/api/health` endpoint:
 
 - **Configured mode (`mode: "supabase"`):** Displays `"Connected: Postgres DB [DEBUG]"` in the app header/settings when Supabase credentials are present in `.env`.
 - **Unconfigured mode (`mode: "unconfigured"`):** Displays an `"Unconfigured"` health badge and all data/admin endpoints fail closed with an `HTTP 503 Supabase not configured` response. The server no longer contains any in-memory or SQLite mock data — without a live Supabase connection the app serves only the static pages and API health, not fake data.
+
+---
+
+## 5. Deploying to Vercel (Flask + React widgets)
+
+The app is a single Flask WSGI function on Vercel. The React widget island
+(reactbits `TextType` footer) is **compiled by Node during the deploy build**
+into `app/static/js/widgets.bundle.js`, then served as static JS by Flask. Node
+is a build-time tool on Vercel - there is no long-running Node process at
+runtime.
+
+### How it works
+
+- `pyproject.toml` declares the WSGI entrypoint (`app.app:app`) and the build
+  script: `cd react-widgets && npm install && npm run build` (esbuild produces
+  the bundle before the function is packaged).
+- `vercel.json` only trims the function bundle (`excludeFiles`). Do **not** add
+  a legacy `"builds"` array to `vercel.json` - Vercel ignores the build/install
+  scripts when one exists.
+- `.vercelignore` prunes `android/`, `supabase/`, `data/`, `tests/`, sql dumps
+  and secrets from the upload.
+- Locally, `python app/app.py` auto-builds the widgets on first start if Node
+  is installed and the bundle is missing (`SKIP_WIDGET_BUILD=1` to disable).
+  The vanilla fallbacks activate whenever Node is unavailable.
+
+### Steps
+
+1. Push the repo to GitHub and import it at `vercel.com/new`. Vercel detects
+   Flask via the `pyproject.toml` entrypoint (no framework setting needed).
+2. In the project, add the environment variables (same values as `.env`):
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `CORS_ALLOWED_ORIGINS` (optional)
+3. Deploy. The build log will show `npm install` + the esbuild bundle step
+   before the Python function is packaged.
+4. Verify: the home page renders the fixtures with the scroll-reveal entrance
+   and the footer typewriter; `/api/health` reports `supabase_connected: true`.
+
+> Admin management (`python manage_admins.py ...`) is run locally against your
+> Supabase project - it is not available on the server, and is excluded from
+> the Vercel upload.

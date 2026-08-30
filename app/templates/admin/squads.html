@@ -5,11 +5,11 @@
 {% block content %}
 <section>
 
-    <div
-        style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border);">
+    <div class="page-head" style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px;">
         <div>
+            <p class="eyebrow">Admin</p>
             <h1>House Squad Roster</h1>
-            <p style="margin-top:6px; font-size:14px;">Manage house squads across sports and gender divisions.</p>
+            <p class="lead">Manage house squads across sports and gender divisions.</p>
         </div>
         <button onclick="openSquadModal()" class="btn">
             <svg class="icon" width="14" height="14">
@@ -20,11 +20,21 @@
     </div>
 
 
-    <div style="display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px;">
-        <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">Overview</a>
-        <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">Squads</a>
-        <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">Players</a>
-    </div>
+    <nav class="segnav" aria-label="Admin sections">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-shield"/></svg>
+            Overview
+        </a>
+        <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
+            Squads
+        </a>
+        <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-edit"/></svg>
+            Players
+        </a>
+    </nav>
 
     <div class="admin-section">
         <div class="admin-section-header">
