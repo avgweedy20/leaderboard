@@ -2495,14 +2495,6 @@ function _onSearchOverlayInput(e) {
 function _onSearchOverlayKeydown(e) {
     if (e.key === 'Escape') {
         closeSearchOverlay();
-        return;
-    }
-    if (e.key === 'Enter') {
-        const q = (e.target.value || '').trim();
-        if (q) {
-            closeSearchOverlay();
-            window.location.href = '/search?q=' + encodeURIComponent(q);
-        }
     }
 }
 
@@ -2553,11 +2545,12 @@ function _renderOverlayResults(results, query) {
                 <line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
             <p>No results for "<strong>${escapeHtml(query)}</strong>"</p>
+            <span style="font-size:0.72rem; color:var(--text-tertiary);">Try different keywords or check spelling</span>
         </div>`;
         return;
     }
 
-    let html = '';
+    let html = `<div class="search-overlay-count">${totalResults} result${totalResults !== 1 ? 's' : ''} for "<strong>${escapeHtml(query)}</strong>"</div>`;
 
     categories.forEach(cat => {
         const items = results[cat.key] || [];
@@ -2570,8 +2563,7 @@ function _renderOverlayResults(results, query) {
                 <span class="search-overlay-cat-count">${items.length}</span>
             </div>`;
 
-        const shown = items.slice(0, 5);
-        shown.forEach(r => {
+        items.forEach(r => {
             const item = r.item;
             let title = '', sub = '', link = cat.link;
 
@@ -2611,18 +2603,8 @@ function _renderOverlayResults(results, query) {
             </a>`;
         });
 
-        if (items.length > 5) {
-            html += `<div style="text-align:center; padding:4px 0; font-size:0.72rem; color:var(--text-tertiary);">+${items.length - 5} more</div>`;
-        }
-
         html += `</div>`;
     });
-
-    html += `
-    <a href="/search?q=${encodeURIComponent(query)}" class="search-overlay-view-all">
-        View all ${totalResults} results
-        <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
-    </a>`;
 
     container.innerHTML = html;
 }
