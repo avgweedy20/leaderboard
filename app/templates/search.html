@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% if query %} - {{ query }}{% endif %} | DSS League Games{% endblock %}
+{% block meta_desc %}Search results for "{{ query }}" across houses, sports, squads, and players.{% endblock %}
+
+{% block content %}
+<section>
+    <div class="page-head">
+        <p class="eyebrow">Search</p>
+        <h1 id="searchPageTitle">Search Results</h1>
+        {% if query %}
+        <p class="lead" id="searchPageQuery">Showing results for "<span id="searchQueryDisplay">{{ query }}</span>"</p>
+        {% else %}
+        <p class="lead">Search across houses, sports, squads, and players.</p>
+        {% endif %}
+    </div>
+
+    <div class="search-input-wrap" style="margin-bottom:32px;">
+        <div class="search-bar-large">
+            <svg class="icon" width="18" height="18" style="color:var(--text-tertiary); flex-shrink:0;"><use href="#icon-info"/></svg>
+            <input type="text" id="searchPageInput" placeholder="Search houses, sports, squads, players..."
+                   value="{{ query }}" autofocus autocomplete="off" style="border:none; background:none; height:auto; font-size:1rem; box-shadow:none; outline:none; flex:1; padding:0;">
+            <button id="searchPageBtn" class="btn btn-primary" style="height:36px; font-size:0.82rem; padding:0 16px;" onclick="executeSearchPage()">Search</button>
+        </div>
+    </div>
+
+    <div id="searchResultsContainer">
+        {% if query %}
+        <div class="skeleton-table sk" aria-hidden="true">
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:120px;"></div>
+                <div class="sk-bar" style="height:12px; width:80px;"></div>
+            </div>
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:100px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px;"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const q = {{ query|tojson }};
+        const input = document.getElementById('searchPageInput');
+        if (input) {
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') executeSearchPage();
+            });
+        }
+        if (q) {
+            performSearch(q);
+        } else {
+            renderSearchEmpty();
+        }
+    });
+
+    function executeSearchPage() {
+        const input = document.getElementById('searchPageInput');
+        const q = (input ? input.value : '').trim();
+        if (q) {
+            window.history.replaceState({}, '', '/search?q=' + encodeURIComponent(q));
+            performSearch(q);
+        }
+    }
+
+    function renderSearchEmpty() {
+        const container = document.getElementById('searchResultsContainer');
+        if (!container) return;
+        container.innerHTML = `
+        <div class="search-empty-state">
+            <svg class="search-empty-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <h2 class="search-empty-title">Search the League</h2>
+            <p class="search-empty-desc">Find houses, sports, squads, players, and matches across the DSS Inter-House Sports Meet.</p>
+        </div>`;
+    }
+
+    async function performSearch(query) {
+        const container = document.getElementById('searchResultsContainer');
+        const titleEl = document.getElementById('searchPageTitle');
+        const displayEl = document.getElementById('searchQueryDisplay');
+        const queryLine = document.getElementById('searchPageQuery');
+        if (displayEl) displayEl.textContent = query;
+        if (titleEl) titleEl.textContent = 'Search Results';
+        if (queryLine) queryLine.innerHTML = 'Showing results for "<span id="searchQueryDisplay">' + escapeHtml(query) + '</span>"';
+
+        container.innerHTML = `
+        <div class="skeleton-table sk" aria-hidden="true">
+            ${Array(3).fill(`
+            <div class="skeleton-row">
+                <div class="sk-bar" style="height:12px; width:140px;"></div>
+                <div class="sk-bar" style="height:12px; width:100px;"></div>
+                <div class="sk-bar" style="height:12px; width:60px;"></div>
+            </div>`).join('')}
+        </div>`;
+
+        try {
+            const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            renderSearchResults(data.results || {}, query);
+        } catch (e) {
+            container.innerHTML = renderSharedErrorState('Search failed. Please try again.', "performSearch('" + jsStrLiteral(query) + "')");
+        }
+    }
+
+    function renderSearchResults(results, query) {
+        const container = document.getElementById('searchResultsContainer');
+        const categories = [
+            { key: 'houses', title: 'Houses', icon: 'icon-shield', color: 'var(--c-karnali)', linkFn: (item) => '/' },
+            { key: 'sports', title: 'Sports', icon: 'icon-football', color: 'var(--c-koshi)', linkFn: (item) => '/standings/' + encodeURIComponent((item.name || '').toLowerCase()) },
+            { key: 'squads', title: 'Squads', icon: 'icon-team', color: 'var(--c-mahakali)', linkFn: (item) => '/standings/' + encodeURIComponent(((item.sports || {}).name || '').toLowerCase()) },
+            { key: 'players', title: 'Players', icon: 'icon-info', color: 'var(--c-mechi)', linkFn: (item) => '/' },
+            { key: 'matches', title: 'Matches', icon: 'icon-calendar', color: 'var(--text-secondary)', linkFn: (item) => '/fixtures' },
+        ];
+
+        let totalResults = 0;
+        categories.forEach(c => { totalResults += (results[c.key] || []).length; });
+
+        if (totalResults === 0) {
+            container.innerHTML = `
+            <div class="search-no-results">
+                <svg class="search-no-results-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+                <h2 class="search-no-results-title">No results found</h2>
+                <p class="search-no-results-desc">We couldn't find anything matching "<strong>${escapeHtml(query)}</strong>".</p>
+                <div class="search-no-results-tips">
+                    <p style="font-weight:600; margin-bottom:8px;">Try:</p>
+                    <ul>
+                        <li>Checking your spelling</li>
+                        <li>Using broader or different keywords</li>
+                        <li>Searching for a house name (e.g. Karnali, Koshi)</li>
+                        <li>Searching for a sport (e.g. Futsal, Basketball)</li>
+                    </ul>
+                </div>
+                <button class="btn btn-secondary" onclick="document.getElementById('searchPageInput').value=''; executeSearchPage();" style="margin-top:12px;">
+                    <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
+                    Clear Search
+                </button>
+            </div>`;
+            return;
+        }
+
+        let html = '<div class="search-results-list">';
+
+        html += `<div class="search-results-count">${totalResults} result${totalResults !== 1 ? 's' : ''} found</div>`;
+
+        categories.forEach(cat => {
+            const items = results[cat.key] || [];
+            if (items.length === 0) return;
+
+            html += `
+            <div class="search-category">
+                <div class="search-category-header">
+                    <svg class="icon" width="14" height="14" style="color:${cat.color};"><use href="#${cat.icon}"/></svg>
+                    <span class="search-category-title">${cat.title}</span>
+                    <span class="search-category-count">${items.length}</span>
+                </div>
+                <div class="search-category-items">`;
+
+            items.forEach(r => {
+                const item = r.item;
+                html += renderSearchItem(item, cat, query);
+            });
+
+            html += `</div></div>`;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+
+        if (typeof DSSEffects !== 'undefined' && DSSEffects.rescan) {
+            DSSEffects.rescan();
+        }
+    }
+
+    function renderSearchItem(item, cat, query) {
+        let title = '';
+        let subtitle = '';
+        let badge = '';
+        let badgeClass = '';
+        let link = cat.linkFn(item);
+
+        if (cat.key === 'houses') {
+            title = escapeHtml(item.name || 'House');
+            subtitle = item.short_code ? escapeHtml(item.short_code) : '';
+            badge = 'House';
+            badgeClass = 'badge-stage';
+        } else if (cat.key === 'sports') {
+            title = escapeHtml(item.name || 'Sport');
+            subtitle = item.type ? escapeHtml(item.type) : '';
+            badge = 'Sport';
+            badgeClass = 'badge-status-scheduled';
+        } else if (cat.key === 'squads') {
+            title = escapeHtml(item.name || 'Squad');
+            const houseName = (item.houses || {}).name || '';
+            const sportName = (item.sports || {}).name || '';
+            subtitle = [houseName, sportName, item.gender].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+            badge = 'Squad';
+            badgeClass = 'badge-status-completed';
+        } else if (cat.key === 'players') {
+            title = escapeHtml(item.name || 'Player');
+            const teamName = (item.teams || {}).name || '';
+            subtitle = [teamName, item.grade ? 'Grade ' + item.grade : '', item.roll_number ? '#' + item.roll_number : ''].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+            badge = 'Player';
+            badgeClass = 'badge-stage';
+        } else if (cat.key === 'matches') {
+            const sportName = (item.sports || {}).name || '';
+            const teamA = (item.team_a || {}).name || 'TBD';
+            const teamB = (item.team_b || {}).name || 'TBD';
+            title = escapeHtml(teamA) + ' vs ' + escapeHtml(teamB);
+            const status = item.status === 'completed' ? 'FT' : 'Scheduled';
+            subtitle = [sportName, item.gender, item.stage].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+            badge = status;
+            badgeClass = item.status === 'completed' ? 'badge-status-completed' : 'badge-status-scheduled';
+        }
+
+        return `
+        <a href="${escapeHtml(link)}" class="search-result-item reveal">
+            <div class="search-result-content">
+                <div class="search-result-title">${title}</div>
+                ${subtitle ? `<div class="search-result-subtitle">${subtitle}</div>` : ''}
+            </div>
+            <span class="badge ${badgeClass}">${badge}</span>
+        </a>`;
+    }
+</script>
+{% endblock %}

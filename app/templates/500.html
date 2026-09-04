@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}500 - Server Error | DSS League Games{% endblock %}
+{% block meta_desc %}Something went wrong on our end.{% endblock %}
+
+{% block content %}
+<section>
+    <div class="error-page">
+        <div class="error-page-icon error-page-icon-server">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+        <div class="error-page-code error-page-code-server">500</div>
+        <h1 class="error-page-title">Something Went Wrong</h1>
+        <p class="error-page-desc">An unexpected error occurred on our end. Please try again in a moment.</p>
+        <div class="error-page-actions">
+            <a href="/" class="btn btn-primary">
+                <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
+                Back to Standings
+            </a>
+            <button class="btn btn-secondary" onclick="window.location.reload()">
+                <svg class="icon" width="14" height="14"><use href="#icon-refresh"/></svg>
+                Try Again
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}

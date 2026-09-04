@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}404 - Page Not Found | DSS League Games{% endblock %}
+{% block meta_desc %}The page you're looking for doesn't exist.{% endblock %}
+
+{% block content %}
+<section>
+    <div class="error-page">
+        <div class="error-page-icon">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+        </div>
+        <div class="error-page-code">404</div>
+        <h1 class="error-page-title">Page Not Found</h1>
+        <p class="error-page-desc">The page you're looking for doesn't exist or has been moved.</p>
+        <div class="error-page-actions">
+            <a href="/" class="btn btn-primary">
+                <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
+                Back to Standings
+            </a>
+            <a href="/fixtures" class="btn btn-secondary">
+                <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+                View Fixtures
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

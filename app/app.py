@@ -1250,6 +1250,208 @@ def _ensure_widgets_bundle():
         print(f"[widgets] react widgets build failed ({e}): vanilla fallback active.")
 
 
+# ─── FUZZY SEARCH HELPERS ──────────────────────────────────────────────────
+
+def _levenshtein(a, b):
+    """Compute Levenshtein edit distance between two strings."""
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    if len(b) == 0:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            cost = 0 if ca == cb else 1
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + cost))
+        prev = curr
+    return prev[-1]
+
+
+def _normalize(s):
+    """Lowercase, strip, collapse whitespace for comparison."""
+    return " ".join((s or "").lower().split())
+
+
+def _fuzzy_score(query, target):
+    """Return a relevance score (lower is better) for query against target.
+    Returns None if no match, otherwise an integer score."""
+    q = _normalize(query)
+    t = _normalize(target)
+    if not q or not t:
+        return None
+    # Exact substring match is best
+    if q in t:
+        return 0
+    # Starts-with is next
+    if t.startswith(q):
+        return 1
+    # Word-start match (query matches start of any word in target)
+    t_words = t.split()
+    for w in t_words:
+        if w.startswith(q) or q.startswith(w):
+            return 2
+    # Fuzzy: Levenshtein distance relative to shorter string length
+    dist = _levenshtein(q, t)
+    threshold = max(len(q), len(t)) * 0.45
+    if dist <= threshold:
+        return 10 + dist
+    # Also try matching query words individually against target
+    q_words = q.split()
+    if len(q_words) > 1:
+        word_scores = []
+        for qw in q_words:
+            best = None
+            for tw in t_words:
+                d = _levenshtein(qw, tw)
+                thr = max(len(qw), len(tw)) * 0.45
+                if d <= thr and (best is None or d < best):
+                    best = d
+            if best is not None:
+                word_scores.append(best)
+        if len(word_scores) == len(q_words):
+            avg = sum(word_scores) / len(word_scores)
+            if avg <= 3:
+                return 20 + int(avg * 5)
+    return None
+
+
+def _search_all(query):
+    """Search across houses, sports, squads/teams, players, and matches.
+    Returns a dict of result categories with scores."""
+    results = {"houses": [], "sports": [], "squads": [], "players": [], "matches": []}
+    client = _service_client()
+    if not client or not query or not query.strip():
+        return results
+
+    q = query.strip()
+
+    # Houses
+    try:
+        res = client.table("houses").select("*").execute()
+        for h in (res.data or []):
+            score = _fuzzy_score(q, h.get("name", ""))
+            if score is not None:
+                results["houses"].append({"item": h, "score": score})
+    except Exception:
+        pass
+
+    # Sports
+    try:
+        res = client.table("sports").select("*").execute()
+        for s in (res.data or []):
+            score = _fuzzy_score(q, s.get("name", ""))
+            if score is not None:
+                results["sports"].append({"item": s, "score": score})
+    except Exception:
+        pass
+
+    # Teams/Squads
+    try:
+        res = client.table("teams").select("*, houses(name, color_hex, short_code), sports(name)").execute()
+        for t in (res.data or []):
+            name_score = _fuzzy_score(q, t.get("name", ""))
+            house_name = (t.get("houses") or {}).get("name", "")
+            sport_name = (t.get("sports") or {}).get("name", "")
+            house_score = _fuzzy_score(q, house_name)
+            sport_score = _fuzzy_score(q, sport_name)
+            gender_score = _fuzzy_score(q, t.get("gender", ""))
+            scores = [s for s in [name_score, house_score, sport_score, gender_score] if s is not None]
+            if scores:
+                results["squads"].append({"item": t, "score": min(scores)})
+    except Exception:
+        pass
+
+    # Players
+    try:
+        res = client.table("players").select("*, teams(name, houses(name, color_hex))").execute()
+        for p in (res.data or []):
+            name_score = _fuzzy_score(q, p.get("name", ""))
+            roll_score = _fuzzy_score(q, str(p.get("roll_number", "")))
+            team_name = (p.get("teams") or {}).get("name", "")
+            team_score = _fuzzy_score(q, team_name)
+            scores = [s for s in [name_score, roll_score, team_score] if s is not None]
+            if scores:
+                results["players"].append({"item": p, "score": min(scores)})
+    except Exception:
+        pass
+
+    # Matches
+    try:
+        res = client.table("matches").select(
+            "*, sports(name), team_a:teams!matches_team_a_id_fkey(*, houses(name, color_hex)), "
+            "team_b:teams!matches_team_b_id_fkey(*, houses(name, color_hex))"
+        ).execute()
+        for m in (res.data or []):
+            sport_name = (m.get("sports") or {}).get("name", "")
+            team_a_name = (m.get("team_a") or {}).get("name", "")
+            team_b_name = (m.get("team_b") or {}).get("name", "")
+            house_a = ((m.get("team_a") or {}).get("houses") or {}).get("name", "")
+            house_b = ((m.get("team_b") or {}).get("houses") or {}).get("name", "")
+            stage_score = _fuzzy_score(q, m.get("stage", ""))
+            sport_sc = _fuzzy_score(q, sport_name)
+            a_score = _fuzzy_score(q, team_a_name)
+            b_score = _fuzzy_score(q, team_b_name)
+            ha_score = _fuzzy_score(q, house_a)
+            hb_score = _fuzzy_score(q, house_b)
+            gender_sc = _fuzzy_score(q, m.get("gender", ""))
+            scores = [s for s in [stage_score, sport_sc, a_score, b_score, ha_score, hb_score, gender_sc] if s is not None]
+            if scores:
+                results["matches"].append({"item": m, "score": min(scores)})
+    except Exception:
+        pass
+
+    # Sort each category by score
+    for key in results:
+        results[key].sort(key=lambda x: x["score"])
+
+    return results
+
+
+# ─── SEARCH PAGE & API ────────────────────────────────────────────────────
+
+@app.route("/search")
+def search_page():
+    q = request.args.get("q", "").strip()
+    return render_template("search.html", active_page="search", query=q)
+
+
+@app.route("/api/search", methods=["GET"])
+def api_search():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"results": {}, "query": ""})
+    raw = _search_all(q)
+    # Serialize to JSON-safe dicts
+    serialized = {}
+    for cat, items in raw.items():
+        serialized[cat] = [{"item": i["item"], "score": i["score"]} for i in items[:20]]
+    return jsonify({"results": serialized, "query": q})
+
+
+# ─── ERROR HANDLERS ───────────────────────────────────────────────────────
+
+@app.errorhandler(404)
+def page_not_found(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    return render_template("404.html", active_page=None), 404
+
+
+@app.errorhandler(403)
+def forbidden(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Forbidden"}), 403
+    return render_template("403.html", active_page=None), 403
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Internal server error"}), 500
+    return render_template("500.html", active_page=None), 500
+
+
 if __name__ == "__main__":
     _ensure_widgets_bundle()
     _host = os.getenv("HOST", "0.0.0.0")

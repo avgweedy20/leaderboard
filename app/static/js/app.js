@@ -2423,3 +2423,231 @@ function getSportName(sportId) {
     const s = sportsData.find(x => x.id === sportId);
     return s ? s.name : 'Sport';
 }
+
+
+/* ── SEARCH OVERLAY ─────────────────────────────────────────────────────── */
+let _searchDebounce = null;
+let _searchOverlayOpen = false;
+
+function openSearchOverlay() {
+    const overlay = document.getElementById('searchOverlay');
+    const input = document.getElementById('searchOverlayInput');
+    const results = document.getElementById('searchOverlayResults');
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+    _searchOverlayOpen = true;
+    if (results) {
+        results.innerHTML = `
+        <div class="search-overlay-hint">
+            <p>Type to search across all data</p>
+            <div class="search-overlay-hint-tags">
+                <span class="search-hint-tag">Houses</span>
+                <span class="search-hint-tag">Sports</span>
+                <span class="search-hint-tag">Squads</span>
+                <span class="search-hint-tag">Players</span>
+                <span class="search-hint-tag">Matches</span>
+            </div>
+        </div>`;
+    }
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 100);
+        input.addEventListener('input', _onSearchOverlayInput);
+        input.addEventListener('keydown', _onSearchOverlayKeydown);
+    }
+}
+
+function closeSearchOverlay() {
+    const overlay = document.getElementById('searchOverlay');
+    const input = document.getElementById('searchOverlayInput');
+    if (overlay) overlay.classList.add('hidden');
+    _searchOverlayOpen = false;
+    if (input) {
+        input.removeEventListener('input', _onSearchOverlayInput);
+        input.removeEventListener('keydown', _onSearchOverlayKeydown);
+    }
+    if (_searchDebounce) { clearTimeout(_searchDebounce); _searchDebounce = null; }
+}
+
+function _onSearchOverlayInput(e) {
+    const q = e.target.value.trim();
+    if (_searchDebounce) clearTimeout(_searchDebounce);
+    if (!q) {
+        const results = document.getElementById('searchOverlayResults');
+        if (results) {
+            results.innerHTML = `
+            <div class="search-overlay-hint">
+                <p>Type to search across all data</p>
+                <div class="search-overlay-hint-tags">
+                    <span class="search-hint-tag">Houses</span>
+                    <span class="search-hint-tag">Sports</span>
+                    <span class="search-hint-tag">Squads</span>
+                    <span class="search-hint-tag">Players</span>
+                    <span class="search-hint-tag">Matches</span>
+                </div>
+            </div>`;
+        }
+        return;
+    }
+    _searchDebounce = setTimeout(() => _performOverlaySearch(q), 250);
+}
+
+function _onSearchOverlayKeydown(e) {
+    if (e.key === 'Escape') {
+        closeSearchOverlay();
+        return;
+    }
+    if (e.key === 'Enter') {
+        const q = (e.target.value || '').trim();
+        if (q) {
+            closeSearchOverlay();
+            window.location.href = '/search?q=' + encodeURIComponent(q);
+        }
+    }
+}
+
+async function _performOverlaySearch(query) {
+    const results = document.getElementById('searchOverlayResults');
+    if (!results) return;
+
+    results.innerHTML = `
+    <div class="search-overlay-loading">
+        <span class="btn-spinner" aria-hidden="true" style="width:16px; height:16px;"></span>
+        Searching...
+    </div>`;
+
+    try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        _renderOverlayResults(data.results || {}, query);
+    } catch (e) {
+        results.innerHTML = `
+        <div class="search-overlay-no-results">
+            <p>Search failed. Please try again.</p>
+        </div>`;
+    }
+}
+
+function _renderOverlayResults(results, query) {
+    const container = document.getElementById('searchOverlayResults');
+    if (!container) return;
+
+    const categories = [
+        { key: 'houses', title: 'Houses', icon: 'icon-shield', color: 'var(--c-karnali)', link: '/' },
+        { key: 'sports', title: 'Sports', icon: 'icon-football', color: 'var(--c-koshi)', link: '/standings/' },
+        { key: 'squads', title: 'Squads', icon: 'icon-shield', color: 'var(--c-mahakali)', link: '/standings/' },
+        { key: 'players', title: 'Players', icon: 'icon-info', color: 'var(--c-mechi)', link: '/' },
+        { key: 'matches', title: 'Matches', icon: 'icon-calendar', color: 'var(--text-secondary)', link: '/fixtures' },
+    ];
+
+    let totalResults = 0;
+    categories.forEach(c => { totalResults += (results[c.key] || []).length; });
+
+    if (totalResults === 0) {
+        container.innerHTML = `
+        <div class="search-overlay-no-results">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            <p>No results for "<strong>${escapeHtml(query)}</strong>"</p>
+        </div>`;
+        return;
+    }
+
+    let html = '';
+
+    categories.forEach(cat => {
+        const items = results[cat.key] || [];
+        if (items.length === 0) return;
+
+        html += `<div class="search-overlay-category">
+            <div class="search-overlay-cat-header">
+                <svg class="icon" width="12" height="12" style="color:${cat.color};"><use href="#${cat.icon}"/></svg>
+                ${cat.title}
+                <span class="search-overlay-cat-count">${items.length}</span>
+            </div>`;
+
+        const shown = items.slice(0, 5);
+        shown.forEach(r => {
+            const item = r.item;
+            let title = '', sub = '', link = cat.link;
+
+            if (cat.key === 'houses') {
+                title = escapeHtml(item.name || 'House');
+                sub = item.short_code ? escapeHtml(item.short_code) : '';
+            } else if (cat.key === 'sports') {
+                title = escapeHtml(item.name || 'Sport');
+                sub = item.type ? escapeHtml(item.type) : '';
+                link = '/standings/' + encodeURIComponent((item.name || '').toLowerCase());
+            } else if (cat.key === 'squads') {
+                title = escapeHtml(item.name || 'Squad');
+                const h = (item.houses || {}).name || '';
+                const s = (item.sports || {}).name || '';
+                sub = [h, s, item.gender].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+                link = '/standings/' + encodeURIComponent(s.toLowerCase());
+            } else if (cat.key === 'players') {
+                title = escapeHtml(item.name || 'Player');
+                const tn = (item.teams || {}).name || '';
+                sub = [tn, item.grade ? 'Gr ' + item.grade : ''].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+            } else if (cat.key === 'matches') {
+                const a = (item.team_a || {}).name || 'TBD';
+                const b = (item.team_b || {}).name || 'TBD';
+                title = escapeHtml(a) + ' vs ' + escapeHtml(b);
+                const sp = (item.sports || {}).name || '';
+                sub = [sp, item.gender].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
+                link = '/fixtures';
+            }
+
+            html += `
+            <a href="${escapeHtml(link)}" class="search-overlay-item">
+                <div style="min-width:0; flex:1;">
+                    <div class="search-overlay-item-title">${title}</div>
+                    ${sub ? `<div class="search-overlay-item-sub">${sub}</div>` : ''}
+                </div>
+                <span class="badge badge-stage" style="font-size:0.55rem;">${cat.title.slice(0, -1)}</span>
+            </a>`;
+        });
+
+        if (items.length > 5) {
+            html += `<div style="text-align:center; padding:4px 0; font-size:0.72rem; color:var(--text-tertiary);">+${items.length - 5} more</div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    html += `
+    <a href="/search?q=${encodeURIComponent(query)}" class="search-overlay-view-all">
+        View all ${totalResults} results
+        <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
+    </a>`;
+
+    container.innerHTML = html;
+}
+
+/* Global keyboard shortcut: Cmd/Ctrl+K to open search */
+document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (_searchOverlayOpen) {
+            closeSearchOverlay();
+        } else {
+            openSearchOverlay();
+        }
+    }
+    if (e.key === 'Escape' && _searchOverlayOpen) {
+        closeSearchOverlay();
+    }
+});
+
+/* Close search overlay when clicking outside the content */
+document.addEventListener('click', function(e) {
+    if (!_searchOverlayOpen) return;
+    const overlay = document.getElementById('searchOverlay');
+    const content = overlay ? overlay.querySelector('.search-overlay-content') : null;
+    if (overlay && !overlay.classList.contains('hidden') && content && !content.contains(e.target)) {
+        closeSearchOverlay();
+    }
+});
