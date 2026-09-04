@@ -1326,12 +1326,22 @@ def _search_all(query):
 
     q = query.strip()
 
-    # Houses
+    # Houses — enriched with overall standings
+    _house_standings_map = {}
+    try:
+        hs = client.table("house_overall_standings").select("*").execute()
+        for row in (hs.data or []):
+            hid = row.get("house_id")
+            if hid:
+                _house_standings_map[hid] = row
+    except Exception:
+        pass
     try:
         res = client.table("houses").select("*").execute()
         for h in (res.data or []):
             score = _fuzzy_score(q, h.get("name", ""))
             if score is not None:
+                h["_overall"] = _house_standings_map.get(h["id"], {})
                 results["houses"].append({"item": h, "score": score})
     except Exception:
         pass
@@ -1346,9 +1356,18 @@ def _search_all(query):
     except Exception:
         pass
 
-    # Teams/Squads
+    # Teams/Squads — enriched with leaderboard stats
+    _leaderboard_map = {}
     try:
-        res = client.table("teams").select("*, houses(name, color_hex, short_code), sports(name)").execute()
+        lb = client.table("leaderboard_view").select("*").execute()
+        for row in (lb.data or []):
+            tid = row.get("team_id") or row.get("id")
+            if tid:
+                _leaderboard_map[tid] = row
+    except Exception:
+        pass
+    try:
+        res = client.table("teams").select("*, houses(name, color_hex, short_code), sports(name, type)").execute()
         for t in (res.data or []):
             name_score = _fuzzy_score(q, t.get("name", ""))
             house_name = (t.get("houses") or {}).get("name", "")
@@ -1358,13 +1377,25 @@ def _search_all(query):
             gender_score = _fuzzy_score(q, t.get("gender", ""))
             scores = [s for s in [name_score, house_score, sport_score, gender_score] if s is not None]
             if scores:
+                lb_row = _leaderboard_map.get(t["id"], {})
+                t["_stats"] = {
+                    "played": lb_row.get("played", 0),
+                    "wins": lb_row.get("wins", 0),
+                    "draws": lb_row.get("draws", 0),
+                    "losses": lb_row.get("losses", 0),
+                    "score_for": lb_row.get("score_for", 0),
+                    "score_against": lb_row.get("score_against", 0),
+                    "score_difference": lb_row.get("score_difference", 0),
+                    "points": lb_row.get("points", 0),
+                    "rank": lb_row.get("rank"),
+                }
                 results["squads"].append({"item": t, "score": min(scores)})
     except Exception:
         pass
 
-    # Players
+    # Players — enriched with team sport info
     try:
-        res = client.table("players").select("*, teams(name, houses(name, color_hex))").execute()
+        res = client.table("players").select("*, teams(name, houses(name, color_hex), sports(name))").execute()
         for p in (res.data or []):
             name_score = _fuzzy_score(q, p.get("name", ""))
             roll_score = _fuzzy_score(q, str(p.get("roll_number", "")))
@@ -1379,7 +1410,7 @@ def _search_all(query):
     # Matches
     try:
         res = client.table("matches").select(
-            "*, sports(name), team_a:teams!matches_team_a_id_fkey(*, houses(name, color_hex)), "
+            "*, sports(name, type), team_a:teams!matches_team_a_id_fkey(*, houses(name, color_hex)), "
             "team_b:teams!matches_team_b_id_fkey(*, houses(name, color_hex))"
         ).execute()
         for m in (res.data or []):

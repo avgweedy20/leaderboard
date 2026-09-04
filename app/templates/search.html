@@ -112,16 +112,17 @@
 
     function renderSearchResults(results, query) {
         const container = document.getElementById('searchResultsContainer');
-        const categories = [
-            { key: 'houses', title: 'Houses', icon: 'icon-shield', color: 'var(--c-karnali)', linkFn: (item) => '/' },
-            { key: 'sports', title: 'Sports', icon: 'icon-football', color: 'var(--c-koshi)', linkFn: (item) => '/standings/' + encodeURIComponent((item.name || '').toLowerCase()) },
-            { key: 'squads', title: 'Squads', icon: 'icon-team', color: 'var(--c-mahakali)', linkFn: (item) => '/standings/' + encodeURIComponent(((item.sports || {}).name || '').toLowerCase()) },
-            { key: 'players', title: 'Players', icon: 'icon-info', color: 'var(--c-mechi)', linkFn: (item) => '/' },
-            { key: 'matches', title: 'Matches', icon: 'icon-calendar', color: 'var(--text-secondary)', linkFn: (item) => '/fixtures' },
-        ];
+        const categoryOrder = ['matches', 'squads', 'houses', 'players', 'sports'];
+        const categoryMeta = {
+            matches:  { title: 'Matches',  icon: 'icon-calendar', color: 'var(--text-secondary)' },
+            squads:   { title: 'Squads',   icon: 'icon-shield',   color: 'var(--c-mahakali)' },
+            houses:   { title: 'Houses',   icon: 'icon-shield',   color: 'var(--c-karnali)' },
+            players:  { title: 'Players',  icon: 'icon-info',     color: 'var(--c-mechi)' },
+            sports:   { title: 'Sports',   icon: 'icon-football', color: 'var(--c-koshi)' },
+        };
 
         let totalResults = 0;
-        categories.forEach(c => { totalResults += (results[c.key] || []).length; });
+        categoryOrder.forEach(k => { totalResults += (results[k] || []).length; });
 
         if (totalResults === 0) {
             container.innerHTML = `
@@ -151,25 +152,35 @@
         }
 
         let html = '<div class="search-results-list">';
-
         html += `<div class="search-results-count">${totalResults} result${totalResults !== 1 ? 's' : ''} found</div>`;
 
-        categories.forEach(cat => {
-            const items = results[cat.key] || [];
+        categoryOrder.forEach(key => {
+            const items = results[key] || [];
             if (items.length === 0) return;
+            const meta = categoryMeta[key];
 
             html += `
             <div class="search-category">
                 <div class="search-category-header">
-                    <svg class="icon" width="14" height="14" style="color:${cat.color};"><use href="#${cat.icon}"/></svg>
-                    <span class="search-category-title">${cat.title}</span>
+                    <svg class="icon" width="14" height="14" style="color:${meta.color};"><use href="#${meta.icon}"/></svg>
+                    <span class="search-category-title">${meta.title}</span>
                     <span class="search-category-count">${items.length}</span>
                 </div>
                 <div class="search-category-items">`;
 
             items.forEach(r => {
                 const item = r.item;
-                html += renderSearchItem(item, cat, query);
+                if (key === 'matches') {
+                    html += _renderSearchMatchCard(item);
+                } else if (key === 'squads') {
+                    html += _renderSearchSquadRow(item);
+                } else if (key === 'houses') {
+                    html += _renderSearchHouseRow(item);
+                } else if (key === 'players') {
+                    html += _renderSearchPlayerRow(item);
+                } else if (key === 'sports') {
+                    html += _renderSearchSportRow(item);
+                }
             });
 
             html += `</div></div>`;
@@ -181,57 +192,6 @@
         if (typeof DSSEffects !== 'undefined' && DSSEffects.rescan) {
             DSSEffects.rescan();
         }
-    }
-
-    function renderSearchItem(item, cat, query) {
-        let title = '';
-        let subtitle = '';
-        let badge = '';
-        let badgeClass = '';
-        let link = cat.linkFn(item);
-
-        if (cat.key === 'houses') {
-            title = escapeHtml(item.name || 'House');
-            subtitle = item.short_code ? escapeHtml(item.short_code) : '';
-            badge = 'House';
-            badgeClass = 'badge-stage';
-        } else if (cat.key === 'sports') {
-            title = escapeHtml(item.name || 'Sport');
-            subtitle = item.type ? escapeHtml(item.type) : '';
-            badge = 'Sport';
-            badgeClass = 'badge-status-scheduled';
-        } else if (cat.key === 'squads') {
-            title = escapeHtml(item.name || 'Squad');
-            const houseName = (item.houses || {}).name || '';
-            const sportName = (item.sports || {}).name || '';
-            subtitle = [houseName, sportName, item.gender].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
-            badge = 'Squad';
-            badgeClass = 'badge-status-completed';
-        } else if (cat.key === 'players') {
-            title = escapeHtml(item.name || 'Player');
-            const teamName = (item.teams || {}).name || '';
-            subtitle = [teamName, item.grade ? 'Grade ' + item.grade : '', item.roll_number ? '#' + item.roll_number : ''].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
-            badge = 'Player';
-            badgeClass = 'badge-stage';
-        } else if (cat.key === 'matches') {
-            const sportName = (item.sports || {}).name || '';
-            const teamA = (item.team_a || {}).name || 'TBD';
-            const teamB = (item.team_b || {}).name || 'TBD';
-            title = escapeHtml(teamA) + ' vs ' + escapeHtml(teamB);
-            const status = item.status === 'completed' ? 'FT' : 'Scheduled';
-            subtitle = [sportName, item.gender, item.stage].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
-            badge = status;
-            badgeClass = item.status === 'completed' ? 'badge-status-completed' : 'badge-status-scheduled';
-        }
-
-        return `
-        <a href="${escapeHtml(link)}" class="search-result-item reveal">
-            <div class="search-result-content">
-                <div class="search-result-title">${title}</div>
-                ${subtitle ? `<div class="search-result-subtitle">${subtitle}</div>` : ''}
-            </div>
-            <span class="badge ${badgeClass}">${badge}</span>
-        </a>`;
     }
 </script>
 {% endblock %}
