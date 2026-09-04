@@ -2645,6 +2645,7 @@ document.addEventListener('keydown', function(e) {
 /* Close search overlay when clicking outside the content */
 document.addEventListener('click', function(e) {
     if (!_searchOverlayOpen) return;
+    if (e.target.closest('#searchBtn') || e.target.closest('#themeToggleBtn')) return;
     const overlay = document.getElementById('searchOverlay');
     const content = overlay ? overlay.querySelector('.search-overlay-content') : null;
     if (overlay && !overlay.classList.contains('hidden') && content && !content.contains(e.target)) {
