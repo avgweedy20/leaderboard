@@ -520,7 +520,7 @@ function initFooterTypewriter() {
     if (window.DSSEffects && typeof window.DSSEffects.textType === 'function') {
         window.DSSEffects.textType(el, {
             text: [
-                'Made by Samir Ghimire',
+
                 '\u201CI am not led, I lead.\u201D \u2014 Alexander the Great',
                 '\u201CWhile I breathe, there is hope.\u201D \u2014 Marcus Aurelius',
                 '\u201CI\u2019ll do whatever it takes.\u201D \u2014 Cesare Borgia',
@@ -530,6 +530,7 @@ function initFooterTypewriter() {
                 '\u201CI came, I saw, I conquered.\u201D \u2014 Julius Caesar',
                 '\u201CLet them hate, so long as they fear me.\u201D \u2014 Caligula',
                 '\u201CFrom suffering comes glory.\u201D \u2014 Leonidas',
+                'Made by Samir Ghimire',
                 '\u201CIn this sign, you shall conquer.\u201D \u2014 Constantine',
             ],
             typingSpeed: 55,
