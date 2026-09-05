@@ -23,7 +23,20 @@ function mountWidgets() {
       createElement(TextType, {
         as: 'span',
         className: 'footer-type',
-        text: ['Made by Samir Ghimire', 'Made by STEM Club President'],
+        text: [
+
+          '\u201CI am not led, I lead.\u201D \u2014 Alexander the Great',
+          '\u201CWhile I breathe, there is hope.\u201D \u2014 Marcus Aurelius',
+          '\u201CI\u2019ll do whatever it takes.\u201D \u2014 Cesare Borgia',
+          '\u201CFortune favors the brave.\u201D \u2014 Pliny the Elder',
+          'Made by STEM Club President',
+          '\u201CIf I cannot bend the will of Heaven, I shall raise Hell.\u201D \u2014 Hannibal',
+          '\u201CI came, I saw, I conquered.\u201D \u2014 Julius Caesar',
+          '\u201CLet them hate, so long as they fear me.\u201D \u2014 Caligula',
+          '\u201CFrom suffering comes glory.\u201D \u2014 Leonidas',
+          'Made by Samir Ghimire',
+          '\u201CIn this sign, you shall conquer.\u201D \u2014 Constantine',
+        ],
         typingSpeed: 75,
         deletingSpeed: 50,
         pauseDuration: 1500,
