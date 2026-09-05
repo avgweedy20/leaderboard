@@ -1281,7 +1281,9 @@ tbody tr:hover { background: var(--well); }
 .footer-type {
   display: inline-block;
   min-height: 1.2em;
-  white-space: pre;
+  white-space: pre-wrap;
+  max-width: min(92vw, 640px);
+  overflow-wrap: break-word;
 }
 .type-caret {
   display: inline-block;

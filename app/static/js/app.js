@@ -519,7 +519,19 @@ function initFooterTypewriter() {
     if (window.DSSWidgets && window.DSSWidgets.ready) return;
     if (window.DSSEffects && typeof window.DSSEffects.textType === 'function') {
         window.DSSEffects.textType(el, {
-            text: ['Made by Samir Ghimire', 'Made by STEM Club President'],
+            text: [
+                'Made by Samir Ghimire',
+                '\u201CI am not led, I lead.\u201D \u2014 Alexander the Great',
+                '\u201CWhile I breathe, there is hope.\u201D \u2014 Marcus Aurelius',
+                '\u201CI\u2019ll do whatever it takes.\u201D \u2014 Cesare Borgia',
+                '\u201CFortune favors the brave.\u201D \u2014 Pliny the Elder',
+                'Made by STEM Club President',
+                '\u201CIf I cannot bend the will of Heaven, I shall raise Hell.\u201D \u2014 Hannibal',
+                '\u201CI came, I saw, I conquered.\u201D \u2014 Julius Caesar',
+                '\u201CLet them hate, so long as they fear me.\u201D \u2014 Caligula',
+                '\u201CFrom suffering comes glory.\u201D \u2014 Leonidas',
+                '\u201CIn this sign, you shall conquer.\u201D \u2014 Constantine',
+            ],
             typingSpeed: 55,
             deletingSpeed: 28,
             pauseDuration: 1400,
@@ -2535,11 +2547,11 @@ function _renderOverlayResults(results, query) {
 
     const categoryOrder = ['matches', 'squads', 'houses', 'players', 'sports'];
     const categoryMeta = {
-        matches:  { title: 'Matches',  icon: 'icon-calendar', color: 'var(--text-secondary)' },
-        squads:   { title: 'Squads',   icon: 'icon-shield',   color: 'var(--c-mahakali)' },
-        houses:   { title: 'Houses',   icon: 'icon-shield',   color: 'var(--c-karnali)' },
-        players:  { title: 'Players',  icon: 'icon-info',     color: 'var(--c-mechi)' },
-        sports:   { title: 'Sports',   icon: 'icon-football', color: 'var(--c-koshi)' },
+        matches: { title: 'Matches', icon: 'icon-calendar', color: 'var(--text-secondary)' },
+        squads: { title: 'Squads', icon: 'icon-shield', color: 'var(--c-mahakali)' },
+        houses: { title: 'Houses', icon: 'icon-shield', color: 'var(--c-karnali)' },
+        players: { title: 'Players', icon: 'icon-info', color: 'var(--c-mechi)' },
+        sports: { title: 'Sports', icon: 'icon-football', color: 'var(--c-koshi)' },
     };
 
     let totalResults = 0;
@@ -2629,7 +2641,7 @@ function _searchMatchCard(m, idx) {
 
     const stageLabel = m.stage === 'semifinal' ? 'Semifinal'
         : m.stage === 'final' ? 'Final'
-        : 'League';
+            : 'League';
 
     const editBtn = currentToken && m.team_a_id && m.team_b_id ? `
         <button onclick="openMatchModal('${jsStrLiteral(m.id)}')" class="btn btn-secondary btn-icon" title="Edit score" style="height:26px; width:26px; border-radius:6px;">
@@ -2705,7 +2717,7 @@ function _searchMatchSections(items) {
         const completedCount = g.matches.filter(m => m.status === 'completed').length;
         const sportIconId = g.sportName.toLowerCase().includes('basket') ? 'icon-basketball'
             : g.sportName.toLowerCase().includes('cricket') ? 'icon-cricket'
-            : 'icon-football';
+                : 'icon-football';
 
         html += `
         <div>
@@ -2842,7 +2854,7 @@ function _searchSportCard(s, idx) {
 }
 
 /* Global keyboard shortcut: Cmd/Ctrl+K to open search */
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         if (_searchOverlayOpen) {
@@ -2857,7 +2869,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* Close search overlay when clicking outside the content */
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     if (!_searchOverlayOpen) return;
     if (e.target.closest('#searchBtn') || e.target.closest('#themeToggleBtn')) return;
     const overlay = document.getElementById('searchOverlay');

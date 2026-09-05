@@ -6,7 +6,9 @@
   display: inline-block;
 }
 #footerTextRoot .text-type {
-  white-space: pre;
+  white-space: pre-wrap;
+  max-width: min(92vw, 640px);
+  overflow-wrap: break-word;
 }
 #footerTextRoot .text-type__cursor {
   color: var(--text);
