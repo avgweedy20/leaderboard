@@ -4,7 +4,7 @@
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* ── Number ticker ([data-tick], magicui NumberTicker) ────────────────── */
+   
   var tickerIO = null;
   function tickerObserver() {
     if (!tickerIO && 'IntersectionObserver' in window && !reduce) {
@@ -30,14 +30,14 @@
     function frame(ts) {
       if (!start) start = ts;
       var t = Math.min((ts - start) / dur, 1);
-      var eased = 1 - Math.pow(2, -10 * t); // easeOutExpo
+      var eased = 1 - Math.pow(2, -10 * t);  
       el.textContent = prefix + Math.round(target * (t === 1 ? 1 : eased)) + suffix;
       if (t < 1) requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
   }
 
-  /* ── Scroll reveal (.reveal -> .is-in, staggered via --d) ─────────────── */
+   
   var revealIO = null;
   function revealObserver() {
     if (!revealIO) {
@@ -60,7 +60,7 @@
     });
   }
 
-  /* ── Tilt (reactbits TiltCard) - delegation, per-card hover tracking ──── */
+   
   var tiltEl = null;
   function tiltLoop() {
     if (!tiltEl) return;
@@ -86,7 +86,7 @@
     }
   }, { passive: true });
 
-  /* ── Magnetic buttons (reactbits Magnet) - direct bind, few in DOM ────── */
+   
   var MAGNETIC = new WeakSet();
   function scanMagnetic(root) {
     (root || document).querySelectorAll('.magnetic').forEach(function (el) {
@@ -111,7 +111,7 @@
     });
   }
 
-  /* ── Segmented nav thumb (reactbits Glass Pill Nav) ───────────────────── */
+   
   function refreshThumbs(root) {
     (root || document).querySelectorAll('.segnav').forEach(function (nav) {
       var thumb = nav.querySelector('.seg-thumb');
@@ -124,7 +124,7 @@
     });
   }
 
-  /* ── Observe dynamic content (app.js re-renders via innerHTML) ────────── */
+   
   var pending = false;
   function rescan() {
     pending = false;
@@ -149,7 +149,7 @@
     mo.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
   }
 
-  /* ── TextType (reactbits) - vanilla port for the footer ────────────────── */
+   
   function textType(el, opts) {
     if (!el) return null;
     opts = opts || {};
@@ -163,7 +163,7 @@
     var loop = opts.loop !== false;
     var variableSpeed = opts.variableSpeed || null;
 
-    // Cursor assumed to be the sibling `.type-caret` span (see base.html footer).
+     
     var caret = el.nextElementSibling && el.nextElementSibling.classList.contains('type-caret')
       ? el.nextElementSibling : null;
     if (caret && opts.showCursor === false) caret.style.display = 'none';
@@ -215,7 +215,7 @@
     return { stop: function () { clearTimeout(timer); }, done: done };
   }
 
-  /* ── init ─────────────────────────────────────────────────────────────── */
+   
   function init() {
     rescan();
     if (!reduce) watch();

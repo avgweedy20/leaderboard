@@ -2438,7 +2438,7 @@ function getSportName(sportId) {
 }
 
 
-/* ── SEARCH OVERLAY ─────────────────────────────────────────────────────── */
+
 let _searchDebounce = null;
 let _searchOverlayOpen = false;
 
@@ -2630,7 +2630,7 @@ function _renderOverlayResults(results, query) {
     container.innerHTML = html;
 }
 
-/* Exact replica of the fixtures page fixture-card */
+
 function _searchMatchCard(m, idx) {
     const isCompleted = m.status === 'completed';
     const teamAName = m.team_a && m.team_a.name ? m.team_a.name : getTeamName(m.team_a_id, m);
@@ -2689,7 +2689,7 @@ function _searchMatchCard(m, idx) {
     </div>`;
 }
 
-/* Group matches by sport + gender, exactly like the fixtures page */
+
 function _searchMatchSections(items) {
     if (!items || items.length === 0) return '';
     const groups = {};
@@ -2737,7 +2737,7 @@ function _searchMatchSections(items) {
     return html;
 }
 
-/* Exact replica of the per-sport standings table row */
+
 function _searchSquadRow(t, idx) {
     const stats = t._stats || {};
     const house = t.houses || {};
@@ -2778,7 +2778,7 @@ function _searchSquadRow(t, idx) {
     </tr>`;
 }
 
-/* Exact replica of the index page house-hero-card */
+
 function _searchHouseCard(h, idx) {
     const s = h._overall || {};
     const color = escapeHtml(h.color_hex || 'var(--border)');
@@ -2854,7 +2854,7 @@ function _searchSportCard(s, idx) {
     </a>`;
 }
 
-/* Global keyboard shortcut: Cmd/Ctrl+K to open search */
+
 document.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -2869,7 +2869,7 @@ document.addEventListener('keydown', function (e) {
     }
 });
 
-/* Close search overlay when clicking outside the content */
+
 document.addEventListener('click', function (e) {
     if (!_searchOverlayOpen) return;
     if (e.target.closest('#searchBtn') || e.target.closest('#themeToggleBtn')) return;

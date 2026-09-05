@@ -200,7 +200,7 @@ Inter-House Sports Meet 2083.{% endblock %}
 
 {% block scripts %}
 <script>
-    // Local fixture data and filter state
+
     let allFixtures = [];
     let activeFixtureSportId = '';
     let activeFixtureGender = '';
@@ -224,7 +224,7 @@ Inter-House Sports Meet 2083.{% endblock %}
     }
 
     function filterFixtures(sportId, btn) {
-        // Deactivate all chips
+
         document.querySelectorAll('#fixtureFilterChips .chip').forEach(c => c.classList.remove('active'));
         if (btn) btn.classList.add('active');
         activeFixtureSportId = sportId;
@@ -250,7 +250,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         }
     }
 
-    // Reload fixtures after admin score update (called from app.js handleMatchSubmit)
+
     async function reloadFixturesAfterUpdate() {
         try {
             const res = await fetch('/api/matches');
@@ -258,13 +258,13 @@ Inter-House Sports Meet 2083.{% endblock %}
             allFixtures = await res.json();
             matchesData = allFixtures;
             renderFixtureGroups(allFixtures);
-        } catch (e) { /* silent */ }
+        } catch (e) { }
     }
 
     function renderFixtureGroups(fixtures) {
         const container = document.getElementById('fixturesContainer');
 
-        // Apply filters
+
         let filtered = fixtures;
         if (activeFixtureSportId) filtered = filtered.filter(m => m.sport_id === activeFixtureSportId);
         if (activeFixtureGender) filtered = filtered.filter(m => m.gender === activeFixtureGender);
@@ -278,10 +278,10 @@ Inter-House Sports Meet 2083.{% endblock %}
             return;
         }
 
-        // Group by sport_name + gender
+
         const groups = {};
         filtered.forEach(m => {
-            // Get sport name
+
             const sport = sportsData.find(s => s.id === m.sport_id);
             const sportName = sport ? sport.name : (m.sports ? m.sports.name : 'Unknown');
             const gender = m.gender || 'Unknown';
@@ -290,7 +290,7 @@ Inter-House Sports Meet 2083.{% endblock %}
             groups[key].matches.push(m);
         });
 
-        // Sort groups: Futsal Girls, Futsal Boys, Basketball Girls, Basketball Boys, Cricksal Girls, Cricksal Boys
+
         const ORDER = ['Futsal', 'Basketball', 'Cricksal'];
         const GENDER_ORDER = ['Girls', 'Boys'];
         const sortedKeys = Object.keys(groups).sort((a, b) => {
@@ -336,7 +336,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         const teamAName = getTeamName(m.team_a_id, m);
         const teamBName = getTeamName(m.team_b_id, m);
 
-        // Get house colors for left-border accents on team names
+
         const teamA = resolveTeam(m.team_a_id, m);
         const teamB = resolveTeam(m.team_b_id, m);
         const colorA = teamA ? getHouseColor(teamA.house_id, teamA.houses) : 'var(--border)';
@@ -391,7 +391,7 @@ Inter-House Sports Meet 2083.{% endblock %}
     </div>`;
     }
 
-    // Resolve full team object (from squadsData or nested match join data)
+
     function resolveTeam(teamId, matchObj) {
         if (!teamId) return null;
         let t = squadsData.find(s => s.id === teamId);
@@ -402,7 +402,7 @@ Inter-House Sports Meet 2083.{% endblock %}
         return t || null;
     }
 
-    // Get house color from house_id, checking nested houses object first
+
     function getHouseColor(houseId, housesObj) {
         if (housesObj && housesObj.color_hex) return cssColor(housesObj.color_hex) || 'var(--border)';
         const h = housesData.find(x => x.id === houseId);
