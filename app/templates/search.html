@@ -165,25 +165,34 @@
                     <svg class="icon" width="14" height="14" style="color:${meta.color};"><use href="#${meta.icon}"/></svg>
                     <span class="search-category-title">${meta.title}</span>
                     <span class="search-category-count">${items.length}</span>
-                </div>
-                <div class="search-category-items">`;
+                </div>`;
 
-            items.forEach(r => {
-                const item = r.item;
-                if (key === 'matches') {
-                    html += _renderSearchMatchCard(item);
-                } else if (key === 'squads') {
-                    html += _renderSearchSquadRow(item);
-                } else if (key === 'houses') {
-                    html += _renderSearchHouseRow(item);
-                } else if (key === 'players') {
-                    html += _renderSearchPlayerRow(item);
-                } else if (key === 'sports') {
-                    html += _renderSearchSportRow(item);
-                }
-            });
+            if (key === 'matches') {
+                html += `<div class="search-category-body">${_searchMatchSections(items.map(r => r.item))}</div>`;
+            } else if (key === 'squads') {
+                html += `<div class="table-wrap search-page-table"><table>
+                    <thead><tr>
+                        <th style="width:56px;">Rank</th><th>Squad</th><th>House</th><th>Sport</th><th>Gender</th>
+                        <th>P</th><th>W</th><th>D</th><th>L</th><th>Diff</th><th style="text-align:right;">Pts</th>
+                    </tr></thead><tbody>`;
+                items.forEach((r, i) => { html += _searchSquadRow(r.item, i); });
+                html += '</tbody></table></div>';
+            } else if (key === 'houses') {
+                html += `<div class="house-hero-grid">`;
+                items.forEach((r, i) => { html += _searchHouseCard(r.item, i); });
+                html += '</div>';
+            } else if (key === 'players') {
+                html += `<div class="table-wrap search-page-table"><table>
+                    <thead><tr><th>Name</th><th>Team</th><th>Grade</th><th style="text-align:right;">Roll #</th></tr></thead><tbody>`;
+                items.forEach((r, i) => { html += _searchPlayerRow(r.item, i); });
+                html += '</tbody></table></div>';
+            } else if (key === 'sports') {
+                html += `<div class="card-grid">`;
+                items.forEach((r, i) => { html += _searchSportCard(r.item, i); });
+                html += '</div>';
+            }
 
-            html += `</div></div>`;
+            html += `</div>`;
         });
 
         html += '</div>';

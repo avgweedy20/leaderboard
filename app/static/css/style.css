@@ -1631,6 +1631,58 @@ tbody tr:hover { background: var(--well); }
 }
 .search-overlay-view-all:hover { background: var(--well); }
 
+/* Search results - replica grid + tables (matches fixtures/standings components) */
+.search-overlay-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.search-overlay-table { max-height: none; }
+.search-overlay-table thead th { padding: 9px 12px; }
+.search-overlay-table tbody td { padding: 9px 12px; }
+.search-overlay-table table { font-size: 0.82rem; }
+
+.search-overlay-houses { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.search-overlay-houses .house-hero-card { padding: 16px; gap: 12px; }
+.search-overlay-houses .stat-value { font-size: 1.5rem; }
+
+.search-overlay-sports { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+
+.search-sport-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-s);
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+.search-sport-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-m); border-color: var(--border-2); }
+
+.search-sport-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.search-row-link { cursor: pointer; }
+
+.search-category-body { display: flex; flex-direction: column; gap: 26px; }
+.search-page-table { margin-top: 14px; }
+
+.search-results-list { display: flex; flex-direction: column; gap: 34px; }
+.search-results-list > .search-category { margin-bottom: 0; }
+
 /* Compact fixture card inside search overlay */
 .search-match-card {
   display: flex;

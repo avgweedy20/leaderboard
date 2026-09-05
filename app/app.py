@@ -33,11 +33,15 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "mock-service
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "mock-anon-key")
 
 SPEED_INSIGHTS_PATH = os.getenv("SPEED_INSIGHTS_PATH", "").strip()
+# Vercel Web Analytics: same-origin script path injected by Vercel when the
+# Analytics feature is enabled. Works on Vercel hosting with zero config;
+# override with ANALYTICS_PATH="" to disable.
+ANALYTICS_PATH = os.getenv("ANALYTICS_PATH", "/_vercel/insights/script.js").strip()
 
 
 @app.context_processor
-def inject_speed_insights():
-    return {"speed_insights_path": SPEED_INSIGHTS_PATH}
+def inject_vercel_snippets():
+    return {"speed_insights_path": SPEED_INSIGHTS_PATH, "analytics_path": ANALYTICS_PATH}
 
 # Supabase client (None = Supabase not configured; unless every endpoint that
 # depends on it returns an explicit "Supabase not configured" 503 response, the

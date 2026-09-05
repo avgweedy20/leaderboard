@@ -2573,21 +2573,33 @@ function _renderOverlayResults(results, query) {
             </div>`;
 
         const shown = items.slice(0, 5);
-        shown.forEach(r => {
-            const item = r.item;
 
-            if (key === 'matches') {
-                html += _renderSearchMatchCard(item);
-            } else if (key === 'squads') {
-                html += _renderSearchSquadRow(item);
-            } else if (key === 'houses') {
-                html += _renderSearchHouseRow(item);
-            } else if (key === 'players') {
-                html += _renderSearchPlayerRow(item);
-            } else if (key === 'sports') {
-                html += _renderSearchSportRow(item);
-            }
-        });
+        if (key === 'matches') {
+            html += '<div class="search-overlay-grid">';
+            shown.forEach((r, i) => { html += _searchMatchCard(r.item, i); });
+            html += '</div>';
+        } else if (key === 'squads') {
+            html += `<div class="table-wrap search-overlay-table"><table>
+                <thead><tr>
+                    <th style="width:48px;">Rank</th><th>Squad</th><th>House</th><th>Sport</th><th>Gender</th>
+                    <th>P</th><th>W</th><th>D</th><th>L</th><th>Diff</th><th style="text-align:right;">Pts</th>
+                </tr></thead><tbody>`;
+            shown.forEach((r, i) => { html += _searchSquadRow(r.item, i); });
+            html += '</tbody></table></div>';
+        } else if (key === 'houses') {
+            html += '<div class="house-hero-grid search-overlay-houses">';
+            shown.forEach((r, i) => { html += _searchHouseCard(r.item, i); });
+            html += '</div>';
+        } else if (key === 'players') {
+            html += `<div class="table-wrap search-overlay-table"><table>
+                <thead><tr><th>Name</th><th>Team</th><th>Grade</th><th style="text-align:right;">Roll #</th></tr></thead><tbody>`;
+            shown.forEach((r, i) => { html += _searchPlayerRow(r.item, i); });
+            html += '</tbody></table></div>';
+        } else if (key === 'sports') {
+            html += '<div class="search-overlay-grid search-overlay-sports">';
+            shown.forEach((r, i) => { html += _searchSportCard(r.item, i); });
+            html += '</div>';
+        }
 
         if (items.length > 5) {
             html += `<div style="text-align:center; padding:4px 0; font-size:0.72rem; color:var(--text-tertiary);">+${items.length - 5} more</div>`;
@@ -2605,175 +2617,225 @@ function _renderOverlayResults(results, query) {
     container.innerHTML = html;
 }
 
-function _renderSearchMatchCard(m) {
-    const teamA = m.team_a || {};
-    const teamB = m.team_b || {};
-    const sport = m.sports || {};
-    const colorA = (teamA.houses || {}).color_hex || 'var(--border-2)';
-    const colorB = (teamB.houses || {}).color_hex || 'var(--border-2)';
-    const nameA = escapeHtml(teamA.name || 'TBD');
-    const nameB = escapeHtml(teamB.name || 'TBD');
-    const sportName = escapeHtml(sport.name || '');
-    const stage = escapeHtml(m.stage || 'league');
-    const gender = escapeHtml(m.gender || '');
-    const status = m.status || 'scheduled';
+/* Exact replica of the fixtures page fixture-card */
+function _searchMatchCard(m, idx) {
+    const isCompleted = m.status === 'completed';
+    const teamAName = m.team_a && m.team_a.name ? m.team_a.name : getTeamName(m.team_a_id, m);
+    const teamBName = m.team_b && m.team_b.name ? m.team_b.name : getTeamName(m.team_b_id, m);
+    const teamA = m.team_a || null;
+    const teamB = m.team_b || null;
+    const colorA = getHouseColor(m.team_a_id, teamA ? teamA.houses : null);
+    const colorB = getHouseColor(m.team_b_id, teamB ? teamB.houses : null);
 
-    let badges = `<span class="badge badge-stage">${stage}</span>`;
-    if (status === 'completed') {
-        badges += `<span class="badge badge-status-completed">FT</span>`;
-    } else {
-        badges += `<span class="badge badge-status-scheduled">Scheduled</span>`;
-    }
+    const stageLabel = m.stage === 'semifinal' ? 'Semifinal'
+        : m.stage === 'final' ? 'Final'
+        : 'League';
 
-    let scoreBlock = '';
-    if (status === 'completed' && (m.score_team_a != null || m.score_summary)) {
-        const scoreText = m.score_summary || (m.score_team_a + ' - ' + m.score_team_b);
-        scoreBlock = `
-        <div class="search-match-score">
-            <span class="search-match-score-num" style="color:${colorA};">${m.score_team_a != null ? m.score_team_a : '-'}</span>
-            <span class="search-match-score-dash">&ndash;</span>
-            <span class="search-match-score-num" style="color:${colorB};">${m.score_team_b != null ? m.score_team_b : '-'}</span>
+    const editBtn = currentToken && m.team_a_id && m.team_b_id ? `
+        <button onclick="openMatchModal('${jsStrLiteral(m.id)}')" class="btn btn-secondary btn-icon" title="Edit score" style="height:26px; width:26px; border-radius:6px;">
+            <svg class="icon" width="12" height="12"><use href="#icon-edit"/></svg>
+        </button>` : '';
+
+    let scoreSection = '';
+    if (isCompleted && (m.score_summary || (m.score_team_a != null && m.score_team_b != null))) {
+        const summary = m.score_summary || `${m.score_team_a} - ${m.score_team_b}`;
+        scoreSection = `
+        <div class="fixture-score">
+            <span class="score-label">Final Score</span>
+            <span class="score-text">${escapeHtml(summary)}</span>
         </div>`;
+    } else if (!m.team_a_id || !m.team_b_id) {
+        scoreSection = `<p class="fixture-unplayed" style="font-style:italic;">TBD - awaiting qualifiers</p>`;
     } else {
-        scoreBlock = `<p style="font-size:0.7rem; color:var(--text-tertiary); text-align:center; padding:4px 0;">Not yet played</p>`;
+        scoreSection = `<p class="fixture-unplayed">Not yet played</p>`;
     }
-
-    const detail = [sportName, gender].filter(Boolean).join(' \u00b7 ');
 
     return `
-    <a href="/fixtures" class="search-match-card">
-        <div class="search-match-top">${badges}</div>
-        <div class="search-match-matchup">
-            <div class="search-match-team">
-                <span style="width:3px; height:20px; border-radius:2px; background:${colorA}; flex-shrink:0;"></span>
-                ${nameA}
+    <div class="fixture-card reveal" style="--d:${(idx || 0) % 12 * 45}ms;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span class="badge badge-stage">${stageLabel}</span>
+                <span class="badge ${isCompleted ? 'badge-status-completed' : 'badge-status-scheduled'}">
+                    ${isCompleted ? 'FT' : 'Scheduled'}
+                </span>
             </div>
-            <span class="search-match-vs">VS</span>
-            <div class="search-match-team right">
-                ${nameB}
-                <span style="width:3px; height:20px; border-radius:2px; background:${colorB}; flex-shrink:0;"></span>
+            ${editBtn}
+        </div>
+        <div class="fixture-matchup">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:3px; height:28px; border-radius:2px; background-color:${colorA}; flex-shrink:0;"></span>
+                <span class="fixture-team">${escapeHtml(teamAName)}</span>
+            </div>
+            <span class="fixture-vs">VS</span>
+            <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
+                <span class="fixture-team team-b">${escapeHtml(teamBName)}</span>
+                <span style="width:3px; height:28px; border-radius:2px; background-color:${colorB}; flex-shrink:0;"></span>
             </div>
         </div>
-        ${scoreBlock}
-        ${detail ? `<div class="search-match-detail">${detail}</div>` : ''}
-    </a>`;
+        ${scoreSection}
+    </div>`;
 }
 
-function _renderSearchSquadRow(t) {
+/* Group matches by sport + gender, exactly like the fixtures page */
+function _searchMatchSections(items) {
+    if (!items || items.length === 0) return '';
+    const groups = {};
+    items.forEach(m => {
+        const sportName = (m.sports && m.sports.name) ? m.sports.name : 'Unknown';
+        const gender = m.gender || 'Unknown';
+        const key = sportName + '__' + gender;
+        if (!groups[key]) groups[key] = { sportName, gender, matches: [] };
+        groups[key].matches.push(m);
+    });
+
+    const ORDER = ['Futsal', 'Basketball', 'Cricksal'];
+    const GENDER_ORDER = ['Girls', 'Boys'];
+    const keys = Object.keys(groups).sort((a, b) => {
+        const [sA, gA] = a.split('__');
+        const [sB, gB] = b.split('__');
+        const oA = ORDER.indexOf(sA);
+        const oB = ORDER.indexOf(sB);
+        if ((oA === -1 ? 99 : oA) !== (oB === -1 ? 99 : oB)) return (oA === -1 ? 99 : oA) - (oB === -1 ? 99 : oB);
+        return GENDER_ORDER.indexOf(gA) - GENDER_ORDER.indexOf(gB);
+    });
+
+    let html = '';
+    keys.forEach(key => {
+        const g = groups[key];
+        const completedCount = g.matches.filter(m => m.status === 'completed').length;
+        const sportIconId = g.sportName.toLowerCase().includes('basket') ? 'icon-basketball'
+            : g.sportName.toLowerCase().includes('cricket') ? 'icon-cricket'
+            : 'icon-football';
+
+        html += `
+        <div>
+            <div class="section-header">
+                <svg class="icon" width="16" height="16" style="color:var(--text-secondary);">
+                    <use href="#${sportIconId}"/>
+                </svg>
+                <span class="section-title">${escapeHtml(g.sportName)} - ${escapeHtml(g.gender)}</span>
+                <span class="badge badge-stage">${completedCount}/${g.matches.length} played</span>
+            </div>
+            <div class="card-grid">`;
+        g.matches.forEach((m, i) => { html += _searchMatchCard(m, i); });
+        html += `</div></div>`;
+    });
+
+    return html;
+}
+
+/* Exact replica of the per-sport standings table row */
+function _searchSquadRow(t, idx) {
+    const stats = t._stats || {};
     const house = t.houses || {};
     const sport = t.sports || {};
-    const stats = t._stats || {};
-    const color = escapeHtml(house.color_hex || 'var(--border-2)');
-    const houseName = escapeHtml(house.name || '');
+    const color = getHouseColor(t.house_id, house) || 'var(--border)';
+    const teamName = escapeHtml(t.name || 'Squad') + (t.squad_label ? ' ' + escapeHtml(t.squad_label) : '');
+    const houseLabel = escapeHtml(house.name || '') + (t.squad_label ? ' ' + escapeHtml(t.squad_label) : '');
     const sportName = escapeHtml(sport.name || '');
-    const squadLabel = t.squad_label ? ' ' + escapeHtml(t.squad_label) : '';
-    const displayName = escapeHtml(t.name || 'Squad');
     const gender = escapeHtml(t.gender || '');
-
     const played = stats.played || 0;
     const wins = stats.wins || 0;
     const draws = stats.draws || 0;
     const losses = stats.losses || 0;
-    const points = stats.points || 0;
-    const diff = stats.score_difference || 0;
+    const diff = stats.score_difference != null ? stats.score_difference : 0;
     const diffStr = diff > 0 ? '+' + diff : String(diff);
-
-    const meta = [houseName, sportName, gender].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
-    const sportSlug = (sport.name || '').toLowerCase();
-    const link = sportSlug ? '/standings/' + encodeURIComponent(sportSlug) : '/standings/';
+    const points = stats.points || 0;
+    const rank = stats.rank != null ? stats.rank : '\u2013';
+    const slug = encodeURIComponent((sport.name || '').toLowerCase());
 
     return `
-    <a href="${escapeHtml(link)}" class="search-squad-row">
-        <div class="search-squad-info">
-            <span class="search-squad-dot" style="background:${color};"></span>
-            <div style="min-width:0;">
-                <div class="search-squad-name">${displayName}${squadLabel}</div>
-                ${meta ? `<div class="search-squad-meta">${meta}</div>` : ''}
+    <tr class="trow search-row-link" style="--d:${(idx || 0) % 10 * 40}ms;" onclick="location.href='/standings/${slug}'">
+        <td><span class="rank-pill" style="background:${color};">#${rank}</span></td>
+        <td style="font-family:var(--font-display); font-weight:620;">${teamName}</td>
+        <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:8px; height:8px; border-radius:3px; background:${color};"></span>
+                <span style="color:${color}; font-weight:620;">${houseLabel}</span>
+            </div>
+        </td>
+        <td style="color:var(--text-secondary); font-size:0.82rem;">${sportName}</td>
+        <td style="color:var(--text-secondary); font-size:0.82rem;">${gender}</td>
+        <td class="tabular">${played}</td>
+        <td class="tabular" style="color:var(--c-karnali); font-weight:600;">${wins}</td>
+        <td class="tabular" style="color:var(--text-tertiary);">${draws}</td>
+        <td class="tabular" style="color:#F87171; font-weight:600;">${losses}</td>
+        <td class="tabular" style="color:var(--text-secondary);">${diffStr}</td>
+        <td style="text-align:right; font-weight:700; color:${color};" class="tabular">${points}</td>
+    </tr>`;
+}
+
+/* Exact replica of the index page house-hero-card */
+function _searchHouseCard(h, idx) {
+    const s = h._overall || {};
+    const color = escapeHtml(h.color_hex || 'var(--border)');
+    const name = escapeHtml(h.name || 'House');
+    const isLeader = s.rank === 1;
+    const rank = s.rank != null ? s.rank : '\u2013';
+    const squads = s.total_squads || 0;
+    const played = s.matches_played || 0;
+    const points = s.total_points || 0;
+    const wins = s.total_wins || 0;
+    const draws = s.total_draws || 0;
+    const losses = s.total_losses || 0;
+
+    return `
+    <div class="house-hero-card tilt reveal${isLeader ? ' is-leader' : ''}" style="--accent:${color}; --d:${(idx || 0) % 4 * 60}ms;">
+        <div>
+            <span class="hero-medal">Rank #${rank}</span>
+            <div class="house-name" style="margin-top:8px;">${name}</div>
+            <div class="hero-sub">${squads} squad${squads !== 1 ? 's' : ''} registered \u00b7 ${played} match${played !== 1 ? 'es' : ''}</div>
+        </div>
+        <div class="hero-stats">
+            <div>
+                <div class="stat-label">Total Points</div>
+                <div class="stat-value" data-tick="${points}">${points}</div>
+            </div>
+            <div style="text-align:right;">
+                <div class="stat-value-sm tabular">
+                    <span class="wl-good">${wins}</span>
+                    <span style="color:var(--text-tertiary);">&nbsp;-&nbsp;</span>
+                    <span class="wl-mid">${draws}</span>
+                    <span style="color:var(--text-tertiary);">&nbsp;-&nbsp;</span>
+                    <span class="wl-bad">${losses}</span>
+                </div>
             </div>
         </div>
-        <div class="search-squad-stats">
-            <span class="search-squad-stat w" title="Wins">${wins}</span>
-            <span style="color:var(--text-tertiary);">&ndash;</span>
-            <span class="search-squad-stat d" title="Draws">${draws}</span>
-            <span style="color:var(--text-tertiary);">&ndash;</span>
-            <span class="search-squad-stat l" title="Losses">${losses}</span>
-            <span style="color:var(--border); margin:0 2px;">|</span>
-            <span class="search-squad-stat pts" title="Points">${points} pts</span>
-        </div>
-    </a>`;
+    </div>`;
 }
 
-function _renderSearchHouseRow(h) {
-    const color = escapeHtml(h.color_hex || 'var(--border-2)');
-    const name = escapeHtml(h.name || 'House');
-    const shortCode = h.short_code ? escapeHtml(h.short_code) : '';
-
-    const stats = h._overall || {};
-    const totalPoints = stats.total_points || 0;
-    const totalWins = stats.total_wins || 0;
-    const totalDraws = stats.total_draws || 0;
-    const totalLosses = stats.total_losses || 0;
-    const totalSquads = stats.total_squads || 0;
-    const played = stats.matches_played || 0;
-
-    return `
-    <a href="/" class="search-house-row">
-        <span class="search-house-color" style="background:${color};"></span>
-        <div class="search-house-info">
-            <div class="search-house-name" style="color:${color};">${name}</div>
-            <div class="search-house-sub">${totalSquads} squad${totalSquads !== 1 ? 's' : ''} \u00b7 ${played} match${played !== 1 ? 'es' : ''}</div>
-        </div>
-        <div class="search-house-stats">
-            <span style="color:var(--c-karnali);">${totalWins}W</span>
-            <span style="color:var(--text-tertiary);">&ndash;</span>
-            <span style="color:var(--text-tertiary);">${totalDraws}D</span>
-            <span style="color:var(--text-tertiary);">&ndash;</span>
-            <span style="color:#F87171;">${totalLosses}L</span>
-            <span style="color:var(--border); margin:0 2px;">|</span>
-            <span style="font-weight:700; color:${color};">${totalPoints} pts</span>
-        </div>
-    </a>`;
-}
-
-function _renderSearchPlayerRow(p) {
+function _searchPlayerRow(p, idx) {
     const team = p.teams || {};
-    const house = (team.houses || team.houses) || {};
     const teamName = escapeHtml(team.name || '');
     const playerName = escapeHtml(p.name || 'Player');
-    const grade = p.grade ? 'Gr ' + escapeHtml(String(p.grade)) : '';
-    const section = p.section ? escapeHtml(p.section) : '';
-    const roll = p.roll_number ? '#' + escapeHtml(String(p.roll_number)) : '';
-    const detail = [teamName, grade, section, roll].filter(Boolean).join(' \u00b7 ');
+    const grade = p.grade != null ? escapeHtml(String(p.grade)) : '\u2013';
+    const roll = p.roll_number != null ? escapeHtml(String(p.roll_number)) : '\u2013';
 
     return `
-    <a href="/" class="search-player-row">
-        <div style="min-width:0; flex:1;">
-            <div class="search-player-name">${playerName}</div>
-            ${detail ? `<div class="search-player-detail">${detail}</div>` : ''}
-        </div>
-    </a>`;
+    <tr class="trow" style="--d:${(idx || 0) % 10 * 40}ms;">
+        <td style="font-family:var(--font-display); font-weight:620;">${playerName}</td>
+        <td style="color:var(--text-secondary); font-size:0.82rem;">${teamName}</td>
+        <td class="tabular" style="color:var(--text-secondary); font-size:0.82rem;">${grade}</td>
+        <td class="tabular" style="text-align:right; color:var(--text-tertiary); font-size:0.82rem;">${roll}</td>
+    </tr>`;
 }
 
-function _renderSearchSportRow(s) {
-    const name = escapeHtml(s.name || 'Sport');
-    const type = escapeHtml(s.type || 'generic');
-    const typeColors = {
-        football: 'var(--c-karnali)', basketball: 'var(--c-koshi)',
-        cricket: 'var(--c-mahakali)', generic: 'var(--text-secondary)'
-    };
-    const bgColor = typeColors[type] || typeColors.generic;
-
-    const iconMap = { football: 'icon-football', basketball: 'icon-football', cricket: 'icon-football', generic: 'icon-info' };
-    const icon = iconMap[type] || iconMap.generic;
+function _searchSportCard(s, idx) {
+    const type = s.type || 'generic';
+    const icons = { football: 'icon-football', basketball: 'icon-basketball', cricket: 'icon-cricket' };
+    const icon = icons[type] || 'icon-info';
+    const colors = { football: 'var(--c-karnali)', basketball: 'var(--c-koshi)', cricket: 'var(--c-mahakali)' };
+    const accent = colors[type] || 'var(--text-secondary)';
+    const slug = encodeURIComponent((s.name || '').toLowerCase());
 
     return `
-    <a href="/standings/${encodeURIComponent((s.name || '').toLowerCase())}" class="search-sport-row">
-        <div class="search-sport-icon" style="background:color-mix(in srgb, ${bgColor} 15%, transparent); color:${bgColor};">
-            <svg class="icon" width="16" height="16"><use href="#${icon}"/></svg>
+    <a href="/standings/${slug}" class="search-sport-card reveal" style="--accent:${accent}; --d:${(idx || 0) % 6 * 60}ms;">
+        <div class="search-sport-icon" style="background:color-mix(in srgb, ${accent} 14%, transparent); color:${accent};">
+            <svg class="icon" width="18" height="18"><use href="#${icon}"/></svg>
         </div>
         <div style="min-width:0; flex:1;">
-            <div class="search-sport-name">${name}</div>
-            <div class="search-sport-type">${type}</div>
+            <div class="search-sport-name" style="font-family:var(--font-display); font-size:0.9rem; font-weight:620;">${escapeHtml(s.name || 'Sport')}</div>
+            <div class="search-sport-type" style="font-size:0.72rem; color:var(--text-secondary); text-transform:capitalize;">${escapeHtml(type)}</div>
         </div>
         ${s.level ? `<span class="badge badge-stage">${escapeHtml(s.level)}</span>` : ''}
     </a>`;

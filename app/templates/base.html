@@ -294,5 +294,14 @@
     </script>
     <script defer src="{{ speed_insights_path }}"></script>
     {% endif %}
+
+    {% if analytics_path %}
+    <!-- Vercel Web Analytics (same-origin path injected by Vercel when the
+         Analytics feature is enabled for the project). -->
+    <script>
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="{{ analytics_path }}"></script>
+    {% endif %}
 </body>
 </html>
