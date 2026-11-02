@@ -1,0 +1,305 @@
+{
+  "meta": {
+    "event": "Inter-House Sports Meet",
+    "level": "High School",
+    "bs_range": "Kartik 16–20, 2083",
+    "ad_range": "November 2–6, 2026"
+  },
+  "sports": [
+    { "key": "cricksal", "name": "Cricksal", "icon": "icon-cricket", "accent": "var(--c-karnali)" },
+    { "key": "table-tennis", "name": "Table Tennis", "icon": "icon-table-tennis", "accent": "var(--c-koshi)" },
+    { "key": "badminton", "name": "Badminton", "icon": "icon-badminton", "accent": "var(--c-mahakali)" },
+    { "key": "chess", "name": "Chess", "icon": "icon-chess", "accent": "var(--c-mechi)" },
+    { "key": "carrom", "name": "Carrom", "icon": "icon-carrom", "accent": "var(--c-karnali)" },
+    { "key": "athletics", "name": "Athletics", "icon": "icon-run", "accent": "var(--c-koshi)" },
+    { "key": "tug-of-war", "name": "Tug of War", "icon": "icon-tug", "accent": "var(--c-mahakali)" },
+    { "key": "futsal", "name": "Futsal", "icon": "icon-football", "accent": "var(--c-mechi)" },
+    { "key": "basketball", "name": "Basketball", "icon": "icon-basketball", "accent": "var(--c-karnali)" },
+    { "key": "swimming", "name": "Swimming", "icon": "icon-swim", "accent": "var(--c-koshi)" }
+  ],
+  "days": [
+    {
+      "day": 1,
+      "bs": "Kartik 16",
+      "ad": "2026-11-02",
+      "weekday": "Monday",
+      "date_label": "November 2, 2026",
+      "events": [
+        {
+          "sport": "cricksal",
+          "gender": "Boys",
+          "detail": "",
+          "time": "9:30 AM – 2:30 PM",
+          "venue": "Velocity Arena, Bansbari, Golfutaar"
+        },
+        {
+          "sport": "cricksal",
+          "gender": "Girls",
+          "detail": "",
+          "time": "9:30 AM – 2:30 PM",
+          "venue": "Velocity Arena, Bansbari, Golfutaar"
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "bs": "Kartik 17",
+      "ad": "2026-11-03",
+      "weekday": "Tuesday",
+      "date_label": "November 3, 2026",
+      "events": [
+        {
+          "sport": "table-tennis",
+          "gender": "Boys",
+          "detail": "",
+          "time": "9:00 AM – 1:00 PM",
+          "venue": "TT Court"
+        },
+        {
+          "sport": "table-tennis",
+          "gender": "Girls",
+          "detail": "",
+          "time": "9:00 AM – 1:00 PM",
+          "venue": "TT Court"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Boys",
+          "detail": "Singles · up to semifinal",
+          "time": "9:00 AM – 3:00 PM",
+          "venue": "Badminton Court"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Girls",
+          "detail": "Singles · up to semifinal",
+          "time": "9:00 AM – 3:00 PM",
+          "venue": "Badminton Court"
+        },
+        {
+          "sport": "chess",
+          "gender": "Boys",
+          "detail": "",
+          "time": "9:00 AM – 1:00 PM",
+          "venue": "Class 12 - Lobuche"
+        },
+        {
+          "sport": "chess",
+          "gender": "Girls",
+          "detail": "",
+          "time": "9:00 AM – 1:00 PM",
+          "venue": "Class 12 - Khumbilla"
+        },
+        {
+          "sport": "carrom",
+          "gender": "Boys",
+          "detail": "",
+          "time": "9:00 AM – 2:00 PM",
+          "venue": "HS assembly stage"
+        },
+        {
+          "sport": "carrom",
+          "gender": "Girls",
+          "detail": "",
+          "time": "9:00 AM – 1:00 PM",
+          "venue": "HS assembly stage"
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "bs": "Kartik 18",
+      "ad": "2026-11-04",
+      "weekday": "Wednesday",
+      "date_label": "November 4, 2026",
+      "events": [
+        {
+          "sport": "badminton",
+          "gender": "Boys",
+          "detail": "Doubles · up to semifinal",
+          "time": "9:00 AM – 11:00 AM",
+          "venue": "Badminton Court"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Girls",
+          "detail": "Doubles · up to semifinal",
+          "time": "11:00 AM – 12:00 PM",
+          "venue": "Badminton Court"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Boys",
+          "detail": "100m · selection round",
+          "time": "11:15 AM – 1:15 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Girls",
+          "detail": "100m · selection round",
+          "time": "9:00 AM – 11:00 AM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Boys",
+          "detail": "200m · selection round",
+          "time": "11:15 AM – 1:15 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Girls",
+          "detail": "200m · selection round",
+          "time": "9:00 AM – 11:00 AM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Boys",
+          "detail": "400m · selection round",
+          "time": "11:15 AM – 1:15 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Girls",
+          "detail": "400m · selection round",
+          "time": "9:00 AM – 11:00 AM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Boys",
+          "detail": "Relay · selection round",
+          "time": "1:20 PM – 2:20 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "athletics",
+          "gender": "Girls",
+          "detail": "Relay · selection round",
+          "time": "1:20 PM – 2:20 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "tug-of-war",
+          "gender": "Boys",
+          "detail": "Up to semifinal",
+          "time": "2:30 PM – 3:30 PM",
+          "venue": "New building - futsal ground"
+        },
+        {
+          "sport": "tug-of-war",
+          "gender": "Girls",
+          "detail": "Up to semifinal",
+          "time": "2:30 PM – 3:30 PM",
+          "venue": "New building - futsal ground"
+        }
+      ]
+    },
+    {
+      "day": 4,
+      "bs": "Kartik 19",
+      "ad": "2026-11-05",
+      "weekday": "Thursday",
+      "date_label": "November 5, 2026",
+      "events": [
+        {
+          "sport": "futsal",
+          "gender": "Boys",
+          "detail": "Semifinal",
+          "time": "9:30 AM – 11:30 AM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        },
+        {
+          "sport": "futsal",
+          "gender": "Girls",
+          "detail": "Final",
+          "time": "9:30 AM – 11:30 AM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        },
+        {
+          "sport": "basketball",
+          "gender": "Boys",
+          "detail": "Final",
+          "time": "11:00 AM – 1:00 PM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        },
+        {
+          "sport": "basketball",
+          "gender": "Girls",
+          "detail": "Final",
+          "time": "11:00 AM – 1:00 PM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        },
+        {
+          "sport": "cricksal",
+          "gender": "Boys",
+          "detail": "Final",
+          "time": "12:00 PM – 2:00 PM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        },
+        {
+          "sport": "cricksal",
+          "gender": "Girls",
+          "detail": "Final",
+          "time": "12:00 PM – 2:00 PM",
+          "venue": "Royal Sports Park, Budhanilkantha"
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "bs": "Kartik 20",
+      "ad": "2026-11-06",
+      "weekday": "Friday",
+      "date_label": "November 6, 2026",
+      "events": [
+        {
+          "sport": "swimming",
+          "gender": "Boys",
+          "detail": "",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        },
+        {
+          "sport": "swimming",
+          "gender": "Girls",
+          "detail": "",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Boys",
+          "detail": "Singles · final",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Girls",
+          "detail": "Singles · final",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Boys",
+          "detail": "Doubles · final",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        },
+        {
+          "sport": "badminton",
+          "gender": "Girls",
+          "detail": "Doubles · final",
+          "time": "10:00 AM – 11:00 AM",
+          "venue": "Dhanyantari Futsal"
+        }
+      ]
+    }
+  ]
+}

@@ -123,6 +123,25 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
+-- 4b. SCHEDULE MATCHUPS (player-level pairings for individual sports/doubles)
+CREATE TABLE IF NOT EXISTS public.schedule_matchups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_key TEXT NOT NULL,
+    stage TEXT,
+    side_a_house TEXT NOT NULL,
+    side_a_player_1 TEXT NOT NULL,
+    side_a_player_2 TEXT,
+    side_b_house TEXT NOT NULL,
+    side_b_player_1 TEXT NOT NULL,
+    side_b_player_2 TEXT,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_matchups_event
+    ON public.schedule_matchups (event_key, sort_order);
+
 -- 5. MATCHES TABLE
 CREATE TABLE IF NOT EXISTS public.matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -424,6 +443,7 @@ CREATE POLICY "Public Read Sports" ON public.sports FOR SELECT USING (true);
 CREATE POLICY "Public Read Groups" ON public.tournament_groups FOR SELECT USING (true);
 CREATE POLICY "Public Read Teams" ON public.teams FOR SELECT USING (true);
 CREATE POLICY "Public Read Players" ON public.players FOR SELECT USING (true);
+CREATE POLICY "Public Read Schedule Matchups" ON public.schedule_matchups FOR SELECT USING (true);
 CREATE POLICY "Public Read Matches" ON public.matches FOR SELECT USING (true);
 CREATE POLICY "Public Read Cricket Innings" ON public.cricket_innings FOR SELECT USING (true);
 CREATE POLICY "Public Read Cricket Overs" ON public.cricket_overs FOR SELECT USING (true);
@@ -457,6 +477,10 @@ CREATE POLICY "Admin Write Teams" ON public.teams FOR ALL
 
 DROP POLICY IF EXISTS "Admin Write Players" ON public.players;
 CREATE POLICY "Admin Write Players" ON public.players FOR ALL
+  USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
+
+DROP POLICY IF EXISTS "Admin Write Schedule Matchups" ON public.schedule_matchups;
+CREATE POLICY "Admin Write Schedule Matchups" ON public.schedule_matchups FOR ALL
   USING (public.app_is_admin()) WITH CHECK (public.app_is_admin());
 
 DROP POLICY IF EXISTS "Admin Write Matches" ON public.matches;

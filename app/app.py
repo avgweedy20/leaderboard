@@ -1,4 +1,5 @@
-﻿import os
+﻿import json
+import os
 import re
 import sys
 import uuid
@@ -407,6 +408,138 @@ def _current_actor():
     return ""
 
 
+# --- SCHEDULE DATA ------------------------------------------------------
+
+_SCHEDULE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schedule.json")
+_schedule_cache = None
+
+
+def _slugify(value):
+    """Lowercase ASCII slug used to build stable schedule event keys."""
+    return re.sub(r"[^a-z0-9]+", "-", str(value or "").lower()).strip("-")
+
+
+def _event_key(day_number, event):
+    """Stable identifier for a schedule event (day + sport + gender + detail)."""
+    parts = [f"d{day_number}", event.get("sport", ""), _slugify(event.get("gender"))]
+    detail = _slugify(event.get("detail"))
+    if detail:
+        parts.append(detail)
+    return "-".join(part for part in parts if part)
+
+
+def _load_schedule():
+    """Load the official day-wise schedule and attach sport metadata.
+
+    The schedule is static, source-controlled data (app/schedule.json) so the
+    page never depends on Supabase being configured. It is parsed once per
+    process and cached.
+    """
+    global _schedule_cache
+    if _schedule_cache is not None:
+        return _schedule_cache
+
+    with open(_SCHEDULE_PATH, "r", encoding="utf-8") as fh:
+        schedule = json.load(fh)
+
+    sports_by_key = {sport["key"]: sport for sport in schedule.get("sports", [])}
+    venues = set()
+    sessions = 0
+    events = []
+    for day in schedule.get("days", []):
+        for event in day.get("events", []):
+            event["sport_info"] = sports_by_key[event["sport"]]
+            event["key"] = _event_key(day["day"], event)
+            venues.add(event["venue"])
+            sessions += 1
+            events.append({
+                "key": event["key"],
+                "day": day["day"],
+                "bs": day["bs"],
+                "date_label": day["date_label"],
+                "sport": event["sport"],
+                "sport_name": event["sport_info"]["name"],
+                "gender": event["gender"],
+                "detail": event.get("detail", ""),
+                "time": event["time"],
+                "venue": event["venue"],
+            })
+
+    schedule["sports_by_key"] = sports_by_key
+    schedule["events"] = events
+    schedule["stats"] = {
+        "days": len(schedule.get("days", [])),
+        "sports": len(schedule.get("sports", [])),
+        "sessions": sessions,
+        "venues": len(venues),
+    }
+    _schedule_cache = schedule
+    return schedule
+
+
+# Player-level pairings only make sense for individual sports and doubles.
+_MATCHUP_SPORTS = {"table-tennis", "badminton", "chess", "carrom", "athletics", "swimming"}
+_MATCHUP_HOUSES = ("Karnali", "Koshi", "Mahakali", "Mechi")
+_MATCHUP_HOUSE_LOOKUP = {house.lower(): house for house in _MATCHUP_HOUSES}
+
+
+def _clean_text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
+def _prepare_matchup(data):
+    """Validate and normalize one matchup payload.
+
+    Returns (record, error). A record always contains every writable column so
+    the same helper can drive create, update, and bulk import.
+    """
+    if not isinstance(data, dict):
+        return None, "Each matchup must be an object."
+
+    event_key = _clean_text(data.get("event_key"), 120)
+    events = {event["key"]: event for event in _load_schedule()["events"]}
+    event = events.get(event_key)
+    if not event:
+        return None, f"Unknown schedule event '{event_key}'."
+    if event["sport"] not in _MATCHUP_SPORTS:
+        return None, "Player matchups are only available for individual sports and doubles."
+
+    sides = {}
+    for side, label in (("a", "Side A"), ("b", "Side B")):
+        house_raw = _clean_text(data.get(f"side_{side}_house"), 40)
+        house = _MATCHUP_HOUSE_LOOKUP.get(house_raw.lower())
+        if not house:
+            return None, f"{label} needs a valid house ({', '.join(_MATCHUP_HOUSES)})."
+        player_1 = _clean_text(data.get(f"side_{side}_player_1"), 80)
+        player_2 = _clean_text(data.get(f"side_{side}_player_2"), 80)
+        if not player_1:
+            return None, f"{label} needs a player name."
+        if player_2 and player_2.lower() == player_1.lower():
+            player_2 = ""
+        sides[side] = (house, player_1, player_2)
+
+    try:
+        sort_order = int(data.get("sort_order") or 0)
+    except (TypeError, ValueError):
+        return None, "Display order must be a number."
+    sort_order = max(0, min(sort_order, 999))
+
+    now = datetime.now(timezone.utc).isoformat()
+    record = {
+        "event_key": event_key,
+        "stage": _clean_text(data.get("stage"), 60),
+        "side_a_house": sides["a"][0],
+        "side_a_player_1": sides["a"][1],
+        "side_a_player_2": sides["a"][2] or None,
+        "side_b_house": sides["b"][0],
+        "side_b_player_1": sides["b"][1],
+        "side_b_player_2": sides["b"][2] or None,
+        "sort_order": sort_order,
+        "updated_at": now,
+    }
+    return record, None
+
+
 # --- HTML PAGE ENDPOINTS (MULTI-PAGE ARCHITECTURE) ---
 
 @app.route("/")
@@ -426,6 +559,139 @@ def standings_page(sport_slug=""):
 @app.route("/fixtures")
 def fixtures_page():
     return render_template("fixtures.html", active_page="fixtures")
+
+@app.route("/schedule")
+def schedule_page():
+    return render_template("schedule.html", active_page="schedule", schedule=_load_schedule())
+
+
+# SCHEDULE MATCHUP ENDPOINTS
+# Player-level pairings for individual sports and doubles. Stored in Supabase
+# so admins can add entries one at a time or import them from CSV later.
+@app.route("/api/schedule/events", methods=["GET"])
+def get_schedule_events():
+    return jsonify(_load_schedule()["events"])
+
+
+@app.route("/api/schedule/matchups", methods=["GET"])
+def get_schedule_matchups():
+    if not supabase_client:
+        # The static schedule must still render when the DB is unavailable.
+        return jsonify([])
+    try:
+        res = (
+            _service_client()
+            .table("schedule_matchups")
+            .select("*")
+            .order("sort_order")
+            .execute()
+        )
+        return jsonify(res.data or [])
+    except Exception as e:
+        return jsonify({"error": _internal_error(e)}), 500
+
+
+@app.route("/api/schedule/matchups", methods=["POST"])
+@req_admin_auth
+def create_schedule_matchup():
+    record, error = _prepare_matchup(request.get_json() or {})
+    if error:
+        return jsonify({"error": error}), 400
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+    try:
+        record = {**record, "id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()}
+        res = _service_client().table("schedule_matchups").insert(record).execute()
+        _audit("schedule_matchup.create", actor_email=_current_actor(), ip_address=request.remote_addr,
+               details="created matchup for %s" % record["event_key"])
+        return jsonify((res.data or [record])[0]), 201
+    except Exception as e:
+        return jsonify({"error": _internal_error(e)}), 500
+
+
+@app.route("/api/schedule/matchups/<matchup_id>", methods=["PUT"])
+@req_admin_auth
+def update_schedule_matchup(matchup_id):
+    record, error = _prepare_matchup(request.get_json() or {})
+    if error:
+        return jsonify({"error": error}), 400
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+    try:
+        res = (
+            _service_client()
+            .table("schedule_matchups")
+            .update(record)
+            .eq("id", matchup_id)
+            .execute()
+        )
+        _audit("schedule_matchup.update", actor_email=_current_actor(), ip_address=request.remote_addr,
+               details="updated matchup %s" % matchup_id)
+        return jsonify((res.data or [record])[0])
+    except Exception as e:
+        return jsonify({"error": _internal_error(e)}), 500
+
+
+@app.route("/api/schedule/matchups/<matchup_id>", methods=["DELETE"])
+@req_admin_auth
+def delete_schedule_matchup(matchup_id):
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+    try:
+        _service_client().table("schedule_matchups").delete().eq("id", matchup_id).execute()
+        _audit("schedule_matchup.delete", actor_email=_current_actor(), ip_address=request.remote_addr,
+               details="deleted matchup %s" % matchup_id)
+        return jsonify({"message": "Matchup deleted"})
+    except Exception as e:
+        return jsonify({"error": _internal_error(e)}), 500
+
+
+@app.route("/api/schedule/matchups/bulk", methods=["POST"])
+@req_admin_auth
+def bulk_schedule_matchups():
+    items = request.get_json() or []
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "Expected a non-empty list of matchups."}), 400
+    if not supabase_client:
+        return jsonify({"error": "Supabase not configured"}), 503
+
+    records, errors = [], []
+    for index, item in enumerate(items, start=1):
+        record, error = _prepare_matchup(item)
+        if error:
+            errors.append({"row": index, "error": error})
+            continue
+        record = {**record, "id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()}
+        records.append(record)
+
+    if not records:
+        return jsonify({"error": "No valid matchups to import.", "errors": errors[:20]}), 400
+
+    try:
+        res = _service_client().table("schedule_matchups").insert(records).execute()
+        created = len(res.data or records)
+        _audit("schedule_matchup.bulk_import", actor_email=_current_actor(), ip_address=request.remote_addr,
+               details="imported %d matchup(s), skipped %d" % (created, len(errors)))
+        return jsonify({
+            "created": created,
+            "skipped": len(errors),
+            "errors": errors[:20],
+            "message": f"Imported {created} matchup{'s' if created != 1 else ''}."
+                       + (f" {len(errors)} row(s) skipped." if errors else ""),
+        })
+    except Exception as e:
+        return jsonify({"error": _internal_error(e)}), 500
+
+
+@app.route("/admin/matchups")
+def admin_matchups_page():
+    return render_template(
+        "admin/matchups.html",
+        active_page="admin_matchups",
+        active_admin_sub="matchups",
+        schedule_events=_load_schedule()["events"],
+    )
+
 
 @app.route("/admin")
 def admin_page():

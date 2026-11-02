@@ -615,6 +615,31 @@ def test_standings_slug_preserved_for_valid_slugs(client):
     assert 'data-sport-slug="futsal"' in rv.get_data(as_text=True)
 
 
+def test_schedule_page_lists_every_day_sport_and_venue(client):
+    rv = client.get('/schedule')
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    for marker in (
+        'Day-wise Schedule',
+        'Kartik 16, 2083',
+        'Kartik 20, 2083',
+        'Cricksal',
+        'Table Tennis',
+        'Badminton',
+        'Chess',
+        'Carrom',
+        'Athletics',
+        'Tug of War',
+        'Futsal',
+        'Basketball',
+        'Swimming',
+        'Royal Sports Park, Budhanilkantha',
+        'scheduleDayChips',
+        'scheduleSportChips',
+    ):
+        assert marker in html
+
+
 def test_update_team_mass_assignment_blocked(client):
     headers = _admin_headers(client)
     rv = client.post('/api/teams', json={

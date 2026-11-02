@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}Day-wise Schedule{% endblock %}
+{% block meta_desc %}Official High School day-wise schedule for the DSS Inter-House Sports Meet 2083 - every sport, date, time, and venue.{% endblock %}
+
+{% block content %}
+<section class="schedule-page">
+
+    <div class="page-head">
+        <p class="eyebrow">{{ schedule.meta.event }} 2083 · {{ schedule.meta.level }}</p>
+        <h1>Day-wise Schedule</h1>
+        <p class="lead">{{ schedule.meta.bs_range }} · {{ schedule.meta.ad_range }}. Every sport, start time, and venue in one place.</p>
+    </div>
+
+    <div class="schedule-overview reveal" aria-label="Schedule at a glance">
+        <div class="schedule-stat">
+            <span class="schedule-stat-icon" aria-hidden="true">
+                <svg class="icon" width="17" height="17"><use href="#icon-calendar"/></svg>
+            </span>
+            <div>
+                <span class="schedule-stat-value">{{ schedule.stats.days }}</span>
+                <span class="schedule-stat-label">Days</span>
+            </div>
+        </div>
+        <div class="schedule-stat">
+            <span class="schedule-stat-icon" aria-hidden="true">
+                <svg class="icon" width="17" height="17"><use href="#icon-trophy"/></svg>
+            </span>
+            <div>
+                <span class="schedule-stat-value">{{ schedule.stats.sports }}</span>
+                <span class="schedule-stat-label">Sports</span>
+            </div>
+        </div>
+        <div class="schedule-stat">
+            <span class="schedule-stat-icon" aria-hidden="true">
+                <svg class="icon" width="17" height="17"><use href="#icon-clock"/></svg>
+            </span>
+            <div>
+                <span class="schedule-stat-value">{{ schedule.stats.sessions }}</span>
+                <span class="schedule-stat-label">Sessions</span>
+            </div>
+        </div>
+        <div class="schedule-stat">
+            <span class="schedule-stat-icon" aria-hidden="true">
+                <svg class="icon" width="17" height="17"><use href="#icon-pin"/></svg>
+            </span>
+            <div>
+                <span class="schedule-stat-value">{{ schedule.stats.venues }}</span>
+                <span class="schedule-stat-label">Venues</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-panel schedule-filter-panel" aria-label="Schedule filters">
+        <div class="field schedule-field schedule-field-days">
+            <label>Day</label>
+            <div id="scheduleDayChips" class="chip-group" role="group" aria-label="Filter by day">
+                <button type="button" class="chip active" aria-pressed="true" onclick="filterScheduleDay('', this)">All days</button>
+                {% for day in schedule.days %}
+                <button type="button" class="chip" aria-pressed="false" onclick="filterScheduleDay('{{ day.day }}', this)">Day {{ day.day }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field schedule-field schedule-field-sports">
+            <label>Sport</label>
+            <div id="scheduleSportChips" class="chip-group" role="group" aria-label="Filter by sport">
+                <button type="button" class="chip active" aria-pressed="true" onclick="filterScheduleSport('', this)">All sports</button>
+                {% for sport in schedule.sports %}
+                <button type="button" class="chip" aria-pressed="false" onclick="filterScheduleSport('{{ sport.key }}', this)">
+                    <svg class="icon chip-icon" width="13" height="13" style="color:{{ sport.accent }};" aria-hidden="true"><use href="#{{ sport.icon }}"/></svg>
+                    {{ sport.name }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="field schedule-field schedule-field-gender">
+            <label for="scheduleGenderFilter">Gender</label>
+            <select id="scheduleGenderFilter" class="table-filter-select schedule-gender-select" onchange="applyScheduleFilters()">
+                <option value="">All Genders</option>
+                <option value="Girls">Girls</option>
+                <option value="Boys">Boys</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="schedule-toolbar">
+        <p id="scheduleStatus" class="schedule-status" aria-live="polite">
+            Showing <strong id="scheduleStatusCount">{{ schedule.stats.sessions }}</strong> of
+            <strong id="scheduleStatusTotal">{{ schedule.stats.sessions }}</strong> sessions
+        </p>
+        <div class="schedule-toolbar-actions">
+            <button type="button" class="btn btn-secondary" onclick="resetScheduleFilters()">
+                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-refresh"/></svg>
+                Reset
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="window.print()">
+                <svg class="icon" width="14" height="14" aria-hidden="true"><use href="#icon-printer"/></svg>
+                Print
+            </button>
+        </div>
+    </div>
+
+    <div id="scheduleEmpty" class="state-empty hidden" role="status">
+        <svg class="state-empty-icon" width="40" height="40" aria-hidden="true"><use href="#icon-calendar"/></svg>
+        <p class="state-empty-title">No sessions match these filters</p>
+        <p class="state-empty-desc">Try a different day, sport, or gender.</p>
+        <button type="button" class="btn btn-secondary" onclick="resetScheduleFilters()">Reset filters</button>
+    </div>
+
+    <div class="schedule-days">
+        {% for day in schedule.days %}
+        <section class="schedule-day" id="day-{{ day.day }}" data-day="{{ day.day }}" data-date="{{ day.ad }}"
+            aria-labelledby="day-{{ day.day }}-title">
+            <header class="schedule-day-head">
+                <div class="schedule-day-mark" aria-hidden="true">
+                    <span class="schedule-day-num">{{ "%02d"|format(day.day) }}</span>
+                    <span class="schedule-day-word">Day</span>
+                </div>
+                <div class="schedule-day-date">
+                    <p class="schedule-day-kicker">Day {{ day.day }}</p>
+                    <h2 id="day-{{ day.day }}-title">{{ day.bs }}, 2083</h2>
+                    <p>{{ day.weekday }}, {{ day.date_label }}</p>
+                </div>
+                <div class="schedule-day-meta">
+                    <span class="badge badge-stage" data-day-count>{{ day.events|length }} sessions</span>
+                    <span class="badge schedule-today hidden" data-today-badge>Today</span>
+                </div>
+            </header>
+
+            <div class="schedule-day-events">
+                {% for event in day.events %}
+                {% set sport = event.sport_info %}
+                <article class="schedule-event" data-day="{{ day.day }}" data-sport="{{ event.sport }}" data-gender="{{ event.gender }}"
+                    data-event-key="{{ event.key }}"
+                    style="--accent:{{ sport.accent }};"
+                    aria-label="{{ sport.name }}, {{ event.gender }}{% if event.detail %}, {{ event.detail }}{% endif %}, {{ event.time }}, {{ event.venue }}">
+                    <div class="schedule-event-icon" aria-hidden="true">
+                        <svg class="icon" width="18" height="18"><use href="#{{ sport.icon }}"/></svg>
+                    </div>
+                    <div class="schedule-event-body">
+                        <div class="schedule-event-top">
+                            <div class="schedule-event-copy">
+                                <h3 class="schedule-event-sport">{{ sport.name }}</h3>
+                                {% if event.detail %}
+                                <p class="schedule-event-detail">{{ event.detail }}</p>
+                                {% endif %}
+                            </div>
+                            <span class="badge badge-stage schedule-gender">{{ event.gender }}</span>
+                        </div>
+                        <div class="schedule-event-meta">
+                            <span class="schedule-meta-item schedule-meta-time">
+                                <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-clock"/></svg>
+                                <span class="tabular">{{ event.time }}</span>
+                            </span>
+                            <span class="schedule-meta-item schedule-meta-venue">
+                                <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-pin"/></svg>
+                                <span>{{ event.venue }}</span>
+                            </span>
+                        </div>
+                        <div class="schedule-event-matchups" data-matchups-for="{{ event.key }}" hidden></div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+
+    <p class="schedule-footnote">
+        <svg class="icon" width="13" height="13" aria-hidden="true"><use href="#icon-info"/></svg>
+        Schedule and venues are as published in the official {{ schedule.meta.level }} day-wise schedule. Times are local.
+    </p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const scheduleFilters = { day: '', sport: '', gender: '' };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        markToday();
+        applyScheduleFilters();
+        loadScheduleMatchups();
+    });
+
+    function markToday() {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+        document.querySelectorAll('.schedule-day[data-date]').forEach(day => {
+            if (day.dataset.date !== today) return;
+            day.classList.add('is-today');
+            const badge = day.querySelector('[data-today-badge]');
+            if (badge) badge.classList.remove('hidden');
+        });
+    }
+
+    function setActiveChip(groupId, button) {
+        document.querySelectorAll(`#${groupId} .chip`).forEach(chip => {
+            const isActive = chip === button;
+            chip.classList.toggle('active', isActive);
+            chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    function filterScheduleDay(day, button) {
+        scheduleFilters.day = day;
+        setActiveChip('scheduleDayChips', button);
+        applyScheduleFilters();
+    }
+
+    function filterScheduleSport(sport, button) {
+        scheduleFilters.sport = sport;
+        setActiveChip('scheduleSportChips', button);
+        applyScheduleFilters();
+    }
+
+    function applyScheduleFilters() {
+        scheduleFilters.gender = document.getElementById('scheduleGenderFilter').value;
+
+        const events = document.querySelectorAll('.schedule-event');
+        let visible = 0;
+
+        events.forEach(event => {
+            const matches = (!scheduleFilters.day || event.dataset.day === scheduleFilters.day)
+                && (!scheduleFilters.sport || event.dataset.sport === scheduleFilters.sport)
+                && (!scheduleFilters.gender || event.dataset.gender === scheduleFilters.gender);
+            event.classList.toggle('is-filtered-out', !matches);
+            if (matches) visible++;
+        });
+
+        document.querySelectorAll('.schedule-day').forEach(day => {
+            const dayEvents = day.querySelectorAll('.schedule-event');
+            const dayVisible = day.querySelectorAll('.schedule-event:not(.is-filtered-out)').length;
+            day.classList.toggle('is-filtered-out', dayVisible === 0);
+
+            const count = day.querySelector('[data-day-count]');
+            if (count) count.textContent = `${dayVisible} ${dayVisible === 1 ? 'session' : 'sessions'}`;
+        });
+
+        document.getElementById('scheduleStatusCount').textContent = visible;
+        document.getElementById('scheduleStatusTotal').textContent = events.length;
+        document.getElementById('scheduleEmpty').classList.toggle('hidden', visible !== 0);
+    }
+
+    function resetScheduleFilters() {
+        scheduleFilters.day = '';
+        scheduleFilters.sport = '';
+        scheduleFilters.gender = '';
+        document.getElementById('scheduleGenderFilter').value = '';
+        setActiveChip('scheduleDayChips', document.querySelector('#scheduleDayChips .chip'));
+        setActiveChip('scheduleSportChips', document.querySelector('#scheduleSportChips .chip'));
+        applyScheduleFilters();
+    }
+
+    const SCHEDULE_HOUSE_COLORS = {
+        karnali: 'var(--c-karnali)',
+        koshi: 'var(--c-koshi)',
+        mahakali: 'var(--c-mahakali)',
+        mechi: 'var(--c-mechi)'
+    };
+
+    function scheduleEscape(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+    }
+
+    function scheduleHouseColor(house) {
+        return SCHEDULE_HOUSE_COLORS[String(house || '').toLowerCase()] || 'var(--text-tertiary)';
+    }
+
+    function scheduleSide(house, player1, player2) {
+        const players = [player1, player2].filter(Boolean).join(' & ');
+        return `
+            <div class="schedule-matchup-side" style="--house:${scheduleHouseColor(house)}">
+                <span class="schedule-matchup-house">${scheduleEscape(house)}</span>
+                <span class="schedule-matchup-players">${scheduleEscape(players)}</span>
+            </div>`;
+    }
+
+    async function loadScheduleMatchups() {
+        let rows;
+        try {
+            const res = await fetch('/api/schedule/matchups', { headers: { Accept: 'application/json' } });
+            if (!res.ok) return;
+            rows = await res.json();
+        } catch (err) {
+            return; // The static schedule is still fully usable without pairings.
+        }
+        if (!Array.isArray(rows) || rows.length === 0) return;
+
+        const grouped = new Map();
+        rows.forEach(row => {
+            if (!row || !row.event_key) return;
+            if (!grouped.has(row.event_key)) grouped.set(row.event_key, []);
+            grouped.get(row.event_key).push(row);
+        });
+
+        document.querySelectorAll('[data-matchups-for]').forEach(container => {
+            const list = grouped.get(container.dataset.matchupsFor);
+            if (!list) return;
+
+            list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)
+                || String(a.stage || '').localeCompare(String(b.stage || '')));
+
+            container.innerHTML = `
+                <p class="schedule-matchups-label">
+                    <span>Player matchups</span>
+                    <span class="schedule-matchups-count">${list.length}</span>
+                </p>
+                ${list.map(match => {
+                    const aPlayers = [match.side_a_player_1, match.side_a_player_2].filter(Boolean).join(' & ');
+                    const bPlayers = [match.side_b_player_1, match.side_b_player_2].filter(Boolean).join(' & ');
+                    const label = `${match.stage ? match.stage + ': ' : ''}${match.side_a_house} ${aPlayers} versus ${match.side_b_house} ${bPlayers}`;
+                    return `
+                    <div class="schedule-matchup" aria-label="${scheduleEscape(label)}">
+                        ${match.stage ? `<span class="schedule-matchup-stage">${scheduleEscape(match.stage)}</span>` : ''}
+                        <div class="schedule-matchup-sides">
+                            ${scheduleSide(match.side_a_house, match.side_a_player_1, match.side_a_player_2)}
+                            <span class="schedule-matchup-vs" aria-hidden="true">vs</span>
+                            ${scheduleSide(match.side_b_house, match.side_b_player_1, match.side_b_player_2)}
+                        </div>
+                    </div>`;
+                }).join('')}`;
+            container.hidden = false;
+        });
+    }
+</script>
+{% endblock %}
