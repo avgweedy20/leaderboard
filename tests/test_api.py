@@ -1,6 +1,8 @@
 import pytest
 import json
 import io
+import time
+import hashlib
 import requests
 
 from app.app import (
@@ -657,6 +659,24 @@ def test_public_matchups_page(client):
         assert marker in html
 
 
+def test_public_matchups_admin_controls_are_hidden_by_default(client):
+    rv = client.get('/matchups')
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    for marker in (
+        'id="matchupAdminBar"',
+        'matchup-admin-bar hidden',
+        'id="publicMatchupModal"',
+        'id="pmEventKey"',
+        'savePublicMatchup(event)',
+        'deletePublicMatchup',
+    ):
+        assert marker in html
+    # The management UI is revealed only after /api/auth/me confirms the role,
+    # and the write APIs still enforce admin auth server-side.
+    assert 'matchupAdminBar' in html
+
+
 def _sample_matchup(**overrides):
     payload = {
         "event_key": "d2-table-tennis-boys",
@@ -680,6 +700,72 @@ def _delete_matchups_for(client, headers, event_keys):
 def test_schedule_matchups_require_admin(client):
     rv = client.post('/api/schedule/matchups', json=_sample_matchup())
     assert rv.status_code == 401
+
+    rv = client.put('/api/schedule/matchups/does-not-matter', json=_sample_matchup())
+    assert rv.status_code == 401
+
+    rv = client.delete('/api/schedule/matchups/does-not-matter')
+    assert rv.status_code == 401
+
+    rv = client.post('/api/schedule/matchups/bulk', json=[_sample_matchup()])
+    assert rv.status_code == 401
+
+    rv = client.post(
+        '/api/schedule/matchups',
+        json=_sample_matchup(),
+        headers={"Authorization": "Bearer not-a-real-token"},
+    )
+    assert rv.status_code == 401
+
+    rv = client.post(
+        '/api/schedule/matchups',
+        json=_sample_matchup(),
+        headers={"Authorization": "not-bearer"},
+    )
+    assert rv.status_code == 401
+
+
+def test_schedule_matchups_reject_non_admin_session(client, wired_fake_supabase):
+    token = "student-session-token"
+    wired_fake_supabase.table("admin_sessions").insert({
+        "token_hash": hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        "email": "student@school.edu",
+        "expires_at": time.time() + 3600,
+    }).execute()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(), headers=headers)
+    assert rv.status_code == 401
+
+    rv = client.get('/api/auth/me', headers=headers)
+    assert rv.status_code == 401
+
+
+def test_plain_admin_can_manage_matchups(client):
+    headers = _admin_headers(client, ADMIN2)
+    event_key = 'd2-carrom-boys'
+    try:
+        rv = client.post(
+            '/api/schedule/matchups',
+            json=_sample_matchup(event_key=event_key, status='completed', score_a='2', score_b='1',
+                                 score_summary='2-1', winner_house='Karnali'),
+            headers=headers,
+        )
+        assert rv.status_code == 201, rv.get_json()
+        created = rv.get_json()
+
+        rv = client.put(
+            f"/api/schedule/matchups/{created['id']}",
+            json=_sample_matchup(event_key=event_key, status='completed', score_a='1', score_b='2',
+                                 score_summary='1-2', winner_house='Koshi'),
+            headers=headers,
+        )
+        assert rv.status_code == 200, rv.get_json()
+
+        rv = client.delete(f"/api/schedule/matchups/{created['id']}", headers=headers)
+        assert rv.status_code == 200
+    finally:
+        _delete_matchups_for(client, headers, {event_key})
 
 
 def test_schedule_matchups_crud(client):

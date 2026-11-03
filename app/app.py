@@ -699,6 +699,8 @@ def bulk_schedule_matchups():
     items = request.get_json() or []
     if not isinstance(items, list) or not items:
         return jsonify({"error": "Expected a non-empty list of matchups."}), 400
+    if len(items) > 500:
+        return jsonify({"error": "Too many rows. Import at most 500 matchups at once."}), 400
     if not supabase_client:
         return jsonify({"error": "Supabase not configured"}), 503
 

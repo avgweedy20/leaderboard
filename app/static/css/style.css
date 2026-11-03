@@ -2802,10 +2802,71 @@ tbody tr:hover { background: var(--well); }
   overflow-wrap: anywhere;
 }
 
+/* Inline matchup management for signed-in admins */
+.matchup-admin-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-2);
+  border-radius: 12px;
+  background: var(--bg-surface-2);
+}
+.matchup-admin-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: 0.66rem;
+  font-weight: 720;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.matchup-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.matchup-card-admin {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.matchup-card-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+.matchup-card-admin-btn:hover {
+  color: var(--text);
+  border-color: var(--border-2);
+  background: var(--well);
+}
+.matchup-card-admin-btn.is-danger:hover {
+  color: #F87171;
+  border-color: #7F1D1D;
+}
+
 @media (max-width: 640px) {
   .matchup-card-sides { grid-template-columns: 1fr; }
   .matchup-card-vs { justify-self: center; }
   .public-matchup-groups { gap: 28px; }
+  .matchup-admin-label { width: 100%; margin-right: 0; }
 }
 
 .schedule-event.is-filtered-out,

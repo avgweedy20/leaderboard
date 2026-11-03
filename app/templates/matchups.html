@@ -9,6 +9,21 @@
         <p class="eyebrow">{{ schedule_meta.event }} 2083 · {{ schedule_meta.level }}</p>
         <h1>Matchups &amp; Results</h1>
         <p class="lead">Every singles and doubles pairing, with student names, houses, and scores. Open to everyone.</p>
+
+        <div id="matchupAdminBar" class="matchup-admin-bar hidden" aria-label="Admin matchup tools">
+            <span class="matchup-admin-label">
+                <svg class="icon" width="14" height="14"><use href="#icon-shield"/></svg>
+                <span id="matchupAdminRole">Admin tools</span>
+            </span>
+            <button type="button" class="btn" onclick="openPublicMatchupModal()">
+                <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+                Add matchup
+            </button>
+            <a class="btn btn-secondary" href="/admin/matchups">
+                <svg class="icon" width="14" height="14"><use href="#icon-upload"/></svg>
+                Bulk CSV import
+            </a>
+        </div>
     </div>
 
     <div class="filter-panel" style="margin-bottom:32px;">
@@ -56,6 +71,108 @@
         </div>
     </div>
 </section>
+
+<div id="publicMatchupModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="publicMatchupModalTitle">
+    <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+            <div>
+                <h3 id="publicMatchupModalTitle">Add Matchup</h3>
+                <p style="margin-top:2px;">Singles or doubles only — maximum two players per side.</p>
+            </div>
+            <button type="button" class="modal-close" aria-label="Close" onclick="closeModal('publicMatchupModal')">&times;</button>
+        </div>
+
+        <form onsubmit="savePublicMatchup(event)">
+            <input type="hidden" id="pmId">
+
+            <div class="matchup-form-grid">
+                <div>
+                    <label for="pmEventKey">Schedule event</label>
+                    <select id="pmEventKey" required style="width:100%;"></select>
+                </div>
+                <div>
+                    <label for="pmOrder">Order</label>
+                    <input type="number" id="pmOrder" min="0" max="999" value="0" style="width:100%;">
+                </div>
+            </div>
+
+            <div>
+                <label for="pmStage">Round / stage</label>
+                <input type="text" id="pmStage" maxlength="60" placeholder="Semifinal 1, Final." style="width:100%;">
+            </div>
+
+            <div class="matchup-sides-grid">
+                <fieldset class="matchup-side-field">
+                    <legend>Side A</legend>
+                    <label for="pmAHouse">House</label>
+                    <select id="pmAHouse" required style="width:100%;">
+                        <option value="Karnali">Karnali</option>
+                        <option value="Koshi">Koshi</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                    <label for="pmAPlayer1">Player 1</label>
+                    <input type="text" id="pmAPlayer1" maxlength="80" required placeholder="Student name" style="width:100%;">
+                    <label for="pmAPlayer2">Player 2 <span style="font-weight:400; color:var(--text-tertiary);">(doubles)</span></label>
+                    <input type="text" id="pmAPlayer2" maxlength="80" placeholder="Optional" style="width:100%;">
+                </fieldset>
+
+                <fieldset class="matchup-side-field">
+                    <legend>Side B</legend>
+                    <label for="pmBHouse">House</label>
+                    <select id="pmBHouse" required style="width:100%;">
+                        <option value="Karnali">Karnali</option>
+                        <option value="Koshi" selected>Koshi</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                    <label for="pmBPlayer1">Player 1</label>
+                    <input type="text" id="pmBPlayer1" maxlength="80" required placeholder="Student name" style="width:100%;">
+                    <label for="pmBPlayer2">Player 2 <span style="font-weight:400; color:var(--text-tertiary);">(doubles)</span></label>
+                    <input type="text" id="pmBPlayer2" maxlength="80" placeholder="Optional" style="width:100%;">
+                </fieldset>
+            </div>
+
+            <div class="matchup-score-grid">
+                <div>
+                    <label for="pmStatus">Status</label>
+                    <select id="pmStatus" style="width:100%;">
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="pmWinner">Winner</label>
+                    <select id="pmWinner" style="width:100%;">
+                        <option value="">Not decided</option>
+                        <option value="Karnali">Karnali</option>
+                        <option value="Koshi">Koshi</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="pmScoreA">Score A</label>
+                    <input type="text" id="pmScoreA" maxlength="24" placeholder="21" style="width:100%;">
+                </div>
+                <div>
+                    <label for="pmScoreB">Score B</label>
+                    <input type="text" id="pmScoreB" maxlength="24" placeholder="18" style="width:100%;">
+                </div>
+            </div>
+
+            <div>
+                <label for="pmSummary">Score summary <span style="font-weight:400; color:var(--text-tertiary);">(optional)</span></label>
+                <input type="text" id="pmSummary" maxlength="120" placeholder="21-18, 21-15" style="width:100%;">
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('publicMatchupModal')">Cancel</button>
+                <button type="submit" class="btn">Save Matchup</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -89,15 +206,185 @@
         }
     });
 
+    const MATCHUP_SPORTS = new Set(['table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
+    const MATCHUP_EVENTS = SCHEDULE_EVENTS.filter(event => MATCHUP_SPORTS.has(event.sport));
+
     let publicMatchups = [];
     let publicActiveSport = '';
     let publicActiveGender = '';
     let publicActiveStatus = '';
+    let isMatchupAdmin = false;
+    let matchupAdminRole = '';
+    let publicMatchupsSetupRequired = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         populatePublicSportChips();
-        loadPublicMatchups();
+        populatePublicAdminEventSelect();
+        checkMatchupAdmin().then(loadPublicMatchups);
     });
+
+    async function checkMatchupAdmin() {
+        const bar = document.getElementById('matchupAdminBar');
+        isMatchupAdmin = false;
+        matchupAdminRole = '';
+        if (!currentToken || isTokenExpired()) {
+            if (bar) bar.classList.add('hidden');
+            return;
+        }
+        try {
+            const res = await fetch('/api/auth/me', {
+                headers: { Authorization: `Bearer ${currentToken}`, Accept: 'application/json' }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const me = await res.json().catch(() => null);
+            const role = String((me && me.role) || '').toLowerCase();
+            if (role === 'admin' || role === 'superadmin') {
+                isMatchupAdmin = true;
+                matchupAdminRole = role;
+            }
+        } catch (err) {
+            isMatchupAdmin = false;
+            matchupAdminRole = '';
+        }
+        if (bar) bar.classList.toggle('hidden', !isMatchupAdmin);
+        const roleLabel = document.getElementById('matchupAdminRole');
+        if (roleLabel && isMatchupAdmin) {
+            roleLabel.textContent = matchupAdminRole === 'superadmin' ? 'Super admin tools' : 'Admin tools';
+        }
+    }
+
+    function hideMatchupAdminUI() {
+        isMatchupAdmin = false;
+        const bar = document.getElementById('matchupAdminBar');
+        if (bar) bar.classList.add('hidden');
+        renderPublicMatchups();
+    }
+
+    function publicShortEventLabel(event) {
+        return `${event.sport_name} · ${event.gender}` + (event.detail ? ` · ${event.detail}` : '');
+    }
+
+    function populatePublicAdminEventSelect() {
+        const select = document.getElementById('pmEventKey');
+        if (!select) return;
+        const byDay = new Map();
+        MATCHUP_EVENTS.forEach(event => {
+            if (!byDay.has(event.day)) byDay.set(event.day, []);
+            byDay.get(event.day).push(event);
+        });
+        select.innerHTML = [...byDay.keys()].sort((a, b) => a - b).map(day => {
+            const events = byDay.get(day);
+            return `<optgroup label="${escapeHtml(`Day ${day} · ${events[0].bs}`)}">`
+                + events.map(event => `<option value="${escapeHtml(event.key)}">${escapeHtml(publicShortEventLabel(event))} · ${escapeHtml(event.time)}</option>`).join('')
+                + '</optgroup>';
+        }).join('');
+    }
+
+    function openPublicMatchupModal(matchupId = null) {
+        if (!isMatchupAdmin) return;
+        const form = document.querySelector('#publicMatchupModal form');
+        if (form) form.reset();
+        document.getElementById('pmId').value = '';
+        document.getElementById('pmOrder').value = '0';
+        document.getElementById('pmStatus').value = 'scheduled';
+        document.getElementById('pmWinner').value = '';
+        document.getElementById('pmScoreA').value = '';
+        document.getElementById('pmScoreB').value = '';
+        document.getElementById('pmSummary').value = '';
+        document.getElementById('publicMatchupModalTitle').textContent = 'Add Matchup';
+
+        if (matchupId) {
+            const matchup = publicMatchups.find(item => item.id === matchupId);
+            if (!matchup) return;
+            document.getElementById('publicMatchupModalTitle').textContent = 'Edit Matchup';
+            document.getElementById('pmId').value = matchup.id;
+            document.getElementById('pmEventKey').value = matchup.event_key;
+            document.getElementById('pmStage').value = matchup.stage || '';
+            document.getElementById('pmOrder').value = matchup.sort_order || 0;
+            document.getElementById('pmAHouse').value = matchup.side_a_house;
+            document.getElementById('pmAPlayer1').value = matchup.side_a_player_1 || '';
+            document.getElementById('pmAPlayer2').value = matchup.side_a_player_2 || '';
+            document.getElementById('pmBHouse').value = matchup.side_b_house;
+            document.getElementById('pmBPlayer1').value = matchup.side_b_player_1 || '';
+            document.getElementById('pmBPlayer2').value = matchup.side_b_player_2 || '';
+            document.getElementById('pmStatus').value = matchup.status || 'scheduled';
+            document.getElementById('pmWinner').value = matchup.winner_house || '';
+            document.getElementById('pmScoreA').value = matchup.score_a || '';
+            document.getElementById('pmScoreB').value = matchup.score_b || '';
+            document.getElementById('pmSummary').value = matchup.score_summary || '';
+        }
+
+        openModal('publicMatchupModal');
+    }
+
+    function editPublicMatchup(matchupId) {
+        openPublicMatchupModal(matchupId);
+    }
+
+    async function savePublicMatchup(event) {
+        event.preventDefault();
+        if (!isMatchupAdmin) {
+            showToast('Admin access required.', 'error');
+            return;
+        }
+        const id = document.getElementById('pmId').value;
+        const payload = {
+            event_key: document.getElementById('pmEventKey').value,
+            stage: document.getElementById('pmStage').value.trim(),
+            sort_order: Number(document.getElementById('pmOrder').value || 0),
+            side_a_house: document.getElementById('pmAHouse').value,
+            side_a_player_1: document.getElementById('pmAPlayer1').value.trim(),
+            side_a_player_2: document.getElementById('pmAPlayer2').value.trim(),
+            side_b_house: document.getElementById('pmBHouse').value,
+            side_b_player_1: document.getElementById('pmBPlayer1').value.trim(),
+            side_b_player_2: document.getElementById('pmBPlayer2').value.trim(),
+            status: document.getElementById('pmStatus').value,
+            winner_house: document.getElementById('pmWinner').value,
+            score_a: document.getElementById('pmScoreA').value.trim(),
+            score_b: document.getElementById('pmScoreB').value.trim(),
+            score_summary: document.getElementById('pmSummary').value.trim()
+        };
+
+        try {
+            const res = await fetchWithAuth(
+                id ? `/api/schedule/matchups/${encodeURIComponent(id)}` : '/api/schedule/matchups',
+                {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }
+            );
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (res.status === 401 || res.status === 403) hideMatchupAdminUI();
+                throw new Error(data.error || 'Could not save the matchup.');
+            }
+            closeModal('publicMatchupModal');
+            showToast(id ? 'Matchup updated.' : 'Matchup added.', 'success');
+            await loadPublicMatchups();
+        } catch (err) {
+            showToast(err.message || 'Could not save the matchup.', 'error');
+        }
+    }
+
+    async function deletePublicMatchup(matchupId) {
+        if (!isMatchupAdmin) return;
+        if (!confirm('Delete this matchup?')) return;
+        try {
+            const res = await fetchWithAuth(`/api/schedule/matchups/${encodeURIComponent(matchupId)}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (res.status === 401 || res.status === 403) hideMatchupAdminUI();
+                throw new Error(data.error || 'Could not delete the matchup.');
+            }
+            showToast('Matchup deleted.', 'success');
+            await loadPublicMatchups();
+        } catch (err) {
+            showToast(err.message || 'Could not delete the matchup.', 'error');
+        }
+    }
 
     function publicHouseColor(house) {
         return PUBLIC_HOUSE_COLORS[String(house || '').toLowerCase()] || 'var(--text-tertiary)';
@@ -155,6 +442,7 @@
                 // Until the matchup table is set up, show the normal empty state
                 // instead of an error to visitors.
                 if (data && data.setup_required) {
+                    publicMatchupsSetupRequired = true;
                     publicMatchups = [];
                     populatePublicSportChips();
                     renderPublicMatchups();
@@ -162,6 +450,7 @@
                 }
                 throw new Error(`HTTP ${res.status}`);
             }
+            publicMatchupsSetupRequired = false;
             publicMatchups = Array.isArray(data) ? data : [];
         } catch (err) {
             container.innerHTML = renderSharedErrorState('Failed to load matchups.', 'loadPublicMatchups()');
@@ -192,6 +481,22 @@
             </div>`;
     }
 
+    function publicMatchupAdminControls(matchup) {
+        if (!isMatchupAdmin) return '';
+        const id = escapeHtml(matchup.id || '');
+        return `
+            <div class="matchup-card-admin">
+                <button type="button" class="matchup-card-admin-btn" title="Edit matchup" aria-label="Edit matchup"
+                    onclick="editPublicMatchup('${id}')">
+                    <svg class="icon" width="13" height="13"><use href="#icon-edit"/></svg>
+                </button>
+                <button type="button" class="matchup-card-admin-btn is-danger" title="Delete matchup" aria-label="Delete matchup"
+                    onclick="deletePublicMatchup('${id}')">
+                    <svg class="icon" width="13" height="13"><use href="#icon-trash"/></svg>
+                </button>
+            </div>`;
+    }
+
     function renderPublicMatchupCard(matchup, idx) {
         const event = publicEvent(matchup);
         const completed = matchup.status === 'completed';
@@ -206,7 +511,10 @@
                     <span class="badge badge-stage">${escapeHtml(publicStageLabel(matchup.stage))}</span>
                     <span class="badge ${completed ? 'badge-status-completed' : 'badge-status-scheduled'}">${completed ? 'Final' : 'Scheduled'}</span>
                 </div>
-                ${dayTime ? `<span class="matchup-card-meta">${escapeHtml(dayTime)}</span>` : ''}
+                <div class="matchup-card-head-right">
+                    ${dayTime ? `<span class="matchup-card-meta">${escapeHtml(dayTime)}</span>` : ''}
+                    ${publicMatchupAdminControls(matchup)}
+                </div>
             </div>
 
             <div class="matchup-card-sides">
@@ -239,6 +547,16 @@
                     'No matchups published yet',
                     'Singles and doubles pairings will appear here with their scores once they are added.'
                 );
+            if (!hasAny && isMatchupAdmin && !publicMatchupsSetupRequired) {
+                const empty = container.querySelector('.state-empty');
+                if (empty) {
+                    empty.insertAdjacentHTML('beforeend', `
+                        <button type="button" class="btn" style="margin-top:14px;" onclick="openPublicMatchupModal()">
+                            <svg class="icon" width="14" height="14"><use href="#icon-plus"/></svg>
+                            Add the first matchup
+                        </button>`);
+                }
+            }
             return;
         }
 
