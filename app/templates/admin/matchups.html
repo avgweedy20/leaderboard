@@ -1,0 +1,774 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule Matchups{% endblock %}
+
+{% block content %}
+<section>
+    <div class="page-head" style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px;">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1>Player Matchups</h1>
+            <p class="lead">Add the student pairings and scores shown on the day-wise schedule. Singles use one name per side; doubles can use two.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="openMatchupModal()" class="btn">
+                <svg class="icon" width="14" height="14"><use href="#icon-plus" /></svg>
+                Add Matchup
+            </button>
+            <button onclick="openMatchupCsvModal()" class="btn btn-secondary">
+                <svg class="icon" width="14" height="14"><use href="#icon-upload" /></svg>
+                Import CSV
+            </button>
+        </div>
+    </div>
+
+    <nav class="segnav" aria-label="Admin sections">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <a href="/admin" class="tab-btn {% if active_admin_sub == 'dashboard' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-shield"/></svg>
+            Overview
+        </a>
+        <a href="/admin/squads" class="tab-btn {% if active_admin_sub == 'squads' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-play"/></svg>
+            Squads
+        </a>
+        <a href="/admin/players" class="tab-btn {% if active_admin_sub == 'players' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-edit"/></svg>
+            Players
+        </a>
+        <a href="/admin/matchups" class="tab-btn {% if active_admin_sub == 'matchups' %}active{% endif %}">
+            <svg class="icon" width="14" height="14"><use href="#icon-calendar"/></svg>
+            Matchups
+        </a>
+    </nav>
+
+    <div class="admin-section">
+        <div class="admin-section-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div class="dot-indicator" style="background-color:var(--c-koshi);"></div>
+                <h3 style="margin:0;">Individual &amp; doubles matchups</h3>
+            </div>
+            <span id="matchupCountBadge" class="badge badge-stage">0 matchups</span>
+        </div>
+
+        <div id="matchupSetupNotice" class="hidden" style="margin:16px 20px 0; padding:12px 14px; border:1px solid #92400E; border-radius:10px; background:#1C1200; color:#FCD34D; font-size:12px; line-height:1.5;">
+            <strong style="display:block; margin-bottom:2px;">Database setup required</strong>
+            <span id="matchupSetupNoticeText"></span>
+        </div>
+
+        <div id="matchupList">
+            <div class="skeleton-table sk" aria-hidden="true">
+                <div class="skeleton-table-header">
+                    <div class="sk-bar" style="height:12px; width:150px;"></div>
+                    <div class="sk-bar" style="height:12px; width:190px;"></div>
+                    <div class="sk-bar" style="height:12px; width:80px;"></div>
+                    <div class="sk-bar" style="height:12px; width:60px; margin-left:auto;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:170px;"></div>
+                    <div class="sk-bar" style="height:12px; width:220px;"></div>
+                    <div class="sk-bar" style="height:12px; width:70px;"></div>
+                    <div class="sk-bar" style="height:12px; width:55px; margin-left:auto;"></div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="sk-bar" style="height:12px; width:140px;"></div>
+                    <div class="sk-bar" style="height:12px; width:200px;"></div>
+                    <div class="sk-bar" style="height:12px; width:80px;"></div>
+                    <div class="sk-bar" style="height:12px; width:55px; margin-left:auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<div id="matchupModal" class="modal-overlay hidden">
+    <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+            <div>
+                <h3 id="matchupModalTitle">Add Matchup</h3>
+                <p style="margin-top:2px;">Singles or doubles only — maximum two players per side.</p>
+            </div>
+            <button class="modal-close" onclick="closeModal('matchupModal')">&times;</button>
+        </div>
+
+        <form onsubmit="saveMatchup(event)" autocomplete="off" style="display:flex; flex-direction:column; gap:14px;">
+            <input type="hidden" id="matchupId">
+
+            <div>
+                <label for="matchupEventKey">Schedule event</label>
+                <select id="matchupEventKey" required style="width:100%;"></select>
+            </div>
+
+            <div class="matchup-form-grid">
+                <div>
+                    <label for="matchupStage">Round / stage</label>
+                    <input type="text" id="matchupStage" maxlength="60" placeholder="Semifinal 1, Final…" style="width:100%;">
+                </div>
+                <div>
+                    <label for="matchupOrder">Order</label>
+                    <input type="number" id="matchupOrder" min="0" max="999" value="0" style="width:100%;">
+                </div>
+            </div>
+
+            <div class="matchup-sides-grid">
+                <fieldset class="matchup-side-field">
+                    <legend>Side A</legend>
+                    <label for="matchupAHouse">House</label>
+                    <select id="matchupAHouse" required style="width:100%;">
+                        <option value="Karnali">Karnali</option>
+                        <option value="Koshi">Koshi</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                    <label for="matchupAPlayer1">Player 1</label>
+                    <input type="text" id="matchupAPlayer1" maxlength="80" required placeholder="Student name" style="width:100%;">
+                    <label for="matchupAPlayer2">Player 2 <span style="font-weight:400; color:var(--text-tertiary);">(doubles)</span></label>
+                    <input type="text" id="matchupAPlayer2" maxlength="80" placeholder="Optional" style="width:100%;">
+                </fieldset>
+
+                <fieldset class="matchup-side-field">
+                    <legend>Side B</legend>
+                    <label for="matchupBHouse">House</label>
+                    <select id="matchupBHouse" required style="width:100%;">
+                        <option value="Koshi">Koshi</option>
+                        <option value="Karnali">Karnali</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                    <label for="matchupBPlayer1">Player 1</label>
+                    <input type="text" id="matchupBPlayer1" maxlength="80" required placeholder="Student name" style="width:100%;">
+                    <label for="matchupBPlayer2">Player 2 <span style="font-weight:400; color:var(--text-tertiary);">(doubles)</span></label>
+                    <input type="text" id="matchupBPlayer2" maxlength="80" placeholder="Optional" style="width:100%;">
+                </fieldset>
+            </div>
+
+            <div class="matchup-score-grid">
+                <div>
+                    <label for="matchupStatus">Status</label>
+                    <select id="matchupStatus" style="width:100%;">
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="matchupWinner">Winner</label>
+                    <select id="matchupWinner" style="width:100%;">
+                        <option value="">Not decided</option>
+                        <option value="Karnali">Karnali</option>
+                        <option value="Koshi">Koshi</option>
+                        <option value="Mahakali">Mahakali</option>
+                        <option value="Mechi">Mechi</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="matchupScoreA">Score A</label>
+                    <input type="text" id="matchupScoreA" maxlength="24" placeholder="21" style="width:100%;">
+                </div>
+                <div>
+                    <label for="matchupScoreB">Score B</label>
+                    <input type="text" id="matchupScoreB" maxlength="24" placeholder="18" style="width:100%;">
+                </div>
+            </div>
+
+            <div>
+                <label for="matchupSummary">Score summary <span style="font-weight:400; color:var(--text-tertiary);">(optional)</span></label>
+                <input type="text" id="matchupSummary" maxlength="120" placeholder="21–18, 21–15" style="width:100%;">
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('matchupModal')">Cancel</button>
+                <button type="submit" class="btn">Save Matchup</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<div id="matchupCsvModal" class="modal-overlay hidden">
+    <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+            <div>
+                <h3>CSV Matchup Import</h3>
+                <p style="margin-top:2px;">Download the template, fill in names, then import. One row per matchup.</p>
+            </div>
+            <button class="modal-close" onclick="closeModal('matchupCsvModal')">&times;</button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px; max-height:62vh; overflow-y:auto;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary" onclick="downloadMatchupTemplate()">
+                    <svg class="icon" width="14" height="14"><use href="#icon-download" /></svg>
+                    Download template
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="downloadMatchupExample()">
+                    <svg class="icon" width="14" height="14"><use href="#icon-download" /></svg>
+                    Download example
+                </button>
+            </div>
+
+            <div style="border:1px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer;"
+                onclick="document.getElementById('matchupCsvFileInput').click()">
+                <svg class="icon" width="32" height="32" style="color:var(--text-tertiary); margin:0 auto 10px;">
+                    <use href="#icon-upload" />
+                </svg>
+                <p style="font-size:13px; font-weight:700; color:var(--text-primary);">Click to select CSV file</p>
+                <p style="font-size:11px; margin-top:4px; color:var(--text-tertiary);">
+                    Headers: event_key, stage, house_a, player_a_1, player_a_2, house_b, player_b_1, player_b_2, status, score_a, score_b, score_summary, winner_house
+                </p>
+                <input type="file" id="matchupCsvFileInput" accept=".csv,text/csv" class="sr-only"
+                    onchange="handleMatchupCsvFile(event)">
+            </div>
+
+            <div id="matchupCsvPreview" class="hidden">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                    <p style="font-size:13px; font-weight:700; color:var(--text-primary);">Validation preview</p>
+                    <span id="matchupCsvCountBadge" class="badge badge-stage">0 rows</span>
+                </div>
+                <div id="matchupCsvWarnings" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+                <div class="table-wrap" style="max-height:280px; overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Event</th>
+                                <th>Stage</th>
+                                <th>Side A</th>
+                                <th>Side B</th>
+                                <th>Score</th>
+                                <th>Validation</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matchupCsvTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+            <button class="btn btn-secondary" onclick="closeModal('matchupCsvModal')">Cancel</button>
+            <button id="commitMatchupCsvBtn" class="btn" disabled onclick="commitMatchupCsv()" style="opacity:0.5;">Commit import</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const SCHEDULE_EVENTS = {{ schedule_events|tojson }};
+    const MATCHUP_SPORTS = new Set(['table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
+    const MATCHUP_HOUSES = ['Karnali', 'Koshi', 'Mahakali', 'Mechi'];
+    const MATCHUP_HOUSE_VARS = {
+        karnali: 'var(--c-karnali)',
+        koshi: 'var(--c-koshi)',
+        mahakali: 'var(--c-mahakali)',
+        mechi: 'var(--c-mechi)'
+    };
+
+    const EVENTS_BY_KEY = new Map(SCHEDULE_EVENTS.map(event => [event.key, event]));
+    const MATCHUP_EVENTS = SCHEDULE_EVENTS.filter(event => MATCHUP_SPORTS.has(event.sport));
+
+    let matchups = [];
+    let pendingMatchupRows = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        populateMatchupEventSelect();
+        loadMatchups();
+    });
+
+    function eventLabel(event) {
+        return `Day ${event.day} · ${event.sport_name} · ${event.gender}`
+            + (event.detail ? ` · ${event.detail}` : '');
+    }
+
+    function shortEventLabel(event) {
+        return `${event.sport_name} · ${event.gender}` + (event.detail ? ` · ${event.detail}` : '');
+    }
+
+    function matchupHouseColor(house) {
+        return MATCHUP_HOUSE_VARS[String(house || '').toLowerCase()] || 'var(--text-tertiary)';
+    }
+
+    function populateMatchupEventSelect() {
+        const select = document.getElementById('matchupEventKey');
+        if (!select) return;
+        const byDay = new Map();
+        MATCHUP_EVENTS.forEach(event => {
+            if (!byDay.has(event.day)) byDay.set(event.day, []);
+            byDay.get(event.day).push(event);
+        });
+
+        select.innerHTML = [...byDay.keys()].sort((a, b) => a - b).map(day => {
+            const events = byDay.get(day);
+            const dayLabel = `Day ${day} · ${events[0].bs}`;
+            return `<optgroup label="${escapeHtml(dayLabel)}">`
+                + events.map(event => `<option value="${escapeHtml(event.key)}">${escapeHtml(shortEventLabel(event))} · ${escapeHtml(event.time)}</option>`).join('')
+                + '</optgroup>';
+        }).join('');
+    }
+
+    async function loadMatchups() {
+        let setupMessage = '';
+        try {
+            const res = await fetch('/api/schedule/matchups', { headers: { Accept: 'application/json' } });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                if (data && data.setup_required) setupMessage = data.error;
+                throw new Error((data && data.error) || 'Could not load matchups.');
+            }
+            matchups = Array.isArray(data) ? data : [];
+        } catch (err) {
+            matchups = [];
+            showToast(err.message || 'Could not load matchups.', 'error');
+        }
+        showMatchupSetupNotice(setupMessage);
+        renderMatchups();
+    }
+
+    function showMatchupSetupNotice(message) {
+        const notice = document.getElementById('matchupSetupNotice');
+        const text = document.getElementById('matchupSetupNoticeText');
+        if (!notice || !text) return;
+        if (message) {
+            text.textContent = message;
+            notice.classList.remove('hidden');
+        } else {
+            text.textContent = '';
+            notice.classList.add('hidden');
+        }
+    }
+
+    function matchupSortKey(matchup) {
+        const event = EVENTS_BY_KEY.get(matchup.event_key);
+        return event ? `${String(event.day).padStart(2, '0')}-${event.sport}-${event.gender}-${event.key}` : `99-${matchup.event_key}`;
+    }
+
+    function renderMatchups() {
+        const container = document.getElementById('matchupList');
+        const badge = document.getElementById('matchupCountBadge');
+        if (badge) badge.textContent = `${matchups.length} matchup${matchups.length === 1 ? '' : 's'}`;
+        if (!container) return;
+
+        if (!matchups.length) {
+            container.innerHTML = `
+                <div class="state-empty">
+                    <svg class="state-empty-icon" width="40" height="40" aria-hidden="true"><use href="#icon-calendar"/></svg>
+                    <p class="state-empty-title">No player matchups yet</p>
+                    <p class="state-empty-desc">Add a pairing individually or import a CSV to show student names on the schedule.</p>
+                    <button type="button" class="btn btn-secondary" onclick="openMatchupModal()">Add the first matchup</button>
+                </div>`;
+            return;
+        }
+
+        const sorted = [...matchups].sort((a, b) => matchupSortKey(a).localeCompare(matchupSortKey(b))
+            || (a.sort_order || 0) - (b.sort_order || 0));
+
+        container.innerHTML = `
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Matchup</th>
+                            <th>Stage</th>
+                            <th>Score</th>
+                            <th style="text-align:right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sorted.map(matchup => {
+                            const event = EVENTS_BY_KEY.get(matchup.event_key);
+                            const eventText = event ? eventLabel(event) : matchup.event_key;
+                            const aPlayers = [matchup.side_a_player_1, matchup.side_a_player_2].filter(Boolean).join(' & ');
+                            const bPlayers = [matchup.side_b_player_1, matchup.side_b_player_2].filter(Boolean).join(' & ');
+                            const completed = matchup.status === 'completed';
+                            const hasSideScores = matchup.score_a != null && matchup.score_a !== ''
+                                && matchup.score_b != null && matchup.score_b !== '';
+                            return `
+                            <tr>
+                                <td>
+                                    <div style="font-weight:650; color:var(--text-primary);">${escapeHtml(eventText)}</div>
+                                    <div class="tabular" style="font-size:11px; color:var(--text-tertiary);">${escapeHtml(matchup.event_key)}</div>
+                                </td>
+                                <td>
+                                    <div class="matchup-admin-sides">
+                                        <span class="matchup-admin-side" style="--house:${matchupHouseColor(matchup.side_a_house)};">
+                                            <span class="matchup-admin-house">${escapeHtml(matchup.side_a_house)}</span>
+                                            <span>${escapeHtml(aPlayers)}</span>
+                                        </span>
+                                        <span class="matchup-admin-vs">vs</span>
+                                        <span class="matchup-admin-side" style="--house:${matchupHouseColor(matchup.side_b_house)};">
+                                            <span class="matchup-admin-house">${escapeHtml(matchup.side_b_house)}</span>
+                                            <span>${escapeHtml(bPlayers)}</span>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td>${matchup.stage ? escapeHtml(matchup.stage) : '<span style="color:var(--text-tertiary);">—</span>'}</td>
+                                <td>
+                                    ${hasSideScores ? `<div style="font-weight:700; color:var(--text-primary);">${escapeHtml(matchup.score_a)} – ${escapeHtml(matchup.score_b)}</div>` : ''}
+                                    ${matchup.score_summary ? `<div style="font-size:11px; color:var(--text-secondary);">${escapeHtml(matchup.score_summary)}</div>` : ''}
+                                    ${!hasSideScores && !matchup.score_summary ? '<span style="color:var(--text-tertiary);">—</span>' : ''}
+                                    <div style="margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;">
+                                        <span class="badge ${completed ? 'badge-status-completed' : 'badge-status-scheduled'}">${completed ? 'Final' : 'Scheduled'}</span>
+                                        ${matchup.winner_house ? `<span class="badge badge-stage">${escapeHtml(matchup.winner_house)} won</span>` : ''}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                        <button class="btn btn-secondary btn-sm" onclick="editMatchup('${escapeHtml(matchup.id)}')" title="Edit matchup">
+                                            <svg class="icon" width="13" height="13"><use href="#icon-edit"/></svg>
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="deleteMatchup('${escapeHtml(matchup.id)}')" title="Delete matchup">
+                                            <svg class="icon" width="13" height="13"><use href="#icon-trash"/></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    function openMatchupModal(matchupId = null) {
+        const form = document.querySelector('#matchupModal form');
+        if (form) form.reset();
+        document.getElementById('matchupId').value = '';
+        document.getElementById('matchupOrder').value = '0';
+        document.getElementById('matchupStatus').value = 'scheduled';
+        document.getElementById('matchupWinner').value = '';
+        document.getElementById('matchupScoreA').value = '';
+        document.getElementById('matchupScoreB').value = '';
+        document.getElementById('matchupSummary').value = '';
+        document.getElementById('matchupModalTitle').textContent = 'Add Matchup';
+
+        if (matchupId) {
+            const matchup = matchups.find(item => item.id === matchupId);
+            if (!matchup) return;
+            document.getElementById('matchupModalTitle').textContent = 'Edit Matchup';
+            document.getElementById('matchupId').value = matchup.id;
+            document.getElementById('matchupEventKey').value = matchup.event_key;
+            document.getElementById('matchupStage').value = matchup.stage || '';
+            document.getElementById('matchupOrder').value = matchup.sort_order || 0;
+            document.getElementById('matchupAHouse').value = matchup.side_a_house;
+            document.getElementById('matchupAPlayer1').value = matchup.side_a_player_1 || '';
+            document.getElementById('matchupAPlayer2').value = matchup.side_a_player_2 || '';
+            document.getElementById('matchupBHouse').value = matchup.side_b_house;
+            document.getElementById('matchupBPlayer1').value = matchup.side_b_player_1 || '';
+            document.getElementById('matchupBPlayer2').value = matchup.side_b_player_2 || '';
+            document.getElementById('matchupStatus').value = matchup.status || 'scheduled';
+            document.getElementById('matchupWinner').value = matchup.winner_house || '';
+            document.getElementById('matchupScoreA').value = matchup.score_a || '';
+            document.getElementById('matchupScoreB').value = matchup.score_b || '';
+            document.getElementById('matchupSummary').value = matchup.score_summary || '';
+        }
+
+        openModal('matchupModal');
+    }
+
+    function editMatchup(matchupId) {
+        openMatchupModal(matchupId);
+    }
+
+    async function saveMatchup(event) {
+        event.preventDefault();
+        const id = document.getElementById('matchupId').value;
+        const payload = {
+            event_key: document.getElementById('matchupEventKey').value,
+            stage: document.getElementById('matchupStage').value.trim(),
+            sort_order: Number(document.getElementById('matchupOrder').value || 0),
+            side_a_house: document.getElementById('matchupAHouse').value,
+            side_a_player_1: document.getElementById('matchupAPlayer1').value.trim(),
+            side_a_player_2: document.getElementById('matchupAPlayer2').value.trim(),
+            side_b_house: document.getElementById('matchupBHouse').value,
+            side_b_player_1: document.getElementById('matchupBPlayer1').value.trim(),
+            side_b_player_2: document.getElementById('matchupBPlayer2').value.trim(),
+            status: document.getElementById('matchupStatus').value,
+            winner_house: document.getElementById('matchupWinner').value,
+            score_a: document.getElementById('matchupScoreA').value.trim(),
+            score_b: document.getElementById('matchupScoreB').value.trim(),
+            score_summary: document.getElementById('matchupSummary').value.trim()
+        };
+
+        try {
+            const res = await fetchWithAuth(id ? `/api/schedule/matchups/${id}` : '/api/schedule/matchups', {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (data.setup_required) showMatchupSetupNotice(data.error);
+                throw new Error(data.error || 'Could not save the matchup.');
+            }
+            closeModal('matchupModal');
+            showToast(id ? 'Matchup updated.' : 'Matchup added.', 'success');
+            await loadMatchups();
+        } catch (err) {
+            showToast(err.message || 'Could not save the matchup.', 'error');
+        }
+    }
+
+    async function deleteMatchup(matchupId) {
+        if (!confirm('Delete this matchup?')) return;
+        try {
+            const res = await fetchWithAuth(`/api/schedule/matchups/${matchupId}`, { method: 'DELETE' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Could not delete the matchup.');
+            showToast('Matchup deleted.', 'success');
+            await loadMatchups();
+        } catch (err) {
+            showToast(err.message || 'Could not delete the matchup.', 'error');
+        }
+    }
+
+    // ── CSV import ──
+    function openMatchupCsvModal() {
+        pendingMatchupRows = [];
+        const preview = document.getElementById('matchupCsvPreview');
+        if (preview) preview.classList.add('hidden');
+        const input = document.getElementById('matchupCsvFileInput');
+        if (input) input.value = '';
+        const commit = document.getElementById('commitMatchupCsvBtn');
+        if (commit) { commit.disabled = true; commit.style.opacity = '0.5'; }
+        openModal('matchupCsvModal');
+    }
+
+    function parseCsvText(text) {
+        const rows = [];
+        let row = [];
+        let field = '';
+        let quoted = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (quoted) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') { field += '"'; i++; }
+                    else quoted = false;
+                } else field += ch;
+            } else if (ch === '"') {
+                quoted = true;
+            } else if (ch === ',') {
+                row.push(field); field = '';
+            } else if (ch === '\n') {
+                row.push(field); rows.push(row); row = []; field = '';
+            } else if (ch !== '\r') {
+                field += ch;
+            }
+        }
+        if (field || row.length) { row.push(field); rows.push(row); }
+        return rows.filter(cells => cells.some(cell => String(cell).trim() !== ''));
+    }
+
+    function normalizeHeader(value) {
+        return String(value || '').replace(/^\ufeff/, '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    }
+
+    const CSV_HEADER_ALIASES = {
+        event_key: ['event_key', 'event', 'schedule_event', 'key'],
+        stage: ['stage', 'round'],
+        house_a: ['house_a', 'side_a_house', 'a_house'],
+        player_a_1: ['player_a_1', 'side_a_player_1', 'a_player_1', 'playera1'],
+        player_a_2: ['player_a_2', 'side_a_player_2', 'a_player_2', 'playera2'],
+        house_b: ['house_b', 'side_b_house', 'b_house'],
+        player_b_1: ['player_b_1', 'side_b_player_1', 'b_player_1', 'playerb1'],
+        player_b_2: ['player_b_2', 'side_b_player_2', 'b_player_2', 'playerb2'],
+        status: ['status', 'result_status'],
+        score_a: ['score_a', 'a_score'],
+        score_b: ['score_b', 'b_score'],
+        score_summary: ['score_summary', 'summary', 'scoreline'],
+        winner_house: ['winner_house', 'winner', 'winning_house']
+    };
+
+    function headerField(header) {
+        const normalized = normalizeHeader(header);
+        for (const [field, aliases] of Object.entries(CSV_HEADER_ALIASES)) {
+            if (aliases.includes(normalized)) return field;
+        }
+        return null;
+    }
+
+    function handleMatchupCsvFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = evt => previewMatchupCsv(evt.target.result);
+        reader.readAsText(file);
+    }
+
+    function previewMatchupCsv(text) {
+        const rows = parseCsvText(text);
+        if (rows.length < 2) {
+            showToast('CSV is empty or missing a header row.', 'error', { title: 'Invalid CSV' });
+            return;
+        }
+
+        const headers = rows[0].map(headerField);
+        const parsed = [];
+        for (let i = 1; i < rows.length; i++) {
+            const values = {};
+            headers.forEach((field, index) => {
+                if (field) values[field] = String(rows[i][index] || '').trim();
+            });
+            if (!Object.values(values).some(Boolean)) continue;
+
+            const event = EVENTS_BY_KEY.get(values.event_key || '');
+            const houseA = MATCHUP_HOUSES.find(house => house.toLowerCase() === (values.house_a || '').toLowerCase());
+            const houseB = MATCHUP_HOUSES.find(house => house.toLowerCase() === (values.house_b || '').toLowerCase());
+            const errors = [];
+            if (!event) errors.push('Unknown event_key');
+            else if (!MATCHUP_SPORTS.has(event.sport)) errors.push('Team sport is not supported');
+            if (!houseA) errors.push('Side A house');
+            if (!values.player_a_1) errors.push('Side A player 1');
+            if (!houseB) errors.push('Side B house');
+            if (!values.player_b_1) errors.push('Side B player 1');
+
+            const status = (values.status || 'scheduled').toLowerCase();
+            if (!['scheduled', 'completed'].includes(status)) errors.push('Status');
+            const winner = values.winner_house
+                ? MATCHUP_HOUSES.find(house => house.toLowerCase() === values.winner_house.toLowerCase())
+                : '';
+            if (values.winner_house && !winner) errors.push('Winner house');
+            if (winner && houseA && houseB && winner !== houseA && winner !== houseB) {
+                errors.push('Winner must be side A or B');
+            }
+
+            parsed.push({
+                event,
+                values: {
+                    event_key: values.event_key,
+                    stage: values.stage || '',
+                    side_a_house: houseA || values.house_a || '',
+                    side_a_player_1: values.player_a_1 || '',
+                    side_a_player_2: values.player_a_2 || '',
+                    side_b_house: houseB || values.house_b || '',
+                    side_b_player_1: values.player_b_1 || '',
+                    side_b_player_2: values.player_b_2 || '',
+                    status,
+                    score_a: values.score_a || '',
+                    score_b: values.score_b || '',
+                    score_summary: values.score_summary || '',
+                    winner_house: winner || ''
+                },
+                errors
+            });
+        }
+
+        pendingMatchupRows = parsed.filter(row => row.errors.length === 0).map(row => row.values);
+        renderMatchupCsvPreview(parsed);
+    }
+
+    function renderMatchupCsvPreview(parsed) {
+        const preview = document.getElementById('matchupCsvPreview');
+        const tbody = document.getElementById('matchupCsvTableBody');
+        const badge = document.getElementById('matchupCsvCountBadge');
+        const warnings = document.getElementById('matchupCsvWarnings');
+        const commit = document.getElementById('commitMatchupCsvBtn');
+        if (!preview || !tbody) return;
+
+        const validCount = parsed.filter(row => row.errors.length === 0).length;
+        if (badge) badge.textContent = `${validCount} of ${parsed.length} valid`;
+
+        if (warnings) {
+            const invalid = parsed.map((row, index) => ({ ...row, index: index + 1 })).filter(row => row.errors.length);
+            warnings.innerHTML = invalid.length
+                ? `<div style="padding:8px 12px; border:1px solid #92400E; border-radius:8px; background-color:#1C1200; color:#FCD34D; font-size:12px;">
+                        ${invalid.length} row(s) will be skipped. ${escapeHtml(invalid[0].errors.join(', '))}${invalid.length > 1 ? '…' : ''}
+                   </div>`
+                : '';
+        }
+
+        tbody.innerHTML = parsed.map(row => {
+            const eventText = row.event ? shortEventLabel(row.event) : (row.values.event_key || '—');
+            const aPlayers = [row.values.side_a_player_1, row.values.side_a_player_2].filter(Boolean).join(' & ');
+            const bPlayers = [row.values.side_b_player_1, row.values.side_b_player_2].filter(Boolean).join(' & ');
+            const sideScore = [row.values.score_a, row.values.score_b].filter(value => value !== '' && value != null).join(' – ');
+            return `<tr>
+                <td>${escapeHtml(eventText)}</td>
+                <td>${row.values.stage ? escapeHtml(row.values.stage) : '—'}</td>
+                <td>${row.values.side_a_house ? `<span class="matchup-admin-house" style="--house:${matchupHouseColor(row.values.side_a_house)};">${escapeHtml(row.values.side_a_house)}</span> ` : ''}${escapeHtml(aPlayers)}</td>
+                <td>${row.values.side_b_house ? `<span class="matchup-admin-house" style="--house:${matchupHouseColor(row.values.side_b_house)};">${escapeHtml(row.values.side_b_house)}</span> ` : ''}${escapeHtml(bPlayers)}</td>
+                <td>${sideScore ? escapeHtml(sideScore) : (row.values.score_summary ? escapeHtml(row.values.score_summary) : '—')}
+                    <div class="badge badge-stage" style="margin-top:4px;">${escapeHtml(row.values.status)}</div>
+                </td>
+                <td>${row.errors.length
+                    ? `<span class="badge" style="color:#F87171; border-color:#7F1D1D;">${escapeHtml(row.errors[0])}</span>`
+                    : '<span class="badge badge-status-completed">Ready</span>'}</td>
+            </tr>`;
+        }).join('');
+
+        preview.classList.remove('hidden');
+        if (commit) {
+            commit.disabled = validCount === 0;
+            commit.style.opacity = validCount ? '1' : '0.5';
+        }
+    }
+
+    async function commitMatchupCsv() {
+        if (!pendingMatchupRows.length) return;
+        const button = document.getElementById('commitMatchupCsvBtn');
+        if (button) { button.disabled = true; button.textContent = 'Importing…'; }
+        try {
+            const res = await fetchWithAuth('/api/schedule/matchups/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pendingMatchupRows)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (data.setup_required) showMatchupSetupNotice(data.error);
+                throw new Error(data.error || 'Import failed.');
+            }
+            showToast(data.message || 'Matchups imported.', 'success');
+            closeModal('matchupCsvModal');
+            await loadMatchups();
+        } catch (err) {
+            showToast(err.message || 'Import failed.', 'error');
+        } finally {
+            if (button) { button.disabled = false; button.textContent = 'Commit import'; }
+        }
+    }
+
+    function csvCell(value) {
+        const text = String(value == null ? '' : value);
+        return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }
+
+    function downloadCsv(filename, rows) {
+        const csv = '\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+    }
+
+    const MATCHUP_CSV_HEADERS = [
+        'event_key', 'stage', 'house_a', 'player_a_1', 'player_a_2',
+        'house_b', 'player_b_1', 'player_b_2',
+        'status', 'score_a', 'score_b', 'score_summary', 'winner_house'
+    ];
+
+    function downloadMatchupTemplate() {
+        const rows = [MATCHUP_CSV_HEADERS];
+        MATCHUP_EVENTS.forEach(event => rows.push([event.key, ...Array(MATCHUP_CSV_HEADERS.length - 1).fill('')]));
+        downloadCsv('dss-2083-matchup-template.csv', rows);
+    }
+
+    function downloadMatchupExample() {
+        const sample = MATCHUP_EVENTS.find(event => event.sport === 'table-tennis')
+            || MATCHUP_EVENTS.find(event => event.sport === 'badminton')
+            || MATCHUP_EVENTS[0];
+        const rows = [MATCHUP_CSV_HEADERS];
+        if (sample) {
+            rows.push([
+                sample.key, 'Semifinal 1', 'Karnali', 'Student One', '', 'Koshi', 'Student Two', '',
+                'completed', '2', '1', '11-8, 9-11, 11-7', 'Karnali'
+            ]);
+        }
+        downloadCsv('dss-2083-matchup-example.csv', rows);
+    }
+</script>
+{% endblock %}

@@ -636,8 +636,206 @@ def test_schedule_page_lists_every_day_sport_and_venue(client):
         'Royal Sports Park, Budhanilkantha',
         'scheduleDayChips',
         'scheduleSportChips',
+        'data-event-key="d2-table-tennis-boys"',
+        '/matchups',
     ):
         assert marker in html
+
+
+def test_public_matchups_page(client):
+    rv = client.get('/matchups')
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    for marker in (
+        'Matchups &amp; Results',
+        'matchupSportChips',
+        'matchupStatusFilter',
+        'd2-table-tennis-boys',
+        'd2-badminton-boys-singles-up-to-semifinal',
+        'd4-futsal-boys-semifinal',
+    ):
+        assert marker in html
+
+
+def _sample_matchup(**overrides):
+    payload = {
+        "event_key": "d2-table-tennis-boys",
+        "stage": "Semifinal 1",
+        "side_a_house": "Karnali",
+        "side_a_player_1": "Aarav Lama",
+        "side_b_house": "Koshi",
+        "side_b_player_1": "Soham Shah",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _delete_matchups_for(client, headers, event_keys):
+    rv = client.get('/api/schedule/matchups')
+    for row in rv.get_json():
+        if row.get('event_key') in event_keys:
+            client.delete(f"/api/schedule/matchups/{row['id']}", headers=headers)
+
+
+def test_schedule_matchups_require_admin(client):
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup())
+    assert rv.status_code == 401
+
+
+def test_schedule_matchups_crud(client):
+    headers = _admin_headers(client)
+    rv = client.get('/api/schedule/matchups')
+    assert rv.status_code == 200
+    assert isinstance(rv.get_json(), list)
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(), headers=headers)
+    assert rv.status_code == 201, rv.get_json()
+    created = rv.get_json()
+    assert created['event_key'] == 'd2-table-tennis-boys'
+    assert created['side_a_house'] == 'Karnali'
+    assert created['side_b_player_1'] == 'Soham Shah'
+
+    rv = client.get('/api/schedule/matchups')
+    assert any(row['id'] == created['id'] for row in rv.get_json())
+
+    rv = client.put(
+        f"/api/schedule/matchups/{created['id']}",
+        json=_sample_matchup(stage="Final", side_a_player_2="Prabal Dawadi"),
+        headers=headers,
+    )
+    assert rv.status_code == 200, rv.get_json()
+    assert rv.get_json()['stage'] == 'Final'
+    assert rv.get_json()['side_a_player_2'] == 'Prabal Dawadi'
+
+    rv = client.delete(f"/api/schedule/matchups/{created['id']}", headers=headers)
+    assert rv.status_code == 200
+    rv = client.get('/api/schedule/matchups')
+    assert all(row['id'] != created['id'] for row in rv.get_json())
+
+
+def test_schedule_matchup_validation(client):
+    headers = _admin_headers(client)
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(event_key='nope'), headers=headers)
+    assert rv.status_code == 400
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(event_key='d4-futsal-boys-semifinal'), headers=headers)
+    assert rv.status_code == 400
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(side_a_house='Atlantis'), headers=headers)
+    assert rv.status_code == 400
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(side_b_player_1=''), headers=headers)
+    assert rv.status_code == 400
+
+    # Houses are normalised to their canonical spelling.
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(side_b_house='koshi'), headers=headers)
+    assert rv.status_code == 201, rv.get_json()
+    assert rv.get_json()['side_b_house'] == 'Koshi'
+    client.delete(f"/api/schedule/matchups/{rv.get_json()['id']}", headers=headers)
+
+
+def test_schedule_matchup_bulk_import_skips_invalid_rows(client):
+    headers = _admin_headers(client)
+    doubles_key = 'd3-badminton-boys-doubles-up-to-semifinal'
+    payload = [
+        _sample_matchup(
+            event_key=doubles_key,
+            stage='Semifinal 1',
+            side_a_player_1='Aarav Lama',
+            side_a_player_2='Prabal Dawadi',
+            side_b_player_1='Soham Shah',
+            side_b_player_2='Aaryan Regmi',
+        ),
+        _sample_matchup(stage='Semifinal 2'),
+        _sample_matchup(event_key='d4-futsal-boys-semifinal'),
+    ]
+
+    try:
+        rv = client.post('/api/schedule/matchups/bulk', json=payload, headers=headers)
+        assert rv.status_code == 200, rv.get_json()
+        result = rv.get_json()
+        assert result['created'] == 2
+        assert result['skipped'] == 1
+
+        rv = client.get('/api/schedule/matchups')
+        rows = [row for row in rv.get_json() if row['event_key'] == doubles_key]
+        assert len(rows) == 1
+        assert rows[0]['side_a_player_2'] == 'Prabal Dawadi'
+    finally:
+        _delete_matchups_for(client, headers, {doubles_key})
+
+
+def test_schedule_matchup_scores(client):
+    headers = _admin_headers(client)
+    event_key = 'd2-chess-boys'
+    payload = _sample_matchup(
+        event_key=event_key,
+        stage='Final',
+        status='completed',
+        score_a='1',
+        score_b='0',
+        score_summary='Checkmate on board 2',
+        winner_house='Karnali',
+    )
+    try:
+        rv = client.post('/api/schedule/matchups', json=payload, headers=headers)
+        assert rv.status_code == 201, rv.get_json()
+        created = rv.get_json()
+        assert created['status'] == 'completed'
+        assert created['score_a'] == '1'
+        assert created['score_b'] == '0'
+        assert created['score_summary'] == 'Checkmate on board 2'
+        assert created['winner_house'] == 'Karnali'
+
+        rv = client.get('/api/schedule/matchups')
+        row = next(item for item in rv.get_json() if item['id'] == created['id'])
+        assert row['winner_house'] == 'Karnali'
+
+        rv = client.put(
+            f"/api/schedule/matchups/{created['id']}",
+            json={**payload, 'score_a': '0', 'score_b': '1', 'winner_house': 'Koshi'},
+            headers=headers,
+        )
+        assert rv.status_code == 200, rv.get_json()
+        assert rv.get_json()['winner_house'] == 'Koshi'
+        client.delete(f"/api/schedule/matchups/{created['id']}", headers=headers)
+    finally:
+        _delete_matchups_for(client, headers, {event_key})
+
+
+def test_schedule_matchup_score_validation(client):
+    headers = _admin_headers(client)
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(status='postponed'), headers=headers)
+    assert rv.status_code == 400
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(winner_house='Atlantis'), headers=headers)
+    assert rv.status_code == 400
+
+    rv = client.post('/api/schedule/matchups', json=_sample_matchup(winner_house='Mechi'), headers=headers)
+    assert rv.status_code == 400
+
+
+def test_schedule_matchup_missing_table_message():
+    from app.app import _missing_matchup_table, _MATCHUP_TABLE_HINT
+
+    exc = Exception(
+        "{'message': \"Could not find the table 'public.schedule_matchups' in the schema cache\", "
+        "'code': 'PGRST205'}"
+    )
+    assert _missing_matchup_table(exc)
+    assert '003_schedule_matchups.sql' in _MATCHUP_TABLE_HINT
+    assert not _missing_matchup_table(Exception("some unrelated database failure"))
+
+
+def test_admin_matchups_page(client):
+    rv = client.get('/admin/matchups')
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    assert 'Player Matchups' in html
+    assert 'd2-table-tennis-boys' in html
+    assert 'Download template' in html
 
 
 def test_update_team_mass_assignment_blocked(client):

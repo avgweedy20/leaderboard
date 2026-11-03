@@ -10,6 +10,10 @@
         <p class="eyebrow">{{ schedule.meta.event }} 2083 · {{ schedule.meta.level }}</p>
         <h1>Day-wise Schedule</h1>
         <p class="lead">{{ schedule.meta.bs_range }} · {{ schedule.meta.ad_range }}. Every sport, start time, and venue in one place.</p>
+        <a class="btn btn-secondary" href="/matchups" style="margin-top:12px; display:inline-flex;">
+            <svg class="icon" width="14" height="14"><use href="#icon-trophy"/></svg>
+            View all matchups &amp; results
+        </a>
     </div>
 
     <div class="schedule-overview reveal" aria-label="Schedule at a glance">
@@ -273,12 +277,14 @@
         return SCHEDULE_HOUSE_COLORS[String(house || '').toLowerCase()] || 'var(--text-tertiary)';
     }
 
-    function scheduleSide(house, player1, player2) {
+    function scheduleSide(house, player1, player2, score, isWinner) {
         const players = [player1, player2].filter(Boolean).join(' & ');
+        const hasScore = score != null && score !== '';
         return `
-            <div class="schedule-matchup-side" style="--house:${scheduleHouseColor(house)}">
+            <div class="schedule-matchup-side${isWinner ? ' is-winner' : ''}" style="--house:${scheduleHouseColor(house)}">
                 <span class="schedule-matchup-house">${scheduleEscape(house)}</span>
                 <span class="schedule-matchup-players">${scheduleEscape(players)}</span>
+                ${hasScore ? `<span class="schedule-matchup-score">${scheduleEscape(score)}</span>` : ''}
             </div>`;
     }
 
@@ -316,14 +322,17 @@
                     const aPlayers = [match.side_a_player_1, match.side_a_player_2].filter(Boolean).join(' & ');
                     const bPlayers = [match.side_b_player_1, match.side_b_player_2].filter(Boolean).join(' & ');
                     const label = `${match.stage ? match.stage + ': ' : ''}${match.side_a_house} ${aPlayers} versus ${match.side_b_house} ${bPlayers}`;
+                    const isWinnerA = match.winner_house && match.winner_house === match.side_a_house;
+                    const isWinnerB = match.winner_house && match.winner_house === match.side_b_house;
                     return `
                     <div class="schedule-matchup" aria-label="${scheduleEscape(label)}">
                         ${match.stage ? `<span class="schedule-matchup-stage">${scheduleEscape(match.stage)}</span>` : ''}
                         <div class="schedule-matchup-sides">
-                            ${scheduleSide(match.side_a_house, match.side_a_player_1, match.side_a_player_2)}
+                            ${scheduleSide(match.side_a_house, match.side_a_player_1, match.side_a_player_2, match.score_a, isWinnerA)}
                             <span class="schedule-matchup-vs" aria-hidden="true">vs</span>
-                            ${scheduleSide(match.side_b_house, match.side_b_player_1, match.side_b_player_2)}
+                            ${scheduleSide(match.side_b_house, match.side_b_player_1, match.side_b_player_2, match.score_b, isWinnerB)}
                         </div>
+                        ${match.score_summary ? `<p class="schedule-matchup-summary">${scheduleEscape(match.score_summary)}</p>` : ''}
                     </div>`;
                 }).join('')}`;
             container.hidden = false;

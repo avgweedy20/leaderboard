@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Matchups &amp; Results{% endblock %}
+{% block meta_desc %}Every singles and doubles player matchup at the DSS Inter-House Sports Meet 2083 - pairings, houses, stages, and scores.{% endblock %}
+
+{% block content %}
+<section>
+    <div class="page-head">
+        <p class="eyebrow">{{ schedule_meta.event }} 2083 · {{ schedule_meta.level }}</p>
+        <h1>Matchups &amp; Results</h1>
+        <p class="lead">Every singles and doubles pairing, with student names, houses, and scores. Open to everyone.</p>
+    </div>
+
+    <div class="filter-panel" style="margin-bottom:32px;">
+        <div class="field">
+            <label>Sport</label>
+            <div id="matchupSportChips" class="chip-group" role="group" aria-label="Sport filter"></div>
+        </div>
+        <div class="field">
+            <label for="matchupGenderFilter">Gender</label>
+            <select id="matchupGenderFilter" class="table-filter-select" style="width:100%;"
+                onchange="applyPublicMatchupFilters()" aria-label="Gender filter">
+                <option value="">All Genders</option>
+                <option value="Boys">Boys</option>
+                <option value="Girls">Girls</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="matchupStatusFilter">Status</label>
+            <select id="matchupStatusFilter" class="table-filter-select" style="width:100%;"
+                onchange="applyPublicMatchupFilters()" aria-label="Status filter">
+                <option value="">All Statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="completed">Completed</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="publicMatchupsContainer">
+        <div class="card-grid">
+            <div class="skeleton-card sk">
+                <div class="sk-bar" style="height:12px; width:120px;"></div>
+                <div class="sk-bar" style="height:52px; width:100%;"></div>
+                <div class="sk-bar" style="height:11px; width:80px;"></div>
+            </div>
+            <div class="skeleton-card sk">
+                <div class="sk-bar" style="height:12px; width:140px;"></div>
+                <div class="sk-bar" style="height:52px; width:100%;"></div>
+                <div class="sk-bar" style="height:11px; width:60px;"></div>
+            </div>
+            <div class="skeleton-card sk">
+                <div class="sk-bar" style="height:12px; width:100px;"></div>
+                <div class="sk-bar" style="height:52px; width:100%;"></div>
+                <div class="sk-bar" style="height:11px; width:70px;"></div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const SCHEDULE_EVENTS = {{ schedule_events|tojson }};
+    const PUBLIC_MATCHUP_HOUSES = ['Karnali', 'Koshi', 'Mahakali', 'Mechi'];
+    const PUBLIC_HOUSE_COLORS = {
+        karnali: 'var(--c-karnali)',
+        koshi: 'var(--c-koshi)',
+        mahakali: 'var(--c-mahakali)',
+        mechi: 'var(--c-mechi)'
+    };
+    const SPORT_ICONS = {
+        'cricksal': 'icon-cricket',
+        'futsal': 'icon-football',
+        'basketball': 'icon-basketball',
+        'table-tennis': 'icon-table-tennis',
+        'badminton': 'icon-badminton',
+        'chess': 'icon-chess',
+        'carrom': 'icon-carrom',
+        'athletics': 'icon-run',
+        'tug-of-war': 'icon-tug',
+        'swimming': 'icon-swim'
+    };
+
+    const PUBLIC_EVENTS = new Map(SCHEDULE_EVENTS.map(event => [event.key, event]));
+    const PUBLIC_SPORTS = [];
+    SCHEDULE_EVENTS.forEach(event => {
+        if (!PUBLIC_SPORTS.some(sport => sport.key === event.sport)) {
+            PUBLIC_SPORTS.push({ key: event.sport, name: event.sport_name });
+        }
+    });
+
+    let publicMatchups = [];
+    let publicActiveSport = '';
+    let publicActiveGender = '';
+    let publicActiveStatus = '';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        populatePublicSportChips();
+        loadPublicMatchups();
+    });
+
+    function publicHouseColor(house) {
+        return PUBLIC_HOUSE_COLORS[String(house || '').toLowerCase()] || 'var(--text-tertiary)';
+    }
+
+    function publicEvent(matchup) {
+        return PUBLIC_EVENTS.get(matchup.event_key) || null;
+    }
+
+    function publicPlayers(matchup, side) {
+        return [matchup[`side_${side}_player_1`], matchup[`side_${side}_player_2`]]
+            .filter(Boolean).join(' & ');
+    }
+
+    function publicStageLabel(stage) {
+        return String(stage || '').trim() || 'Matchup';
+    }
+
+    function publicSportIcon(sportKey) {
+        return SPORT_ICONS[sportKey] || 'icon-trophy';
+    }
+
+    function populatePublicSportChips() {
+        const group = document.getElementById('matchupSportChips');
+        if (!group) return;
+        const present = new Set(publicMatchups.map(matchup => (publicEvent(matchup) || {}).sport).filter(Boolean));
+        const sports = PUBLIC_SPORTS.filter(sport => present.has(sport.key));
+        if (!sports.length) {
+            group.innerHTML = '<button class="chip active" type="button">All Sports</button>';
+            return;
+        }
+        group.innerHTML = '<button class="chip active" type="button" onclick="filterPublicMatchups(\'\', this)">All Sports</button>'
+            + sports.map(sport => `<button class="chip" type="button" onclick="filterPublicMatchups('${escapeHtml(sport.key)}', this)">${escapeHtml(sport.name)}</button>`).join('');
+    }
+
+    function filterPublicMatchups(sportKey, btn) {
+        document.querySelectorAll('#matchupSportChips .chip').forEach(chip => chip.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        publicActiveSport = sportKey;
+        applyPublicMatchupFilters();
+    }
+
+    function applyPublicMatchupFilters() {
+        publicActiveGender = document.getElementById('matchupGenderFilter').value;
+        publicActiveStatus = document.getElementById('matchupStatusFilter').value;
+        renderPublicMatchups();
+    }
+
+    async function loadPublicMatchups() {
+        const container = document.getElementById('publicMatchupsContainer');
+        try {
+            const res = await fetch('/api/schedule/matchups', { headers: { Accept: 'application/json' } });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                // Until the matchup table is set up, show the normal empty state
+                // instead of an error to visitors.
+                if (data && data.setup_required) {
+                    publicMatchups = [];
+                    populatePublicSportChips();
+                    renderPublicMatchups();
+                    return;
+                }
+                throw new Error(`HTTP ${res.status}`);
+            }
+            publicMatchups = Array.isArray(data) ? data : [];
+        } catch (err) {
+            container.innerHTML = renderSharedErrorState('Failed to load matchups.', 'loadPublicMatchups()');
+            return;
+        }
+        populatePublicSportChips();
+        renderPublicMatchups();
+    }
+
+    function publicMatchupSortKey(matchup) {
+        const event = publicEvent(matchup);
+        if (!event) return `99-${matchup.event_key}`;
+        const sportIndex = Math.max(0, PUBLIC_SPORTS.findIndex(sport => sport.key === event.sport));
+        return `${String(event.day).padStart(2, '0')}-${String(sportIndex).padStart(2, '0')}-${event.gender}-${event.key}-${String(matchup.sort_order || 0).padStart(3, '0')}`;
+    }
+
+    function publicSideMarkup(matchup, side, score, isWinner) {
+        const house = matchup[`side_${side}_house`];
+        const players = publicPlayers(matchup, side);
+        return `
+            <div class="matchup-card-side${isWinner ? ' is-winner' : ''}" style="--house:${publicHouseColor(house)}">
+                <div class="matchup-card-side-top">
+                    <span class="matchup-card-house">${escapeHtml(house)}</span>
+                    ${score != null && score !== '' ? `<span class="matchup-card-score">${escapeHtml(score)}</span>` : ''}
+                </div>
+                <span class="matchup-card-players">${escapeHtml(players)}</span>
+                ${isWinner ? '<span class="matchup-card-winner"><svg class="icon" width="11" height="11"><use href="#icon-trophy"/></svg> Winner</span>' : ''}
+            </div>`;
+    }
+
+    function renderPublicMatchupCard(matchup, idx) {
+        const event = publicEvent(matchup);
+        const completed = matchup.status === 'completed';
+        const isWinnerA = matchup.winner_house && matchup.winner_house === matchup.side_a_house;
+        const isWinnerB = matchup.winner_house && matchup.winner_house === matchup.side_b_house;
+        const dayTime = event ? `Day ${event.day} · ${event.time}` : '';
+
+        return `
+        <article class="matchup-card reveal" style="--d:${(idx || 0) % 12 * 45}ms;">
+            <div class="matchup-card-head">
+                <div class="matchup-card-tags">
+                    <span class="badge badge-stage">${escapeHtml(publicStageLabel(matchup.stage))}</span>
+                    <span class="badge ${completed ? 'badge-status-completed' : 'badge-status-scheduled'}">${completed ? 'Final' : 'Scheduled'}</span>
+                </div>
+                ${dayTime ? `<span class="matchup-card-meta">${escapeHtml(dayTime)}</span>` : ''}
+            </div>
+
+            <div class="matchup-card-sides">
+                ${publicSideMarkup(matchup, 'a', matchup.score_a, isWinnerA)}
+                <span class="matchup-card-vs" aria-hidden="true">VS</span>
+                ${publicSideMarkup(matchup, 'b', matchup.score_b, isWinnerB)}
+            </div>
+
+            ${matchup.score_summary ? `<p class="matchup-card-summary">${escapeHtml(matchup.score_summary)}</p>` : ''}
+        </article>`;
+    }
+
+    function renderPublicMatchups() {
+        const container = document.getElementById('publicMatchupsContainer');
+        if (!container) return;
+
+        let filtered = publicMatchups.filter(matchup => publicEvent(matchup));
+        if (publicActiveSport) filtered = filtered.filter(matchup => publicEvent(matchup).sport === publicActiveSport);
+        if (publicActiveGender) filtered = filtered.filter(matchup => publicEvent(matchup).gender === publicActiveGender);
+        if (publicActiveStatus) filtered = filtered.filter(matchup => (matchup.status || 'scheduled') === publicActiveStatus);
+
+        if (!filtered.length) {
+            const hasAny = publicMatchups.some(matchup => publicEvent(matchup));
+            container.innerHTML = hasAny
+                ? renderSharedEmptyState(
+                    'No matchups match your filters',
+                    'Try adjusting the sport, gender, or status filters above.'
+                )
+                : renderSharedEmptyState(
+                    'No matchups published yet',
+                    'Singles and doubles pairings will appear here with their scores once they are added.'
+                );
+            return;
+        }
+
+        filtered.sort((a, b) => publicMatchupSortKey(a).localeCompare(publicMatchupSortKey(b)));
+
+        const groups = new Map();
+        filtered.forEach(matchup => {
+            const event = publicEvent(matchup);
+            const key = `${event.sport}__${event.gender}`;
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    sportKey: event.sport,
+                    sportName: event.sport_name,
+                    gender: event.gender,
+                    day: event.day,
+                    matchups: []
+                });
+            }
+            groups.get(key).matchups.push(matchup);
+        });
+
+        const sportOrder = new Map(PUBLIC_SPORTS.map((sport, index) => [sport.key, index]));
+        const genderOrder = { Boys: 0, Girls: 1, Mixed: 2 };
+        const keys = [...groups.keys()].sort((a, b) => {
+            const groupA = groups.get(a);
+            const groupB = groups.get(b);
+            return groupA.day - groupB.day
+                || (sportOrder.get(groupA.sportKey) ?? 99) - (sportOrder.get(groupB.sportKey) ?? 99)
+                || (genderOrder[groupA.gender] ?? 9) - (genderOrder[groupB.gender] ?? 9);
+        });
+
+        let html = '<div class="public-matchup-groups fade-in">';
+        keys.forEach(key => {
+            const group = groups.get(key);
+            const played = group.matchups.filter(matchup => matchup.status === 'completed').length;
+            html += `
+            <section class="public-matchup-group">
+                <div class="section-header">
+                    <svg class="icon" width="16" height="16" style="color:var(--text-secondary);"><use href="#${publicSportIcon(group.sportKey)}"/></svg>
+                    <span class="section-title">${escapeHtml(group.sportName)} - ${escapeHtml(group.gender)}</span>
+                    <span class="badge badge-stage">${played}/${group.matchups.length} played</span>
+                </div>
+                <div class="card-grid">
+                    ${group.matchups.map((matchup, index) => renderPublicMatchupCard(matchup, index)).join('')}
+                </div>
+            </section>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+</script>
+{% endblock %}

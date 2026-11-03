@@ -482,6 +482,27 @@ _MATCHUP_SPORTS = {"table-tennis", "badminton", "chess", "carrom", "athletics", 
 _MATCHUP_HOUSES = ("Karnali", "Koshi", "Mahakali", "Mechi")
 _MATCHUP_HOUSE_LOOKUP = {house.lower(): house for house in _MATCHUP_HOUSES}
 
+_MATCHUP_TABLE_HINT = (
+    "The schedule_matchups table is not set up yet. Apply "
+    "supabase/migrations/003_schedule_matchups.sql in the Supabase SQL editor, "
+    "then reload this page."
+)
+
+
+def _missing_matchup_table(exc):
+    """Detect PostgREST's PGRST205 'table not in schema cache' response."""
+    text = str(exc)
+    return "PGRST205" in text or (
+        "schedule_matchups" in text and "schema cache" in text.lower()
+    )
+
+
+def _matchup_db_error(exc):
+    """Return a friendly JSON error for a missing table, else None."""
+    if _missing_matchup_table(exc):
+        return jsonify({"error": _MATCHUP_TABLE_HINT, "setup_required": True}), 503
+    return jsonify({"error": _internal_error(exc)}), 500
+
 
 def _clean_text(value, limit):
     return str(value or "").strip()[:limit]
@@ -524,6 +545,17 @@ def _prepare_matchup(data):
         return None, "Display order must be a number."
     sort_order = max(0, min(sort_order, 999))
 
+    status = _clean_text(data.get("status"), 20).lower() or "scheduled"
+    if status not in ("scheduled", "completed"):
+        return None, "Status must be 'scheduled' or 'completed'."
+
+    winner_raw = _clean_text(data.get("winner_house"), 40)
+    winner_house = _MATCHUP_HOUSE_LOOKUP.get(winner_raw.lower()) if winner_raw else None
+    if winner_raw and not winner_house:
+        return None, f"Winner house must be one of: {', '.join(_MATCHUP_HOUSES)}."
+    if winner_house and winner_house not in (sides["a"][0], sides["b"][0]):
+        return None, "Winner house must be one of the two houses in the matchup."
+
     now = datetime.now(timezone.utc).isoformat()
     record = {
         "event_key": event_key,
@@ -535,6 +567,11 @@ def _prepare_matchup(data):
         "side_b_player_1": sides["b"][1],
         "side_b_player_2": sides["b"][2] or None,
         "sort_order": sort_order,
+        "status": status,
+        "score_a": _clean_text(data.get("score_a"), 24) or None,
+        "score_b": _clean_text(data.get("score_b"), 24) or None,
+        "score_summary": _clean_text(data.get("score_summary"), 120) or None,
+        "winner_house": winner_house,
         "updated_at": now,
     }
     return record, None
@@ -559,6 +596,16 @@ def standings_page(sport_slug=""):
 @app.route("/fixtures")
 def fixtures_page():
     return render_template("fixtures.html", active_page="fixtures")
+
+@app.route("/matchups")
+def matchups_page():
+    schedule = _load_schedule()
+    return render_template(
+        "matchups.html",
+        active_page="matchups",
+        schedule_events=schedule["events"],
+        schedule_meta=schedule["meta"],
+    )
 
 @app.route("/schedule")
 def schedule_page():
@@ -588,7 +635,7 @@ def get_schedule_matchups():
         )
         return jsonify(res.data or [])
     except Exception as e:
-        return jsonify({"error": _internal_error(e)}), 500
+        return _matchup_db_error(e)
 
 
 @app.route("/api/schedule/matchups", methods=["POST"])
@@ -606,7 +653,7 @@ def create_schedule_matchup():
                details="created matchup for %s" % record["event_key"])
         return jsonify((res.data or [record])[0]), 201
     except Exception as e:
-        return jsonify({"error": _internal_error(e)}), 500
+        return _matchup_db_error(e)
 
 
 @app.route("/api/schedule/matchups/<matchup_id>", methods=["PUT"])
@@ -629,7 +676,7 @@ def update_schedule_matchup(matchup_id):
                details="updated matchup %s" % matchup_id)
         return jsonify((res.data or [record])[0])
     except Exception as e:
-        return jsonify({"error": _internal_error(e)}), 500
+        return _matchup_db_error(e)
 
 
 @app.route("/api/schedule/matchups/<matchup_id>", methods=["DELETE"])
@@ -643,7 +690,7 @@ def delete_schedule_matchup(matchup_id):
                details="deleted matchup %s" % matchup_id)
         return jsonify({"message": "Matchup deleted"})
     except Exception as e:
-        return jsonify({"error": _internal_error(e)}), 500
+        return _matchup_db_error(e)
 
 
 @app.route("/api/schedule/matchups/bulk", methods=["POST"])
@@ -680,7 +727,7 @@ def bulk_schedule_matchups():
                        + (f" {len(errors)} row(s) skipped." if errors else ""),
         })
     except Exception as e:
-        return jsonify({"error": _internal_error(e)}), 500
+        return _matchup_db_error(e)
 
 
 @app.route("/admin/matchups")

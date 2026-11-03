@@ -2,6 +2,8 @@
 -- Powers the individual/doubles pairing cards on /schedule and the
 -- /admin/matchups editor (manual entry + CSV import).
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS public.schedule_matchups (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     event_key TEXT NOT NULL,

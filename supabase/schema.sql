@@ -135,6 +135,11 @@ CREATE TABLE IF NOT EXISTS public.schedule_matchups (
     side_b_player_1 TEXT NOT NULL,
     side_b_player_2 TEXT,
     sort_order INT DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'scheduled',
+    score_a TEXT,
+    score_b TEXT,
+    score_summary TEXT,
+    winner_house TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
