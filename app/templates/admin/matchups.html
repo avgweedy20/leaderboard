@@ -8,7 +8,7 @@
         <div>
             <p class="eyebrow">Admin</p>
             <h1>Player Matchups</h1>
-            <p class="lead">Add the student pairings and scores shown on the day-wise schedule. Singles use one name per side; doubles can use two.</p>
+            <p class="lead">Add the student pairings and scores shown on the day-wise schedule, including Day 1 Cricksal. Singles use one name per side; doubles can use two.</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button onclick="openMatchupModal()" class="btn">
@@ -87,7 +87,7 @@
         <div class="modal-header">
             <div>
                 <h3 id="matchupModalTitle">Add Matchup</h3>
-                <p style="margin-top:2px;">Singles or doubles only — maximum two players per side.</p>
+                <p style="margin-top:2px;">Cricksal, singles, or doubles — maximum two players per side.</p>
             </div>
             <button class="modal-close" onclick="closeModal('matchupModal')">&times;</button>
         </div>
@@ -255,7 +255,7 @@
 {% block scripts %}
 <script>
     const SCHEDULE_EVENTS = {{ schedule_events|tojson }};
-    const MATCHUP_SPORTS = new Set(['table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
+    const MATCHUP_SPORTS = new Set(['cricksal', 'table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
     const MATCHUP_HOUSES = ['Karnali', 'Koshi', 'Mahakali', 'Mechi'];
     const MATCHUP_HOUSE_VARS = {
         karnali: 'var(--c-karnali)',

@@ -477,8 +477,8 @@ def _load_schedule():
     return schedule
 
 
-# Player-level pairings only make sense for individual sports and doubles.
-_MATCHUP_SPORTS = {"table-tennis", "badminton", "chess", "carrom", "athletics", "swimming"}
+# Player-level pairings are supported for Cricksal, individual sports, and doubles.
+_MATCHUP_SPORTS = {"cricksal", "table-tennis", "badminton", "chess", "carrom", "athletics", "swimming"}
 _MATCHUP_HOUSES = ("Karnali", "Koshi", "Mahakali", "Mechi")
 _MATCHUP_HOUSE_LOOKUP = {house.lower(): house for house in _MATCHUP_HOUSES}
 
@@ -523,7 +523,7 @@ def _prepare_matchup(data):
     if not event:
         return None, f"Unknown schedule event '{event_key}'."
     if event["sport"] not in _MATCHUP_SPORTS:
-        return None, "Player matchups are only available for individual sports and doubles."
+        return None, "Player matchups are only available for Cricksal, individual sports, and doubles."
 
     sides = {}
     for side, label in (("a", "Side A"), ("b", "Side B")):

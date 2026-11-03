@@ -677,6 +677,15 @@ def test_public_matchups_admin_controls_are_hidden_by_default(client):
     assert 'matchupAdminBar' in html
 
 
+def test_day_one_cricksal_is_available_in_matchup_forms(client):
+    for path in ('/admin/matchups', '/matchups'):
+        rv = client.get(path)
+        assert rv.status_code == 200
+        html = rv.get_data(as_text=True)
+        assert 'd1-cricksal-boys' in html
+        assert "new Set(['cricksal'," in html
+
+
 def _sample_matchup(**overrides):
     payload = {
         "event_key": "d2-table-tennis-boys",
@@ -764,6 +773,33 @@ def test_plain_admin_can_manage_matchups(client):
 
         rv = client.delete(f"/api/schedule/matchups/{created['id']}", headers=headers)
         assert rv.status_code == 200
+    finally:
+        _delete_matchups_for(client, headers, {event_key})
+
+
+def test_admin_can_add_and_update_day_one_cricksal_scores(client):
+    headers = _admin_headers(client)
+    event_key = 'd1-cricksal-boys'
+    try:
+        rv = client.post(
+            '/api/schedule/matchups',
+            json=_sample_matchup(event_key=event_key, status='completed',
+                                 score_a='3', score_b='2', winner_house='Karnali'),
+            headers=headers,
+        )
+        assert rv.status_code == 201, rv.get_json()
+        created = rv.get_json()
+        assert created['event_key'] == event_key
+        assert created['score_a'] == '3'
+
+        rv = client.put(
+            f"/api/schedule/matchups/{created['id']}",
+            json=_sample_matchup(event_key=event_key, status='completed',
+                                 score_a='4', score_b='2', winner_house='Karnali'),
+            headers=headers,
+        )
+        assert rv.status_code == 200, rv.get_json()
+        assert rv.get_json()['score_a'] == '4'
     finally:
         _delete_matchups_for(client, headers, {event_key})
 

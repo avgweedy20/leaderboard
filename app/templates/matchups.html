@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block title %}Matchups &amp; Results{% endblock %}
-{% block meta_desc %}Every singles and doubles player matchup at the DSS Inter-House Sports Meet 2083 - pairings, houses, stages, and scores.{% endblock %}
+{% block meta_desc %}Cricksal, singles, and doubles player matchups at the DSS Inter-House Sports Meet 2083 - pairings, houses, stages, and scores.{% endblock %}
 
 {% block content %}
 <section>
     <div class="page-head">
         <p class="eyebrow">{{ schedule_meta.event }} 2083 · {{ schedule_meta.level }}</p>
         <h1>Matchups &amp; Results</h1>
-        <p class="lead">Every singles and doubles pairing, with student names, houses, and scores. Open to everyone.</p>
+        <p class="lead">Every Cricksal, singles, and doubles pairing, with student names, houses, and scores. Open to everyone.</p>
 
         <div id="matchupAdminBar" class="matchup-admin-bar hidden" aria-label="Admin matchup tools">
             <span class="matchup-admin-label">
@@ -77,7 +77,7 @@
         <div class="modal-header">
             <div>
                 <h3 id="publicMatchupModalTitle">Add Matchup</h3>
-                <p style="margin-top:2px;">Singles or doubles only — maximum two players per side.</p>
+                <p style="margin-top:2px;">Cricksal, singles, or doubles — maximum two players per side.</p>
             </div>
             <button type="button" class="modal-close" aria-label="Close" onclick="closeModal('publicMatchupModal')">&times;</button>
         </div>
@@ -206,7 +206,7 @@
         }
     });
 
-    const MATCHUP_SPORTS = new Set(['table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
+    const MATCHUP_SPORTS = new Set(['cricksal', 'table-tennis', 'badminton', 'chess', 'carrom', 'athletics', 'swimming']);
     const MATCHUP_EVENTS = SCHEDULE_EVENTS.filter(event => MATCHUP_SPORTS.has(event.sport));
 
     let publicMatchups = [];
