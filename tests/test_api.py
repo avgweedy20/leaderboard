@@ -940,7 +940,7 @@ def test_schedule_matchup_score_validation(client):
 
 
 def test_schedule_matchup_missing_table_message():
-    from app.app import _missing_matchup_table, _MATCHUP_TABLE_HINT
+    from app.app import _matchup_db_error, _missing_matchup_table, _MATCHUP_TABLE_HINT
 
     exc = Exception(
         "{'message': \"Could not find the table 'public.schedule_matchups' in the schema cache\", "
@@ -948,6 +948,13 @@ def test_schedule_matchup_missing_table_message():
     )
     assert _missing_matchup_table(exc)
     assert '003_schedule_matchups.sql' in _MATCHUP_TABLE_HINT
+    assert '005_reload_schedule_matchups_schema_cache.sql' in _MATCHUP_TABLE_HINT
+    assert 'SUPABASE_URL' in _MATCHUP_TABLE_HINT
+    with app.app_context():
+        response, status = _matchup_db_error(exc)
+    assert status == 503
+    assert response.get_json()['setup_required'] is True
+    assert 'cannot see public.schedule_matchups' in response.get_json()['error']
     assert not _missing_matchup_table(Exception("some unrelated database failure"))
 
 

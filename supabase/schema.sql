@@ -548,3 +548,5 @@ REVOKE ALL ON public.admin_audit_log FROM anon, authenticated;
 
 -- The admins registry itself must never be reachable by non-admin clients.
 REVOKE ALL ON public.admins FROM anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';

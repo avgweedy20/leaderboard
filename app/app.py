@@ -483,9 +483,11 @@ _MATCHUP_HOUSES = ("Karnali", "Koshi", "Mahakali", "Mechi")
 _MATCHUP_HOUSE_LOOKUP = {house.lower(): house for house in _MATCHUP_HOUSES}
 
 _MATCHUP_TABLE_HINT = (
-    "The schedule_matchups table is not set up yet. Apply "
-    "supabase/migrations/003_schedule_matchups.sql in the Supabase SQL editor, "
-    "then reload this page."
+    "PostgREST cannot see public.schedule_matchups. Confirm that this server's "
+    "SUPABASE_URL points to the project where "
+    "supabase/migrations/003_schedule_matchups.sql was applied. If the table "
+    "exists, run supabase/migrations/005_reload_schedule_matchups_schema_cache.sql "
+    "in that project's Supabase SQL editor, then retry."
 )
 
 
