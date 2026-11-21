@@ -489,20 +489,38 @@ _MATCHUP_TABLE_HINT = (
     "exists, run supabase/migrations/005_reload_schedule_matchups_schema_cache.sql "
     "in that project's Supabase SQL editor, then retry."
 )
+_MATCHUP_COLUMNS_HINT = (
+    "The schedule_matchups table is missing result columns. Run "
+    "supabase/migrations/005_reload_schedule_matchups_schema_cache.sql in this "
+    "project's Supabase SQL editor, then retry."
+)
 
 
 def _missing_matchup_table(exc):
     """Detect PostgREST's PGRST205 'table not in schema cache' response."""
-    text = str(exc)
-    return "PGRST205" in text or (
-        "schedule_matchups" in text and "schema cache" in text.lower()
+    text = str(exc).lower()
+    return "pgrst205" in text or (
+        "could not find the table" in text
+        and "schedule_matchups" in text
+        and "schema cache" in text
+    )
+
+
+def _missing_matchup_columns(exc):
+    """Detect missing result columns without mistaking them for a missing table."""
+    text = str(exc).lower()
+    return "schedule_matchups" in text and (
+        "pgrst204" in text
+        or ("column" in text and ("schema cache" in text or "does not exist" in text))
     )
 
 
 def _matchup_db_error(exc):
-    """Return a friendly JSON error for a missing table, else None."""
+    """Return a friendly JSON error for an uninitialized matchup schema."""
     if _missing_matchup_table(exc):
         return jsonify({"error": _MATCHUP_TABLE_HINT, "setup_required": True}), 503
+    if _missing_matchup_columns(exc):
+        return jsonify({"error": _MATCHUP_COLUMNS_HINT, "setup_required": True}), 503
     return jsonify({"error": _internal_error(exc)}), 500
 
 
